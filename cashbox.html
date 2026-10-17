@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>الصندوق</title>
+    <script src="storage.js"></script>
+    <script src="auth.js"></script>
+    <style>
+        :root {
+            --page: #efede5;
+            --olive: #40570d;
+            --olive-dark: #344807;
+            --panel: #d1cec5;
+            --ink: #10110d;
+            --muted: #5a5a52;
+            --line: #bdb9ae;
+            --red: #c74845;
+            --green: #91d94c;
+            --font: Tahoma, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page);
+            color: var(--ink);
+            font-family: var(--font);
+        }
+
+        /* ===== Header ===== */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 22px 22% 10px 4%;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: clamp(28px, 3vw, 44px);
+        }
+
+        .brand {
+            text-align: center;
+            color: var(--green);
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .brand span {
+            display: block;
+            color: var(--olive-dark);
+            font-size: 20px;
+        }
+
+        /* ===== Sidebar ===== */
+        .sidebar {
+            position: fixed;
+            top: 4px;
+            right: 1.4%;
+            bottom: 1%;
+            width: 17.8%;
+            min-width: 230px;
+            border-radius: 48px;
+            background: var(--panel);
+            padding: 22px 16px 28px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 8px 10px 14px #0002;
+        }
+
+        .sidebar nav {
+            display: grid;
+            gap: 2px;
+        }
+
+        .sidebar nav.bottom {
+            margin-top: auto;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 8px 13px;
+            color: var(--ink);
+            text-decoration: none;
+            font-size: clamp(18px, 1.7vw, 28px);
+            font-weight: 700;
+            border-radius: 28px;
+            line-height: 1.2;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background: #8d956e;
+        }
+
+        /* ===== Main ===== */
+        main {
+            margin: 10px 21.7% 30px 3%;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .summary-card {
+            background: var(--panel);
+            border-radius: 30px;
+            padding: 16px 20px;
+            color: var(--olive-dark);
+            box-shadow: 4px 6px 10px #0002;
+        }
+
+        .summary-card.main {
+            background: var(--olive);
+            color: var(--page);
+        }
+
+        .summary-card.warn {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .summary-card .label {
+            font-size: 16px;
+            font-weight: 700;
+            opacity: .9;
+        }
+
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .add-button {
+            border: 0;
+            background: var(--red);
+            color: #090909;
+            font: 700 22px var(--font);
+            padding: 10px 26px;
+            border-radius: 18px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .search {
+            flex: 1;
+            min-width: 200px;
+            height: 46px;
+            border: 3px solid #777;
+            border-radius: 12px;
+            background: #fff;
+            font: 16px var(--font);
+            padding: 0 12px;
+            color: var(--ink);
+        }
+
+        .chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            border: 0;
+            border-radius: 22px;
+            background: var(--panel);
+            color: var(--olive-dark);
+            font: 700 15px var(--font);
+            padding: 9px 16px;
+            cursor: pointer;
+        }
+
+        .chip[aria-pressed="true"] {
+            background: var(--olive);
+            color: var(--page);
+        }
+
+        .table-card {
+            background: var(--panel);
+            border-radius: 36px;
+            padding: 14px 16px 16px;
+            box-shadow: 8px 10px 12px #0003;
+        }
+
+        .table-meta {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            margin: 2px 6px 10px;
+            color: var(--olive-dark);
+        }
+
+        .table-wrap {
+            overflow: auto;
+            max-height: 62vh;
+            border-radius: 22px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 900px;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--page);
+            text-align: center;
+            font-size: 16px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--olive);
+            color: var(--page);
+            padding: 12px 6px;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            padding: 11px 6px;
+            border-bottom: 1px solid var(--line);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        tbody tr:hover {
+            background: #e4e1d6;
+        }
+
+        td.in {
+            color: var(--olive-dark);
+            font-weight: 700;
+        }
+
+        td.out {
+            color: var(--red);
+            font-weight: 700;
+        }
+
+        .type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 14px;
+            background: #d8ecc0;
+            color: var(--olive-dark);
+        }
+
+        .type.out {
+            background: #f2c7c5;
+            color: #7a2a27;
+        }
+
+        .type.manual {
+            background: #cfdcef;
+            color: #23405f;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 6px 12px;
+            font: 700 14px var(--font);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn.view {
+            background: transparent;
+            color: var(--olive);
+            border: 2px solid var(--olive);
+        }
+
+        .btn.view:hover {
+            background: var(--olive);
+            color: var(--page);
+        }
+
+        .btn.red {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .btn.danger {
+            background: #7a2a27;
+            color: #fff;
+        }
+
+        .btn.secondary {
+            background: #777;
+            color: #fff;
+        }
+
+        .actions {
+            display: inline-flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .empty {
+            display: none;
+            text-align: center;
+            color: var(--muted);
+            padding: 50px 10px;
+            font-size: 18px;
+        }
+
+        .empty.show {
+            display: block;
+        }
+
+        /* ===== Dialog ===== */
+        dialog {
+            width: min(520px, 92vw);
+            border: 0;
+            border-radius: 28px;
+            background: var(--page);
+            color: var(--ink);
+            padding: 24px;
+            box-shadow: 0 10px 30px #0005;
+            font-family: var(--font);
+        }
+
+        dialog::backdrop {
+            background: #0006;
+        }
+
+        dialog h2 {
+            margin: 0 0 14px;
+            font-size: 26px;
+            color: var(--olive-dark);
+        }
+
+        .dlg-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .dlg-form label {
+            display: grid;
+            gap: 5px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .dlg-form input,
+        .dlg-form select {
+            height: 44px;
+            border: 3px solid #777;
+            border-radius: 12px;
+            padding: 0 12px;
+            font: 16px var(--font);
+            background: #fff;
+        }
+
+        .dlg-form .two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .dlg-form .row {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .error {
+            color: var(--red);
+            font-weight: 700;
+            font-size: 14px;
+            min-height: 18px;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 1050px) {
+            .sidebar {
+                width: 200px;
+                min-width: 0;
+                padding: 16px 10px;
+            }
+
+            .sidebar a {
+                font-size: 19px;
+            }
+
+            .topbar {
+                padding-right: 230px;
+            }
+
+            main {
+                margin: 10px 230px 30px 20px;
+            }
+
+            .summary {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 650px) {
+            .sidebar {
+                position: static;
+                width: auto;
+                min-width: 0;
+                margin: 0 4% 16px;
+                padding: 10px;
+                border-radius: 20px;
+                box-shadow: none;
+            }
+
+            .sidebar nav {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .sidebar nav.bottom {
+                margin-top: 8px;
+            }
+
+            .topbar {
+                padding: 16px 5%;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            main {
+                margin: 0 4% 20px;
+            }
+
+            .summary {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            .summary-card .value {
+                font-size: 18px;
+            }
+
+            .table-card {
+                border-radius: 24px;
+            }
+
+            .dlg-form .two {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <h1>الصندوق</h1>
+        <div class="brand">مرحبا بك<span>“اسم المتجر”</span></div>
+    </header>
+
+    <aside class="sidebar" aria-label="القائمة الرئيسية">
+        <nav>
+            <a href="home.html">الصفحة الرئيسية</a>
+            <a href="sales-new_1.html">المبيعات</a>
+            <a href="inventory.html">المخزن</a>
+            <a href="purchases.html">المشتريات</a>
+            <a href="debts.html">الديون</a>
+            <a class="active" href="cashbox.html" aria-current="page">الصندوق</a>
+            <a href="reports.html">التقارير</a>
+        </nav>
+        <nav class="bottom">
+            <a href="settings.html">الإعدادات</a>
+            <a href="exchange-rate.html">سعر الصرف</a>
+        </nav>
+    </aside>
+
+    <main>
+        <section class="summary" aria-label="ملخص الصندوق">
+            <article class="summary-card main">
+                <div class="label">الرصيد الحالي</div>
+                <div class="value" id="balance">0 د.ع</div>
+            </article>
+            <article class="summary-card">
+                <div class="label">إجمالي الوارد</div>
+                <div class="value" id="totalIn">0 د.ع</div>
+            </article>
+            <article class="summary-card">
+                <div class="label">إجمالي الصادر</div>
+                <div class="value" id="totalOut">0 د.ع</div>
+            </article>
+            <article class="summary-card">
+                <div class="label">رصيد اليوم</div>
+                <div class="value" id="todayNet">0 د.ع</div>
+            </article>
+        </section>
+
+        <div class="toolbar">
+            <button class="add-button" id="addManualBtn" type="button">+ حركة يدوية</button>
+            <input class="search" id="searchInput" type="search" placeholder="ابحث في الحركات…">
+            <div class="chips" id="typeChips" role="group" aria-label="تصفية حسب النوع">
+                <button class="chip" type="button" data-filter="all" aria-pressed="true">الكل</button>
+                <button class="chip" type="button" data-filter="in" aria-pressed="false">وارد</button>
+                <button class="chip" type="button" data-filter="out" aria-pressed="false">صادر</button>
+            </div>
+        </div>
+
+        <section class="table-card" aria-label="حركات الصندوق">
+            <div class="table-meta">
+                <span id="resultText"></span>
+                <span>الأحدث أولاً</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>التاريخ</th>
+                            <th>النوع</th>
+                            <th>البيان</th>
+                            <th>المبلغ</th>
+                            <th>الرصيد بعد الحركة</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cashRows"></tbody>
+                </table>
+                <div class="empty" id="emptyMessage">لا توجد حركات مطابقة.</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- نافذة الحركة اليدوية -->
+    <dialog id="manualDialog" aria-labelledby="manualTitle">
+        <h2 id="manualTitle">حركة يدوية</h2>
+        <form class="dlg-form" id="manualForm" novalidate>
+            <label>نوع الحركة
+                <select name="kind" required>
+                    <option value="in">إيداع (وارد)</option>
+                    <option value="out">سحب (صادر)</option>
+                </select>
+            </label>
+            <div class="two">
+                <label>المبلغ (د.ع)
+                    <input name="amount" type="number" min="1" step="1" inputmode="numeric" required>
+                </label>
+                <label>التاريخ
+                    <input name="date" type="date" required>
+                </label>
+            </div>
+            <label>البيان
+                <input name="note" type="text" required autocomplete="off" placeholder="مثال: إيداع رأس مال">
+            </label>
+            <p class="hint">الحركات اليدوية تُحفظ منفصلة، ولا تُعدّل فواتير المبيعات أو المشتريات.</p>
+            <div class="error" id="manualError" role="alert"></div>
+            <div class="row">
+                <button class="btn red" type="submit">حفظ</button>
+                <button class="btn secondary" type="button" data-close="manualDialog">إلغاء</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script>
+        const INVOICES_KEY = 'storeInvoices';
+        const PURCHASES_KEY = 'storePurchases';
+        const PAYMENTS_KEY = 'storeDebtPayments';
+        const MANUAL_KEY = 'storeCashManual';
+        const OPENING_KEY = 'storeCashOpening';
+
+        let invoices = [];
+        let purchases = [];
+        let debtPayments = [];
+        let manual = [];
+        let opening = 0;
+        let typeFilter = 'all';
+
+        const body = document.getElementById('cashRows');
+        const emptyMessage = document.getElementById('emptyMessage');
+        const searchInput = document.getElementById('searchInput');
+        const manualDialog = document.getElementById('manualDialog');
+        const manualForm = document.getElementById('manualForm');
+        const manualError = document.getElementById('manualError');
+
+        function safeParse(text) {
+            try {
+                const value = JSON.parse(text || '[]');
+                return Array.isArray(value) ? value : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        function money(n) {
+            return Number(n || 0).toLocaleString('en-US') + ' د.ع';
+        }
+
+        function num(n) {
+            return Number(n || 0).toLocaleString('en-US');
+        }
+
+        function todayLocal() {
+            const d = new Date();
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            return d.toISOString().slice(0, 10);
+        }
+
+        function newId() {
+            return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        }
+
+        function loadData() {
+            invoices = safeParse(localStorage.getItem(INVOICES_KEY));
+            purchases = safeParse(localStorage.getItem(PURCHASES_KEY));
+            debtPayments = safeParse(localStorage.getItem(PAYMENTS_KEY));
+            manual = safeParse(localStorage.getItem(MANUAL_KEY));
+            opening = Number(localStorage.getItem(OPENING_KEY) || 0);
+        }
+
+        function saveManual() {
+            localStorage.setItem(MANUAL_KEY, JSON.stringify(manual));
+        }
+
+        function saveOpening(value) {
+            opening = Number(value || 0);
+            localStorage.setItem(OPENING_KEY, String(opening));
+        }
+
+        function invoiceTotal(inv) {
+            if (Array.isArray(inv.items)) {
+                const subtotal = inv.items.reduce((s, it) => s + Number(it.total || 0), 0);
+                return Math.max(0, subtotal - Number(inv.discount || 0));
+            }
+            return Number(inv.amount || 0);
+        }
+
+        function purchaseTotal(p) {
+            const subtotal = (p.items || []).reduce((s, it) => s + Number(it.total || 0), 0);
+            return Math.max(0, subtotal - Number(p.discount || 0));
+        }
+
+        // ===== بناء كل حركات الصندوق من المصادر =====
+        function buildMovements() {
+            const list = [];
+
+            // المبيعات: النقدي والبطاقة فقط تدخل الصندوق فورًا
+            invoices.forEach(inv => {
+                if (inv.payment === 'نقدي' || inv.payment === 'بطاقة') {
+                    list.push({
+                        id: 'inv-' + inv.number,
+                        date: inv.date || '',
+                        kind: 'in',
+                        source: 'sales',
+                        label: `بيع فاتورة ${inv.number} - ${inv.customer || ''}`,
+                        amount: invoiceTotal(inv)
+                    });
+                }
+            });
+
+            // تسديدات الديون: تدخل الصندوق عند التسديد
+            debtPayments.forEach((p, i) => {
+                list.push({
+                    id: 'pay-' + i,
+                    date: p.date || '',
+                    kind: 'in',
+                    source: 'debt',
+                    label: `تسديد دين فاتورة ${p.invoiceNumber}${p.note ? ' - ' + p.note : ''}`,
+                    amount: Number(p.amount || 0)
+                });
+            });
+
+            // المشتريات المدفوعة نقدًا أو بالبطاقة، والمسددة من الدين
+            purchases.forEach(p => {
+                const paidNow = p.payment === 'نقدي' || p.payment === 'بطاقة' || (p.payment === 'دين' && p.settled);
+                if (paidNow) {
+                    list.push({
+                        id: 'pur-' + p.id,
+                        date: p.date || '',
+                        kind: 'out',
+                        source: 'purchase',
+                        label: `شراء فاتورة ${p.number} - ${p.supplier || ''}`,
+                        amount: purchaseTotal(p)
+                    });
+                }
+            });
+
+            // الحركات اليدوية
+            manual.forEach(m => {
+                list.push({
+                    id: 'man-' + m.id,
+                    date: m.date || '',
+                    kind: m.kind,
+                    source: 'manual',
+                    label: m.note || 'حركة يدوية',
+                    amount: Number(m.amount || 0),
+                    manualId: m.id
+                });
+            });
+
+            return list;
+        }
+
+        const typeLabel = { sales: 'مبيعات', debt: 'تسديد دين', purchase: 'مشتريات', manual: 'يدوي' };
+
+        function render() {
+            const all = buildMovements();
+
+            // ترتيب زمني تصاعدي لحساب الرصيد التراكمي
+            const chronological = [...all].sort((a, b) => a.date.localeCompare(b.date));
+            let running = opening;
+            const withBalance = chronological.map(m => {
+                running += m.kind === 'in' ? m.amount : -m.amount;
+                return { ...m, balanceAfter: running };
+            });
+
+            const balance = running;
+            const totalIn = all.filter(m => m.kind === 'in').reduce((s, m) => s + m.amount, 0);
+            const totalOut = all.filter(m => m.kind === 'out').reduce((s, m) => s + m.amount, 0);
+            const today = todayLocal();
+            const todayNet = all
+                .filter(m => m.date === today)
+                .reduce((s, m) => s + (m.kind === 'in' ? m.amount : -m.amount), 0);
+
+            const q = searchInput.value.trim().toLowerCase();
+            const rows = withBalance
+                .filter(m => typeFilter === 'all' || m.kind === typeFilter)
+                .filter(m => !q || m.label.toLowerCase().includes(q))
+                .sort((a, b) => b.date.localeCompare(a.date));
+
+            body.innerHTML = rows.map(m => `
+                <tr>
+                    <td>${esc(m.date)}</td>
+                    <td><span class="type ${m.kind === 'out' ? 'out' : ''} ${m.source === 'manual' ? 'manual' : ''}">${typeLabel[m.source]}</span></td>
+                    <td>${esc(m.label)}</td>
+                    <td class="${m.kind}">${m.kind === 'in' ? '+' : '−'} ${money(m.amount)}</td>
+                    <td>${money(m.balanceAfter)}</td>
+                    <td>
+                        ${m.source === 'manual'
+                    ? `<button class="btn danger" type="button" data-del="${m.manualId}">حذف</button>`
+                    : '<span class="hint">تلقائي</span>'}
+                    </td>
+                </tr>`).join('');
+
+            emptyMessage.classList.toggle('show', rows.length === 0);
+
+            document.getElementById('balance').textContent = money(balance);
+            document.getElementById('totalIn').textContent = money(totalIn);
+            document.getElementById('totalOut').textContent = money(totalOut);
+            document.getElementById('todayNet').textContent = (todayNet >= 0 ? '+ ' : '− ') + money(Math.abs(todayNet));
+            document.getElementById('resultText').textContent = `عرض ${num(rows.length)} من ${num(all.length)} حركة`;
+        }
+
+        // ===== الحركة اليدوية =====
+        document.getElementById('addManualBtn').addEventListener('click', () => {
+            manualError.textContent = '';
+            manualForm.reset();
+            manualForm.elements.date.value = todayLocal();
+            manualDialog.showModal();
+        });
+
+        manualForm.addEventListener('submit', event => {
+            event.preventDefault();
+            manualError.textContent = '';
+            if (!manualForm.reportValidity()) return;
+
+            const amount = Number(manualForm.elements.amount.value);
+            if (!amount || amount <= 0) {
+                manualError.textContent = 'أدخل مبلغًا أكبر من صفر';
+                return;
+            }
+
+            const kind = manualForm.elements.kind.value;
+            const note = manualForm.elements.note.value.trim();
+            const date = manualForm.elements.date.value;
+
+            // سحب يتجاوز الرصيد: نمنعه حتى لا يصبح الصندوق سالبًا
+            if (kind === 'out') {
+                const current = Number(document.getElementById('balance').textContent.replace(/[^\d-]/g, '')) || 0;
+                if (amount > current) {
+                    manualError.textContent = 'المبلغ أكبر من الرصيد الحالي في الصندوق';
+                    return;
+                }
+            }
+
+            manual.push({ id: newId(), kind, amount, note, date });
+            saveManual();
+            manualDialog.close();
+            render();
+        });
+
+        body.addEventListener('click', event => {
+            const del = event.target.closest('[data-del]');
+            if (!del) return;
+            if (!confirm('هل تريد حذف هذه الحركة اليدوية؟')) return;
+            manual = manual.filter(m => m.id !== del.dataset.del);
+            saveManual();
+            render();
+        });
+
+        document.querySelectorAll('[data-close]').forEach(btn => {
+            btn.addEventListener('click', () => document.getElementById(btn.dataset.close).close());
+        });
+
+        document.getElementById('typeChips').addEventListener('click', event => {
+            const chip = event.target.closest('.chip');
+            if (!chip) return;
+            typeFilter = chip.dataset.filter;
+            document.querySelectorAll('#typeChips .chip')
+                .forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+            render();
+        });
+
+        searchInput.addEventListener('input', render);
+
+        window.addEventListener('storage', event => {
+            if ([INVOICES_KEY, PURCHASES_KEY, PAYMENTS_KEY, MANUAL_KEY, OPENING_KEY].includes(event.key)) {
+                loadData();
+                render();
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                loadData();
+                render();
+            }
+        });
+
+        loadData();
+        render();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>تسجيل الدخول</title>
+    <script src="storage.js"></script>
+    <script src="auth.js"></script>
+    <style>
+        :root {
+            --page: #efede5;
+            --olive: #40570d;
+            --panel: #d1cec5;
+            --red: #c74845;
+            --font: Tahoma, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page);
+            font-family: var(--font);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            width: min(440px, 100%);
+            background: var(--panel);
+            border-radius: 40px;
+            padding: 36px 32px;
+            box-shadow: 10px 10px 16px #0002;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            text-align: center;
+            font-size: 34px;
+            color: #10110d;
+        }
+
+        .sub {
+            text-align: center;
+            margin: 0 0 24px;
+            color: #5a5a52;
+            font-weight: 700;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+
+        input {
+            height: 50px;
+            border: 3px solid #777;
+            border-radius: 12px;
+            padding: 0 14px;
+            font: 17px var(--font);
+            background: #fff;
+        }
+
+        button {
+            width: 100%;
+            height: 52px;
+            border: 0;
+            border-radius: 14px;
+            background: var(--red);
+            color: #fff;
+            font: 700 19px var(--font);
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #a93a38;
+        }
+
+        .error {
+            min-height: 22px;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="login-card">
+        <h1>المتجر</h1>
+        <p class="sub">سجّل الدخول للمتابعة</p>
+        <form id="loginForm" novalidate>
+            <label>اسم المستخدم
+                <input name="username" required autocomplete="username" autofocus>
+            </label>
+            <label>كلمة المرور
+                <input name="password" type="password" required autocomplete="current-password">
+            </label>
+            <button type="submit">تسجيل الدخول</button>
+            <div class="error" id="loginError" role="alert"></div>
+        </form>
+    </main>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const errorEl = document.getElementById('loginError');
+
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            errorEl.textContent = '';
+            if (!form.reportValidity()) return;
+
+            const user = await StoreAuth.login(form.elements.username.value, form.elements.password.value);
+            if (!user) {
+                errorEl.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+                form.elements.password.value = '';
+                return;
+            }
+            location.href = 'home.html';
+        });
+    </script>
+</body>
+
+</html>

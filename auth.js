@@ -3,7 +3,7 @@
 const USERS_KEY = 'storeUsers';
 const SESSION_KEY = 'storeSession';
 const SETTINGS_KEY = 'storeSettings';
-const LOGIN_PAGE = 'login.html';
+const LOGIN_PAGE = 'index.html';
 const ADMIN_ONLY_PAGES = ['settings.html'];
 
 const page = (location.pathname.split('/').pop() || 'home.html').toLowerCase();

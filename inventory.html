@@ -248,6 +248,30 @@
             background: #e4e1d6;
         }
 
+        .name-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .thumb {
+            width: 44px;
+            height: 44px;
+            flex: 0 0 44px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #fff;
+        }
+
+        .thumb.ph {
+            display: grid;
+            place-items: center;
+            font-size: 22px;
+            background: var(--page);
+            border: 2px dashed var(--line);
+        }
+
         td.qty {
             font-weight: 700;
             font-size: 18px;
@@ -393,6 +417,12 @@
             background: #fff;
         }
 
+        .dlg-form input[type="file"] {
+            height: auto;
+            padding: 8px;
+            font-size: 14px;
+        }
+
         .dlg-form .two {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -403,6 +433,67 @@
             display: flex;
             gap: 10px;
             margin-top: 6px;
+        }
+
+        .img-field {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .img-preview {
+            width: 96px;
+            height: 96px;
+            object-fit: cover;
+            border-radius: 16px;
+            background: #fff;
+            border: 3px solid #777;
+        }
+
+        .img-preview[hidden] {
+            display: none;
+        }
+
+        .img-field .img-tools {
+            display: grid;
+            gap: 8px;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .btn.remove {
+            background: transparent;
+            color: var(--red);
+            border: 2px solid var(--red);
+            padding: 8px 12px;
+        }
+
+        .btn.remove[hidden] {
+            display: none;
+        }
+
+        .img-block {
+            display: grid;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .img-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .dlg-form input.sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            border: 0;
+            padding: 0;
         }
 
         .barcode-field input {
@@ -522,7 +613,6 @@
             <a href="cashier.html">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
             <a href="sales-new_1.html">المبيعات</a>
-            
             <a class="active" href="inventory.html" aria-current="page">المخزن</a>
             <a href="purchases.html">المشتريات</a>
             <a href="debts.html">الديون</a>
@@ -600,6 +690,23 @@
             <label class="barcode-field">الباركود (امسحه بالقارئ ثم Enter)
                 <input name="barcode" id="barcodeField" autocomplete="off" inputmode="none" placeholder="امسح الباركود">
             </label>
+
+            <div class="img-block">
+                <span>صورة المنتج (اختياري)</span>
+                <div class="img-field">
+                    <img class="img-preview" id="imagePreview" alt="معاينة صورة المنتج" hidden>
+                    <div class="img-tools">
+                        <input type="file" id="imageInput" class="sr-only" accept="image/*" capture="environment">
+                        <input type="file" id="galleryInput" class="sr-only" accept="image/*">
+                        <div class="img-buttons">
+                            <button class="btn view" id="takePhotoBtn" type="button">📷 التقاط صورة</button>
+                            <button class="btn view" id="pickImageBtn" type="button">🖼 من المعرض</button>
+                        </div>
+                        <button class="btn remove" id="removeImageBtn" type="button" hidden>حذف الصورة</button>
+                    </div>
+                </div>
+            </div>
+
             <label>اسم المنتج
                 <input name="name" autocomplete="off">
             </label>
@@ -658,6 +765,7 @@
         const PRODUCTS_KEY = 'storeProducts';
         const ADJ_KEY = 'storeStockAdjustments';
         const INV_KEY = 'storeInvoices';
+        const IMAGE_MAX = 300; // أقصى طول للصورة بعد التصغير (بكسل)
 
         let products = [];
         let adjustments = [];
@@ -665,6 +773,8 @@
         let statusFilter = 'all';
         let editingId = null;
         let adjustingId = null;
+        // undefined = لم تتغير الصورة، null = حذفها، نص = صورة جديدة (data URL)
+        let pendingImage = undefined;
 
         const $ = id => document.getElementById(id);
         const body = $('productRows');
@@ -674,6 +784,9 @@
         const productForm = $('productForm');
         const productError = $('productError');
         const barcodeField = $('barcodeField');
+        const imageInput = $('imageInput');
+        const imagePreview = $('imagePreview');
+        const removeImageBtn = $('removeImageBtn');
         const adjustDialog = $('adjustDialog');
         const adjustForm = $('adjustForm');
         const adjustError = $('adjustError');
@@ -709,6 +822,72 @@
         function saveProducts() { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); }
         function saveAdjustments() { localStorage.setItem(ADJ_KEY, JSON.stringify(adjustments)); }
 
+        // ===== الصور =====
+        // تصغير الصورة إلى IMAGE_MAX بكسل وتحويلها إلى JPEG حتى لا تثقل المزامنة
+        function resizeImage(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, IMAGE_MAX / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(img.width * scale));
+                    canvas.height = Math.max(1, Math.round(img.height * scale));
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    URL.revokeObjectURL(url);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('تعذر قراءة الصورة. جرّب صورة أخرى'));
+                };
+                img.src = url;
+            });
+        }
+
+        function setPreview(src) {
+            if (src) {
+                imagePreview.src = src;
+                imagePreview.hidden = false;
+                removeImageBtn.hidden = false;
+            } else {
+                imagePreview.removeAttribute('src');
+                imagePreview.hidden = true;
+                removeImageBtn.hidden = true;
+            }
+        }
+
+        const galleryInput = $('galleryInput');
+
+        $('takePhotoBtn').addEventListener('click', () => imageInput.click());
+        $('pickImageBtn').addEventListener('click', () => galleryInput.click());
+
+        [imageInput, galleryInput].forEach(input => {
+            input.addEventListener('change', async () => {
+                const file = input.files[0];
+                if (!file) return;
+                try {
+                    pendingImage = await resizeImage(file);
+                    setPreview(pendingImage);
+                    productError.textContent = '';
+                } catch (err) {
+                    productError.textContent = err.message;
+                }
+                input.value = '';
+            });
+        });
+
+        removeImageBtn.addEventListener('click', () => {
+            pendingImage = null;
+            imageInput.value = '';
+            galleryInput.value = '';
+            setPreview(null);
+        });
+
+        // ===== المخزون =====
         // المباع من المنتج عبر كل الفواتير (يطابق وصف السلعة اسم المنتج)
         function soldQty(name) {
             const target = String(name || '').trim();
@@ -759,7 +938,14 @@
 
             body.innerHTML = rows.map(({ p, qty, status, value }) => `
                 <tr>
-                    <td>${esc(p.name)}</td>
+                    <td>
+                        <div class="name-cell">
+                            ${p.image
+                    ? `<img class="thumb" src="${esc(p.image)}" alt="${esc(p.name)}">`
+                    : `<span class="thumb ph" aria-hidden="true">📦</span>`}
+                            <span>${esc(p.name)}</span>
+                        </div>
+                    </td>
                     <td>${esc(p.category)}</td>
                     <td class="barcode">${esc(p.barcode)}</td>
                     <td class="qty ${status === 'low' ? 'low' : ''} ${status === 'out' ? 'out' : ''}">${num(qty)}</td>
@@ -791,6 +977,7 @@
             editingId = id;
             productError.textContent = '';
             productForm.reset();
+            pendingImage = undefined;
 
             const p = id ? products.find(x => x.id === id) : null;
             $('productTitle').textContent = p ? 'تعديل منتج' : 'إضافة منتج';
@@ -803,6 +990,7 @@
             f.price.value = p?.price ?? '';
             f.openingQty.value = p?.openingQty ?? 0;
             f.minQty.value = p?.minQty ?? 0;
+            setPreview(p?.image || null);
 
             productDialog.showModal();
             // للمنتج الجديد يبدأ المؤشر في خانة الباركود لمسحه مباشرة
@@ -864,6 +1052,8 @@
                 openingQty: Math.max(0, Number(f.openingQty.value || 0)),
                 minQty: Math.max(0, Number(f.minQty.value || 0))
             };
+            // نضيف الصورة فقط إن تغيّرت أو حُذفت، فتبقى الصورة القديمة كما هي
+            if (pendingImage !== undefined) data.image = pendingImage;
 
             if (editingId) {
                 const i = products.findIndex(p => p.id === editingId);

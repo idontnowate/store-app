@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>سجل العمليات</title>
+    <script src="storage.js"></script>
+    <script src="theme.js"></script>
+    <script src="auth.js"></script>
+    <script src="layout.js"></script>
+    <script src="log.js"></script>
+    <style>
+        :root {
+            --page: #efede5;
+            --olive: #40570d;
+            --olive-dark: #344807;
+            --panel: #d1cec5;
+            --ink: #10110d;
+            --muted: #5a5a52;
+            --line: #bdb9ae;
+            --red: #c74845;
+            --green: #91d94c;
+            --font: Tahoma, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page);
+            color: var(--ink);
+            font-family: var(--font);
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 22px 22% 10px 4%;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: clamp(28px, 3vw, 44px);
+        }
+
+        .brand {
+            text-align: center;
+            color: var(--green);
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .brand span {
+            display: block;
+            color: var(--olive-dark);
+            font-size: 20px;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 4px;
+            right: 1.4%;
+            bottom: 1%;
+            width: 17.8%;
+            min-width: 230px;
+            border-radius: 48px;
+            background: var(--panel);
+            padding: 22px 16px 28px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 8px 10px 14px #0002;
+            overflow-y: auto;
+        }
+
+        .sidebar nav {
+            display: grid;
+            gap: 2px;
+        }
+
+        .sidebar nav.bottom {
+            margin-top: auto;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 8px 13px;
+            color: var(--ink);
+            text-decoration: none;
+            font-size: clamp(18px, 1.7vw, 28px);
+            font-weight: 700;
+            border-radius: 28px;
+            line-height: 1.2;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background: #8d956e;
+        }
+
+        main {
+            margin: 10px 21.7% 30px 3%;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .summary-card {
+            background: var(--panel);
+            border-radius: 30px;
+            padding: 16px 20px;
+            color: var(--olive-dark);
+            box-shadow: 4px 6px 10px #0002;
+        }
+
+        .summary-card.main {
+            background: var(--olive);
+            color: var(--page);
+        }
+
+        .summary-card.warn {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .summary-card .label {
+            font-size: 16px;
+            font-weight: 700;
+            opacity: .9;
+        }
+
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .input,
+        .select {
+            height: 44px;
+            border: 3px solid #777;
+            border-radius: 12px;
+            background: #fff;
+            font: 15px var(--font);
+            padding: 0 10px;
+            color: var(--ink);
+            min-width: 0;
+        }
+
+        .search {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 16px;
+            font: 700 15px var(--font);
+            cursor: pointer;
+            color: #fff;
+            background: var(--olive);
+            white-space: nowrap;
+        }
+
+        .btn.secondary {
+            background: #777;
+        }
+
+        .card {
+            background: var(--panel);
+            border-radius: 36px;
+            padding: 14px 16px 16px;
+            box-shadow: 8px 10px 12px #0003;
+        }
+
+        .meta-line {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            margin: 2px 6px 10px;
+            color: var(--olive-dark);
+        }
+
+        .table-wrap {
+            overflow: auto;
+            max-height: 64vh;
+            border-radius: 22px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 900px;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--page);
+            text-align: center;
+            font-size: 15px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--olive);
+            color: var(--page);
+            padding: 12px 6px;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            padding: 10px 6px;
+            border-bottom: 1px solid var(--line);
+            font-weight: 600;
+        }
+
+        tbody td.details {
+            text-align: right;
+            white-space: normal;
+            min-width: 260px;
+        }
+
+        tbody tr:hover {
+            background: #e4e1d6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 13px;
+            background: #d8ecc0;
+            color: var(--olive-dark);
+            white-space: nowrap;
+        }
+
+        .badge.delete {
+            background: #f2c7c5;
+            color: #7a2a27;
+        }
+
+        .badge.update,
+        .badge.stock {
+            background: #f5e3b0;
+            color: #6b4e00;
+        }
+
+        .badge.pay,
+        .badge.sale {
+            background: #cfe3f0;
+            color: #1f4a66;
+        }
+
+        .badge.login,
+        .badge.logout,
+        .badge.settings {
+            background: #e2dcef;
+            color: #3b2d66;
+        }
+
+        .empty {
+            display: none;
+            text-align: center;
+            color: var(--muted);
+            padding: 50px 10px;
+            font-size: 18px;
+        }
+
+        .empty.show {
+            display: block;
+        }
+
+        .denied {
+            background: var(--panel);
+            border-radius: 28px;
+            padding: 30px;
+            font-weight: 700;
+            font-size: 20px;
+            text-align: center;
+            color: var(--red);
+        }
+
+        @media (max-width: 1050px) {
+            .sidebar {
+                width: 200px;
+                min-width: 0;
+                padding: 16px 10px;
+            }
+
+            .sidebar a {
+                font-size: 19px;
+            }
+
+            .topbar {
+                padding-right: 230px;
+            }
+
+            main {
+                margin: 10px 230px 30px 20px;
+            }
+
+            .summary {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 650px) {
+            .sidebar {
+                position: static;
+                width: auto;
+                min-width: 0;
+                margin: 0 4% 16px;
+                padding: 10px;
+                border-radius: 20px;
+                box-shadow: none;
+            }
+
+            .sidebar nav {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .topbar {
+                padding: 16px 5%;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            main {
+                margin: 0 4% 20px;
+            }
+
+            .summary {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            .summary-card .value {
+                font-size: 18px;
+            }
+
+            .card {
+                border-radius: 24px;
+            }
+
+            .search {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <h1>سجل العمليات</h1>
+        <div class="brand">مرحبا بك<span>“اسم المتجر”</span></div>
+    </header>
+
+    <aside class="sidebar" aria-label="القائمة الرئيسية">
+        <nav>
+            <a href="home.html">الصفحة الرئيسية</a>
+            <a href="cashier.html">الكاشير</a>
+            <a href="sales-new_1.html">المبيعات</a>
+            <a href="inventory.html">المخزن</a>
+            <a href="purchases.html">المشتريات</a>
+            <a href="debts.html">الديون</a>
+            <a href="cashbox.html">الصندوق</a>
+            <a href="reports.html">التقارير</a>
+            <a class="active" href="log.html" aria-current="page">سجل العمليات</a>
+        </nav>
+        <nav class="bottom">
+            <a href="settings.html">الإعدادات</a>
+            <a href="exchange-rate.html">سعر الصرف</a>
+        </nav>
+    </aside>
+
+    <main id="mainArea">
+        <section class="summary" aria-label="ملخص السجل">
+            <article class="summary-card main">
+                <div class="label">إجمالي العمليات المسجلة</div>
+                <div class="value" id="totalCount">0</div>
+            </article>
+            <article class="summary-card">
+                <div class="label">عمليات اليوم</div>
+                <div class="value" id="todayCount">0</div>
+            </article>
+            <article class="summary-card warn">
+                <div class="label">عمليات الحذف اليوم</div>
+                <div class="value" id="todayDeletes">0</div>
+            </article>
+        </section>
+
+        <div class="toolbar">
+            <input class="input search" id="searchInput" type="search" placeholder="ابحث في التفاصيل أو اسم المستخدم…">
+            <select class="select" id="actionFilter" aria-label="نوع العملية"></select>
+            <select class="select" id="userFilter" aria-label="المستخدم"></select>
+            <input class="input" id="fromDate" type="date" aria-label="من تاريخ">
+            <input class="input" id="toDate" type="date" aria-label="إلى تاريخ">
+            <button class="btn secondary" id="resetBtn" type="button">مسح الفلاتر</button>
+            <button class="btn" id="exportBtn" type="button">تصدير Excel</button>
+        </div>
+
+        <section class="card" aria-label="جدول السجل">
+            <div class="meta-line">
+                <span id="resultText"></span>
+                <span>الأحدث أولاً</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>التاريخ والوقت</th>
+                            <th>المستخدم</th>
+                            <th>العملية</th>
+                            <th>الجهة</th>
+                            <th>التفاصيل</th>
+                            <th>الصفحة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logRows"></tbody>
+                </table>
+                <div class="empty" id="emptyMessage">لا توجد عمليات مطابقة.</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const SHOW_LIMIT = 500;
+
+        const ACTIONS = {
+            create: 'إضافة',
+            update: 'تعديل',
+            delete: 'حذف',
+            pay: 'تسديد',
+            sale: 'بيع',
+            cancel: 'إلغاء',
+            stock: 'تعديل كمية',
+            settings: 'إعدادات',
+            login: 'تسجيل دخول',
+            logout: 'تسجيل خروج'
+        };
+
+        const $ = id => document.getElementById(id);
+        const logRows = $('logRows');
+        const emptyMessage = $('emptyMessage');
+
+        function esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function todayLocal() {
+            const d = new Date();
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            return d.toISOString().slice(0, 10);
+        }
+
+        // تاريخ الصف بالتوقيت المحلي بصيغة yyyy-mm-dd
+        function localDate(iso) {
+            const d = new Date(iso);
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            return d.toISOString().slice(0, 10);
+        }
+
+        function formatTime(iso) {
+            return new Date(iso).toLocaleString('en-GB', { hour12: false });
+        }
+
+        function actionLabel(a) {
+            return ACTIONS[a] || a;
+        }
+
+        // ===== تعبئة قوائم التصفية =====
+        function fillFilters(all) {
+            const actionSel = $('actionFilter');
+            if (!actionSel.options.length) {
+                actionSel.innerHTML = '<option value="">كل العمليات</option>' +
+                    Object.entries(ACTIONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+            }
+
+            const userSel = $('userFilter');
+            const current = userSel.value;
+            const users = [...new Set(all.map(e => e.user).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
+            userSel.innerHTML = '<option value="">كل المستخدمين</option>' +
+                users.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+            userSel.value = users.includes(current) ? current : '';
+        }
+
+        function filtered(all) {
+            const q = $('searchInput').value.trim().toLowerCase();
+            const action = $('actionFilter').value;
+            const user = $('userFilter').value;
+            const from = $('fromDate').value;
+            const to = $('toDate').value;
+
+            return all.filter(e => {
+                if (action && e.action !== action) return false;
+                if (user && e.user !== user) return false;
+                const day = localDate(e.at);
+                if (from && day < from) return false;
+                if (to && day > to) return false;
+                if (q) {
+                    const text = `${e.user} ${e.entity} ${e.details} ${actionLabel(e.action)}`.toLowerCase();
+                    if (!text.includes(q)) return false;
+                }
+                return true;
+            });
+        }
+
+        function render() {
+            const all = StoreLog.list();
+            fillFilters(all);
+
+            const rows = filtered(all);
+            const shown = rows.slice(0, SHOW_LIMIT);
+            const today = todayLocal();
+
+            logRows.innerHTML = shown.map(e => `
+                <tr>
+                    <td>${esc(formatTime(e.at))}</td>
+                    <td>${esc(e.user || '—')}</td>
+                    <td><span class="badge ${esc(e.action)}">${esc(actionLabel(e.action))}</span></td>
+                    <td>${esc(e.entity)}</td>
+                    <td class="details">${esc(e.details)}</td>
+                    <td>${esc(e.page)}</td>
+                </tr>`).join('');
+
+            emptyMessage.classList.toggle('show', shown.length === 0);
+
+            const todayAll = all.filter(e => localDate(e.at) === today);
+            $('totalCount').textContent = all.length.toLocaleString('en-US');
+            $('todayCount').textContent = todayAll.length.toLocaleString('en-US');
+            $('todayDeletes').textContent = todayAll.filter(e => e.action === 'delete').length.toLocaleString('en-US');
+
+            $('resultText').textContent = rows.length > SHOW_LIMIT
+                ? `عرض أحدث ${SHOW_LIMIT} من ${rows.length} عملية مطابقة`
+                : `عرض ${rows.length} عملية`;
+
+            window.__lastRows = rows;
+        }
+
+        // ===== تصدير Excel =====
+        function exportXls() {
+            const rows = window.__lastRows || [];
+            const head = '<tr><th>التاريخ والوقت</th><th>المستخدم</th><th>العملية</th><th>الجهة</th><th>التفاصيل</th><th>الصفحة</th></tr>';
+            const body = rows.map(e => `<tr>
+                <td>${esc(formatTime(e.at))}</td><td>${esc(e.user)}</td><td>${esc(actionLabel(e.action))}</td>
+                <td>${esc(e.entity)}</td><td>${esc(e.details)}</td><td>${esc(e.page)}</td></tr>`).join('');
+            const html = `<html><head><meta charset="utf-8"></head><body><table border="1">${head}${body}</table></body></html>`;
+            const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `سجل-العمليات-${todayLocal()}.xls`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+
+        // ===== الصلاحيات: هذه الصفحة للمدير فقط =====
+        function guardAdmin() {
+            const u = window.StoreAuth && StoreAuth.currentUser ? StoreAuth.currentUser() : null;
+            if (u && u.role === 'admin') return true;
+            $('mainArea').innerHTML = '<div class="denied">هذه الصفحة للمدير فقط</div>';
+            return false;
+        }
+
+        // ===== الأحداث =====
+        ['searchInput', 'actionFilter', 'userFilter', 'fromDate', 'toDate'].forEach(id => {
+            $(id).addEventListener('input', render);
+            $(id).addEventListener('change', render);
+        });
+
+        $('resetBtn').addEventListener('click', () => {
+            $('searchInput').value = '';
+            $('actionFilter').value = '';
+            $('userFilter').value = '';
+            $('fromDate').value = '';
+            $('toDate').value = '';
+            render();
+        });
+
+        $('exportBtn').addEventListener('click', exportXls);
+
+        window.addEventListener('storage', e => {
+            if (e.key && e.key.startsWith(StoreLog.PREFIX)) render();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && guardAdmin()) render();
+        });
+
+        if (guardAdmin()) render();
+    </script>
+</body>
+
+</html>

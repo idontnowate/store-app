@@ -5,7 +5,7 @@
 
     let libPromise = null;
     let scanner = null;
-    let overlay = null;
+    let dlg = null;
 
     // تحميل المكتبة عند أول ضغطة فقط
     function loadLib() {
@@ -23,9 +23,10 @@
 
     function injectCss() {
         const css = `
-            #baOverlay { position: fixed; inset: 0; background: #000d; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; }
-            #baOverlay[hidden] { display: none; }
-            .ba-box { background: #efede5; border-radius: 20px; padding: 14px; width: min(480px, 100%); display: grid; gap: 10px; font-family: Tahoma, Arial, sans-serif; }
+            dialog#baOverlay { padding: 0; border: 0; background: transparent; max-width: none; max-height: none; width: 100%; height: 100%; }
+            dialog#baOverlay::backdrop { background: #000d; }
+            .ba-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+            .ba-box { background: #efede5; border-radius: 20px; padding: 14px; width: min(480px, 100%); display: grid; gap: 10px; font-family: Tahoma, Arial, sans-serif; color: #10110d; }
             #ba-reader { width: 100%; border-radius: 14px; overflow: hidden; background: #000; min-height: 240px; }
             .ba-msg { font-weight: 700; text-align: center; color: #40570d; min-height: 22px; }
             .ba-msg.err { color: #c74845; }
@@ -37,20 +38,23 @@
         document.head.appendChild(style);
     }
 
-    function ensureOverlay() {
-        if (overlay) return overlay;
-        overlay = document.createElement('div');
-        overlay.id = 'baOverlay';
-        overlay.hidden = true;
-        overlay.innerHTML = `
-            <div class="ba-box">
-                <div id="ba-reader"></div>
-                <div class="ba-msg" id="ba-msg" role="status"></div>
-                <button type="button" class="ba-close" id="ba-close">إغلاق الكاميرا</button>
+    function ensureDialog() {
+        if (dlg) return dlg;
+        dlg = document.createElement('dialog');
+        dlg.id = 'baOverlay';
+        dlg.innerHTML = `
+            <div class="ba-wrap">
+                <div class="ba-box">
+                    <div id="ba-reader"></div>
+                    <div class="ba-msg" id="ba-msg" role="status"></div>
+                    <button type="button" class="ba-close" id="ba-close">إغلاق الكاميرا</button>
+                </div>
             </div>`;
-        document.body.appendChild(overlay);
-        overlay.querySelector('#ba-close').addEventListener('click', closeCamera);
-        return overlay;
+        document.body.appendChild(dlg);
+        dlg.querySelector('#ba-close').addEventListener('click', closeCamera);
+        // زر Esc أو أي إغلاق آخر يوقف الكاميرا أيضا
+        dlg.addEventListener('close', closeCamera);
+        return dlg;
     }
 
     function setMsg(text, isErr = false) {
@@ -62,11 +66,12 @@
 
     async function closeCamera() {
         if (scanner) {
-            try { await scanner.stop(); } catch { }
-            try { scanner.clear(); } catch { }
+            const s = scanner;
             scanner = null;
+            try { await s.stop(); } catch { }
+            try { s.clear(); } catch { }
         }
-        if (overlay) overlay.hidden = true;
+        if (dlg && dlg.open) dlg.close();
     }
 
     // نحاكي الماسح: نكتب الرقم في الخانة ثم نرسل Enter
@@ -77,7 +82,8 @@
     }
 
     async function openCamera(input) {
-        ensureOverlay().hidden = false;
+        const d = ensureDialog();
+        if (!d.open) d.showModal();
         setMsg('جارِ تشغيل الكاميرا…');
         try {
             await loadLib();

@@ -267,6 +267,11 @@
             color: #7a2a27;
         }
 
+        .status.partial {
+            background: #f5e3b0;
+            color: #6b4e00;
+        }
+
         .btn {
             border: 0;
             border-radius: 12px;
@@ -335,6 +340,7 @@
         dialog {
             width: min(980px, 96vw);
             max-height: 92vh;
+            overflow: auto;
             border: 0;
             border-radius: 28px;
             background: var(--page);
@@ -486,6 +492,96 @@
             min-height: 18px;
         }
 
+        /* ===== نافذة التسديد ===== */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: var(--panel);
+            border-radius: 18px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .info-grid span {
+            display: block;
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .pay-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 18px;
+        }
+
+        .pay-form[hidden] {
+            display: none;
+        }
+
+        .pay-form label {
+            display: grid;
+            gap: 5px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .pay-form label.full {
+            grid-column: 1 / -1;
+        }
+
+        .pay-form input {
+            height: 44px;
+            border: 3px solid #777;
+            border-radius: 12px;
+            padding: 0 12px;
+            font: 16px var(--font);
+            background: #fff;
+            width: 100%;
+        }
+
+        .pay-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .sub {
+            margin: 18px 0 6px;
+            font-size: 18px;
+            color: var(--olive-dark);
+        }
+
+        .pay-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .pay-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel);
+            border-radius: 14px;
+            padding: 8px 12px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .rm {
+            border: 0;
+            background: transparent;
+            color: var(--red);
+            cursor: pointer;
+            font: 700 14px var(--font);
+            margin-inline-start: 8px;
+        }
+
         @media (max-width: 1050px) {
             .sidebar {
                 width: 200px;
@@ -548,7 +644,12 @@
                 border-radius: 24px;
             }
 
-            .grid-form {
+            .grid-form,
+            .pay-form {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -593,7 +694,7 @@
                 <div class="value" id="todayPurchases">0 د.ع</div>
             </article>
             <article class="summary-card warn">
-                <div class="label">مستحق للموردين</div>
+                <div class="label">المتبقي للموردين</div>
                 <div class="value" id="supplierDebt">0 د.ع</div>
             </article>
         </section>
@@ -701,6 +802,36 @@
         </form>
     </dialog>
 
+    <!-- نافذة تسديد الفاتورة (دفعات جزئية) -->
+    <dialog id="payDialog" aria-labelledby="payTitle">
+        <h2 id="payTitle">تسديد فاتورة شراء</h2>
+        <div class="info-grid" id="payInfo"></div>
+
+        <form class="pay-form" id="payForm" novalidate>
+            <label>المبلغ المدفوع (د.ع)
+                <input name="amount" type="number" min="1" step="1" inputmode="numeric" required>
+            </label>
+            <label>تاريخ الدفع
+                <input name="date" type="date" required>
+            </label>
+            <label class="full">ملاحظة (اختياري)
+                <input name="note" autocomplete="off">
+            </label>
+            <div class="pay-actions">
+                <button class="btn ok" type="button" id="payFullBtn">تسديد كامل المتبقي</button>
+                <button class="btn red" type="submit">تسجيل الدفعة</button>
+            </div>
+            <div class="error" id="payError" role="alert"></div>
+        </form>
+
+        <h3 class="sub">الدفعات المسجلة</h3>
+        <div class="pay-list" id="payList"></div>
+
+        <div class="dlg-actions" style="margin-top:14px">
+            <button class="btn secondary" type="button" data-close="payDialog">إغلاق</button>
+        </div>
+    </dialog>
+
     <script>
         const PURCHASES_KEY = 'storePurchases';
         const PRODUCTS_KEY = 'storeProducts';
@@ -711,6 +842,7 @@
         let adjustments = [];
         let statusFilter = 'all';
         let editingId = null;
+        let payingIndex = null;
 
         const $ = id => document.getElementById(id);
         const body = $('purchaseRows');
@@ -722,6 +854,10 @@
         const subtotalEl = $('subtotal');
         const grandTotalEl = $('grandTotal');
         const errorEl = $('purchaseError');
+
+        const payDialog = $('payDialog');
+        const payForm = $('payForm');
+        const payError = $('payError');
 
         function safeParse(text) {
             try {
@@ -759,13 +895,40 @@
         function saveProducts() { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); }
         function saveAdjustments() { localStorage.setItem(ADJ_KEY, JSON.stringify(adjustments)); }
 
+        // ===== المبالغ والدفعات =====
         function purchaseTotal(p) {
             const sub = (p.items || []).reduce((s, it) => s + Number(it.total || 0), 0);
             return Math.max(0, sub - Number(p.discount || 0));
         }
 
+        // الفواتير القديمة المسددة بالكامل قبل تفعيل الدفعات تُحوَّل إلى دفعة واحدة تعادل كامل المبلغ
+        function ensurePayments(p) {
+            if (!Array.isArray(p.payments)) {
+                p.payments = p.settled
+                    ? [{ id: 'legacy-' + p.id, date: p.date, amount: purchaseTotal(p), note: 'تسديد كامل سابق' }]
+                    : [];
+            }
+            return p.payments;
+        }
+
+        function paidOf(p) {
+            if (p.payment !== 'دين') return purchaseTotal(p);
+            if (Array.isArray(p.payments)) {
+                return p.payments.reduce((s, x) => s + Number(x.amount || 0), 0);
+            }
+            return p.settled ? purchaseTotal(p) : 0;
+        }
+
+        function remainingOf(p) {
+            return Math.max(0, purchaseTotal(p) - paidOf(p));
+        }
+
         function isUnpaid(p) {
-            return p.payment === 'دين' && !p.settled;
+            return p.payment === 'دين' && remainingOf(p) > 0;
+        }
+
+        function syncSettled(p) {
+            p.settled = remainingOf(p) === 0;
         }
 
         function findByBarcode(code) {
@@ -830,7 +993,19 @@
                 .sort((a, b) => (b.p.date || '').localeCompare(a.p.date || '') || b.index - a.index);
 
             body.innerHTML = rows.map(({ p, index }) => {
-                const unpaid = isUnpaid(p);
+                const isDebt = p.payment === 'دين';
+                const rem = remainingOf(p);
+                const paid = paidOf(p);
+
+                let statusHtml;
+                if (!isDebt || rem === 0) {
+                    statusHtml = '<span class="status">مسددة</span>';
+                } else if (paid > 0) {
+                    statusHtml = `<span class="status partial">مسدد جزئيًا - متبقٍ ${money(rem)}</span>`;
+                } else {
+                    statusHtml = '<span class="status unpaid">غير مسددة</span>';
+                }
+
                 return `
                 <tr>
                     <td>${esc(p.date)}</td>
@@ -839,11 +1014,11 @@
                     <td>${num((p.items || []).length)}</td>
                     <td class="total">${money(purchaseTotal(p))}</td>
                     <td>${esc(p.payment)}</td>
-                    <td><span class="status ${unpaid ? 'unpaid' : ''}">${unpaid ? 'غير مسددة' : 'مسددة'}</span></td>
+                    <td>${statusHtml}</td>
                     <td>
                         <span class="actions">
-                            ${p.payment === 'دين'
-                        ? `<button class="btn ok" type="button" data-settle="${index}">${unpaid ? 'تسديد' : 'إلغاء التسديد'}</button>`
+                            ${isDebt
+                        ? `<button class="btn ok" type="button" data-pay="${index}">${rem === 0 ? 'سجل الدفعات' : 'تسديد'}</button>`
                         : ''}
                             <button class="btn view" type="button" data-edit="${index}">عرض / تعديل</button>
                             <button class="btn danger" type="button" data-delete="${index}">حذف</button>
@@ -857,7 +1032,9 @@
             const totalAll = purchases.reduce((s, p) => s + purchaseTotal(p), 0);
             const today = todayLocal();
             const todayTotal = purchases.filter(p => p.date === today).reduce((s, p) => s + purchaseTotal(p), 0);
-            const supplierDebt = purchases.filter(isUnpaid).reduce((s, p) => s + purchaseTotal(p), 0);
+            const supplierDebt = purchases
+                .filter(p => p.payment === 'دين')
+                .reduce((s, p) => s + remainingOf(p), 0);
 
             $('totalPurchases').textContent = money(totalAll);
             $('countPurchases').textContent = num(purchases.length);
@@ -865,6 +1042,103 @@
             $('supplierDebt').textContent = money(supplierDebt);
             $('resultText').textContent = `عرض ${num(rows.length)} من ${num(purchases.length)} فاتورة شراء`;
         }
+
+        // ===== نافذة التسديد =====
+        function renderPayDialog() {
+            const p = purchases[payingIndex];
+            if (!p) return;
+
+            const total = purchaseTotal(p);
+            const paid = paidOf(p);
+            const rem = remainingOf(p);
+
+            $('payTitle').textContent = `تسديد فاتورة ${p.number} — ${p.supplier}`;
+            $('payInfo').innerHTML = `
+                <div><span>الإجمالي</span>${money(total)}</div>
+                <div><span>المدفوع</span>${money(paid)}</div>
+                <div><span>المتبقي</span>${money(rem)}</div>`;
+
+            payForm.hidden = rem === 0;
+
+            const list = Array.isArray(p.payments) ? p.payments : [];
+            $('payList').innerHTML = list.length
+                ? list.map((x, i) => `
+                    <div class="pay-item">
+                        <span>${esc(x.date)}${x.note ? ' — ' + esc(x.note) : ''}</span>
+                        <span>${money(x.amount)}<button class="rm" type="button" data-del-pay="${i}">حذف</button></span>
+                    </div>`).join('')
+                : '<p class="hint">لا توجد دفعات مسجلة بعد</p>';
+        }
+
+        function openPayDialog(index) {
+            payingIndex = index;
+            payError.textContent = '';
+            payForm.reset();
+            payForm.elements.date.value = todayLocal();
+            renderPayDialog();
+            payDialog.showModal();
+        }
+
+        $('payFullBtn').addEventListener('click', () => {
+            const p = purchases[payingIndex];
+            if (!p) return;
+            payForm.elements.amount.value = remainingOf(p);
+        });
+
+        payForm.addEventListener('submit', e => {
+            e.preventDefault();
+            payError.textContent = '';
+
+            const p = purchases[payingIndex];
+            if (!p) return;
+
+            const amount = Number(payForm.elements.amount.value || 0);
+            const date = payForm.elements.date.value;
+            const rem = remainingOf(p);
+
+            if (!(amount > 0)) {
+                payError.textContent = 'أدخل مبلغًا أكبر من صفر';
+                return;
+            }
+            if (amount > rem) {
+                payError.textContent = `المبلغ أكبر من المتبقي (${money(rem)})`;
+                return;
+            }
+            if (!date) {
+                payError.textContent = 'حدّد تاريخ الدفع';
+                return;
+            }
+
+            ensurePayments(p).push({
+                id: newId(),
+                date,
+                amount,
+                note: payForm.elements.note.value.trim()
+            });
+            syncSettled(p);
+            savePurchases();
+
+            payForm.reset();
+            payForm.elements.date.value = todayLocal();
+            renderPayDialog();
+            render();
+        });
+
+        $('payList').addEventListener('click', e => {
+            const btn = e.target.closest('[data-del-pay]');
+            if (!btn) return;
+            const p = purchases[payingIndex];
+            if (!p || !Array.isArray(p.payments)) return;
+
+            const i = Number(btn.dataset.delPay);
+            if (!confirm(`حذف الدفعة بمبلغ ${money(p.payments[i].amount)}؟`)) return;
+
+            p.payments.splice(i, 1);
+            syncSettled(p);
+            savePurchases();
+            renderPayDialog();
+            render();
+        });
 
         // ===== أسطر الأصناف =====
         function addRow(item = {}) {
@@ -947,7 +1221,7 @@
             recalc();
         }
 
-        // ===== فتح النافذة =====
+        // ===== فتح نافذة الفاتورة =====
         function openDialog(index = null) {
             const p = index !== null ? purchases[index] : null;
             editingId = p ? p.id : null;
@@ -1051,6 +1325,15 @@
 
             const payment = form.elements.payment.value;
             const existing = editingId ? purchases.find(p => p.id === editingId) : null;
+            const total = Math.max(0, subtotal - discount);
+
+            // الدفعات الجزئية تبقى عند تعديل فاتورة دين، ولا يمكن أن يتجاوز مجموعها الإجمالي الجديد
+            const payments = payment === 'دين' && existing ? [...ensurePayments(existing)] : [];
+            const paidSoFar = payments.reduce((s, x) => s + Number(x.amount || 0), 0);
+            if (payment === 'دين' && paidSoFar > total) {
+                errorEl.textContent = `الإجمالي الجديد أقل من المدفوع (${money(paidSoFar)})`;
+                return;
+            }
 
             const purchase = {
                 id: editingId || newId(),
@@ -1058,8 +1341,9 @@
                 date: form.elements.date.value,
                 supplier: form.elements.supplier.value.trim(),
                 payment,
-                // الدفع نقدًا أو بالبطاقة يعتبر مسددًا، والدين يبقى غير مسدد حتى التسديد
-                settled: payment === 'دين' ? Boolean(existing?.settled) : true,
+                payments,
+                // الدفع نقدًا أو بالبطاقة يعتبر مسددًا، والدين يُحسب من الدفعات
+                settled: payment === 'دين' ? paidSoFar >= total : true,
                 discount,
                 notes: form.elements.notes.value.trim(),
                 items,
@@ -1081,6 +1365,9 @@
 
         // ===== عرض/تعديل، حذف، تسديد =====
         body.addEventListener('click', e => {
+            const payBtn = e.target.closest('[data-pay]');
+            if (payBtn) return openPayDialog(Number(payBtn.dataset.pay));
+
             const editBtn = e.target.closest('[data-edit]');
             if (editBtn) return openDialog(Number(editBtn.dataset.edit));
 
@@ -1092,16 +1379,6 @@
                 if (!confirm(`هل تريد حذف فاتورة الشراء رقم ${p.number}؟ ستنخفض الكميات المضافة منها في المخزن.`)) return;
                 removeFromStock(p.id);
                 purchases.splice(index, 1);
-                savePurchases();
-                render();
-                return;
-            }
-
-            const settleBtn = e.target.closest('[data-settle]');
-            if (settleBtn) {
-                const p = purchases[Number(settleBtn.dataset.settle)];
-                if (!p) return;
-                p.settled = !p.settled;
                 savePurchases();
                 render();
             }

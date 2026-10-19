@@ -1,0 +1,1188 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>الكاشير</title>
+    <script src="storage.js"></script>
+    <script src="scanbridge.js"></script>
+    <script src="theme.js"></script>
+    <script src="auth.js"></script>
+    <script src="layout.js"></script>
+    <style>
+        :root {
+            --page: #efede5;
+            --olive: #40570d;
+            --olive-dark: #344807;
+            --panel: #d1cec5;
+            --ink: #10110d;
+            --muted: #5a5a52;
+            --line: #bdb9ae;
+            --red: #c74845;
+            --green: #91d94c;
+            --font: Tahoma, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page);
+            color: var(--ink);
+            font-family: var(--font);
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 22px 22% 10px 4%;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: clamp(28px, 3vw, 44px);
+        }
+
+        .brand {
+            text-align: center;
+            color: var(--green);
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .brand span {
+            display: block;
+            color: var(--olive-dark);
+            font-size: 20px;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 4px;
+            right: 1.4%;
+            bottom: 1%;
+            width: 17.8%;
+            min-width: 230px;
+            border-radius: 48px;
+            background: var(--panel);
+            padding: 22px 16px 28px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 8px 10px 14px #0002;
+            overflow-y: auto;
+        }
+
+        .sidebar nav {
+            display: grid;
+            gap: 2px;
+        }
+
+        .sidebar nav.bottom {
+            margin-top: auto;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 8px 13px;
+            color: var(--ink);
+            text-decoration: none;
+            font-size: clamp(18px, 1.7vw, 28px);
+            font-weight: 700;
+            border-radius: 28px;
+            line-height: 1.2;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background: #8d956e;
+        }
+
+        .pos {
+            margin: 10px 21.7% 20px 3%;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .card {
+            background: var(--panel);
+            border-radius: 28px;
+            padding: 16px;
+            box-shadow: 0 1px 3px #0001;
+            min-width: 0;
+        }
+
+        .bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .input {
+            height: 46px;
+            border: 2px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            color: #111;
+            padding: 0 12px;
+            font: 16px var(--font);
+            min-width: 0;
+            width: 100%;
+        }
+
+        .input.big {
+            height: 52px;
+            font-size: 18px;
+        }
+
+        .input:disabled {
+            background: #e4e1d6;
+            cursor: not-allowed;
+        }
+
+        .status-bar {
+            background: var(--page);
+            border-radius: 14px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--olive-dark);
+        }
+
+        .status-bar.idle {
+            color: var(--muted);
+        }
+
+        .chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .chip {
+            border: 0;
+            border-radius: 20px;
+            padding: 8px 14px;
+            background: var(--page);
+            color: var(--ink);
+            font: 700 15px var(--font);
+            cursor: pointer;
+        }
+
+        .chip[aria-pressed="true"] {
+            background: var(--olive);
+            color: #fff;
+        }
+
+        .cat-section {
+            margin-bottom: 16px;
+        }
+
+        .cat-title {
+            margin: 0 0 8px;
+            font-size: 18px;
+            color: var(--olive-dark);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--line);
+            padding-bottom: 6px;
+        }
+
+        .cat-title span {
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .prod {
+            border: 0;
+            border-radius: 18px;
+            background: var(--page);
+            padding: 12px;
+            text-align: right;
+            cursor: pointer;
+            font-family: var(--font);
+            color: var(--ink);
+            display: grid;
+            gap: 4px;
+            min-height: 110px;
+            align-content: start;
+        }
+
+        .prod:hover {
+            outline: 2px solid var(--olive);
+        }
+
+        .prod.out {
+            opacity: .5;
+        }
+
+        .prod.locked {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .prod .name {
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .prod .price {
+            font-weight: 700;
+            color: var(--olive);
+            font-size: 16px;
+        }
+
+        .meta {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .empty {
+            text-align: center;
+            color: var(--muted);
+            padding: 30px 10px;
+            font-weight: 700;
+        }
+
+        .notice {
+            min-height: 22px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-top: 10px;
+            color: var(--olive);
+        }
+
+        .notice.err {
+            color: var(--red);
+        }
+
+        .cart {
+            position: sticky;
+            top: 10px;
+        }
+
+        .cart h2 {
+            margin: 0 0 10px;
+            font-size: 20px;
+            color: var(--olive);
+        }
+
+        .idle-box {
+            text-align: center;
+            padding: 20px 8px;
+        }
+
+        .idle-box p {
+            color: var(--muted);
+            font-weight: 700;
+            margin: 0 0 14px;
+        }
+
+        .inv-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            background: var(--page);
+            border-radius: 14px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .inv-head strong {
+            color: var(--olive);
+        }
+
+        .lines {
+            max-height: 280px;
+            overflow: auto;
+            display: grid;
+            gap: 8px;
+        }
+
+        .line {
+            background: var(--page);
+            border-radius: 14px;
+            padding: 10px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .line .top {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            font-size: 14px;
+            gap: 8px;
+        }
+
+        .line .cat {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .line .ctrl {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .qbtn {
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 10px;
+            background: var(--olive);
+            color: #fff;
+            font: 700 17px var(--font);
+            cursor: pointer;
+        }
+
+        .rm {
+            border: 0;
+            background: transparent;
+            color: var(--red);
+            cursor: pointer;
+            font: 700 14px var(--font);
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            margin: 12px 0 0;
+        }
+
+        .sum {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            margin: 8px 0 0;
+        }
+
+        .total {
+            font-size: 22px;
+            color: var(--olive);
+        }
+
+        .check {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .btn {
+            width: 100%;
+            border: 0;
+            border-radius: 14px;
+            padding: 13px 16px;
+            font: 700 17px var(--font);
+            cursor: pointer;
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        .btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .btn.start {
+            background: var(--olive);
+            font-size: 19px;
+            padding: 16px;
+        }
+
+        .btn.pay {
+            background: #2e7d5b;
+        }
+
+        .btn.more {
+            background: #3d4f6b;
+        }
+
+        .btn.cancel {
+            background: #8b1e2d;
+        }
+
+        .btn.small {
+            width: auto;
+            margin-top: 0;
+            padding: 8px 14px;
+            font-size: 14px;
+        }
+
+        #receipt {
+            display: none;
+        }
+
+        @media print {
+            @page {
+                size: 80mm auto;
+                margin: 4mm;
+            }
+
+            body>*:not(#receipt) {
+                display: none !important;
+            }
+
+            #receipt {
+                display: block !important;
+                width: 72mm;
+                font: 12px Tahoma, Arial, sans-serif;
+                color: #000;
+                background: #fff;
+            }
+
+            #receipt table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            #receipt td {
+                padding: 2px 0;
+            }
+
+            #receipt hr {
+                border: 0;
+                border-top: 1px dashed #000;
+                margin: 6px 0;
+            }
+        }
+
+        @media (max-width: 1050px) {
+            .sidebar {
+                width: 200px;
+                min-width: 0;
+                padding: 16px 10px;
+            }
+
+            .sidebar a {
+                font-size: 19px;
+            }
+
+            .topbar {
+                padding-right: 230px;
+            }
+
+            .pos {
+                margin: 10px 230px 20px 20px;
+                grid-template-columns: 1fr;
+            }
+
+            .cart {
+                position: static;
+            }
+        }
+
+        @media (max-width: 650px) {
+            .topbar {
+                flex-direction: column;
+                gap: 8px;
+                padding: 64px 5% 10px;
+            }
+
+            .topbar h1 {
+                font-size: 28px;
+            }
+
+            .brand {
+                font-size: 20px;
+            }
+
+            .brand span {
+                font-size: 16px;
+            }
+
+            .pos {
+                margin: 0 4% 20px;
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .card {
+                border-radius: 22px;
+                padding: 12px;
+            }
+
+            .bar {
+                flex-direction: column;
+            }
+
+            .input.big {
+                height: 56px;
+            }
+
+            .grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .prod {
+                min-height: 96px;
+                padding: 10px;
+            }
+
+            .prod .name {
+                font-size: 14px;
+            }
+
+            .lines {
+                max-height: 240px;
+            }
+
+            .chips {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 4px;
+            }
+
+            .chip {
+                flex: 0 0 auto;
+            }
+
+            .btn {
+                font-size: 18px;
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <h1>الكاشير</h1>
+        <div class="brand">مرحبا بك<span>“اسم المتجر”</span></div>
+    </header>
+
+    <aside class="sidebar" aria-label="القائمة الرئيسية">
+        <nav>
+            <a class="active" href="cashier.html" aria-current="page">الكاشير</a>
+            <a href="home.html">الصفحة الرئيسية</a>
+            <a href="sales-new_1.html">المبيعات</a>
+            
+            <a href="inventory.html">المخزن</a>
+            <a href="purchases.html">المشتريات</a>
+            <a href="debts.html">الديون</a>
+            <a href="cashbox.html">الصندوق</a>
+            <a href="reports.html">التقارير</a>
+        </nav>
+        <nav class="bottom">
+            <a href="settings.html">الإعدادات</a>
+            <a href="exchange-rate.html">سعر الصرف</a>
+        </nav>
+    </aside>
+
+    <main class="pos">
+        <section class="card" aria-label="السلع">
+            <div class="bar">
+                <input id="barcodeInput" class="input big" style="flex:1" placeholder="امسح الباركود ثم Enter"
+                    autocomplete="off" inputmode="none" disabled>
+                <input id="searchInput" class="input" style="flex:1" placeholder="ابحث باسم المنتج…" autocomplete="off">
+            </div>
+            <div class="status-bar idle" id="statusBar" role="status"></div>
+            <div class="chips" id="catChips" role="group" aria-label="الفئات"></div>
+            <div id="productArea"></div>
+            <div class="empty" id="emptyMsg" hidden>لا توجد سلع مطابقة. أضف سلعًا من المخزن أو المشتريات.</div>
+            <div class="notice" id="scanNotice" role="status" aria-live="polite"></div>
+        </section>
+
+        <aside class="card cart" aria-label="الفاتورة الحالية">
+            <h2>الفاتورة</h2>
+
+            <div id="noDraft" class="idle-box">
+                <p>لا توجد فاتورة مفتوحة</p>
+                <button class="btn start" id="startBtn" type="button">+ بدء فاتورة جديدة</button>
+            </div>
+
+            <div id="draftBlock" hidden>
+                <div class="inv-head">
+                    <span>رقم الفاتورة: <strong id="draftNumber"></strong></span>
+                    <button class="btn cancel small" id="cancelBtn" type="button">إلغاء الفاتورة</button>
+                </div>
+
+                <div class="lines" id="lines"></div>
+                <div class="empty" id="linesEmpty">لم تُضف سلع بعد. اختر سلعة من الفئات أو امسح باركودها.</div>
+
+                <label class="field">اسم الزبون
+                    <input id="customer" class="input" placeholder="زبون نقدي" autocomplete="off">
+                </label>
+                <label class="field">نوع الدفع
+                    <select id="payment" class="input">
+                        <option value="نقدي">نقدي</option>
+                        <option value="بطاقة">بطاقة</option>
+                        <option value="دين">دين</option>
+                    </select>
+                </label>
+                <label class="field">الخصم (د.ع)
+                    <input id="discount" class="input" type="number" min="0" step="1" inputmode="numeric">
+                </label>
+
+                <div class="sum"><span>المجموع</span><span id="subtotal">0 د.ع</span></div>
+                <div class="sum total"><span>الإجمالي</span><span id="grand">0 د.ع</span></div>
+
+                <label class="check">
+                    <input type="checkbox" id="autoPrint" checked> طباعة الإيصال بعد البيع
+                </label>
+
+                <button class="btn pay" id="checkoutBtn" type="button" disabled>إتمام البيع</button>
+                <button class="btn more" id="checkoutMoreBtn" type="button" disabled>إتمام وبدء فاتورة جديدة</button>
+                <div class="notice" id="cartNotice" role="status" aria-live="polite"></div>
+            </div>
+        </aside>
+    </main>
+
+    <div id="receipt"></div>
+
+    <script>
+        const DRAFT_KEY = 'uiCashierDraft';
+        const KEYS = { products: 'storeProducts', adjustments: 'storeStockAdjustments', invoices: 'storeInvoices' };
+        const $ = id => document.getElementById(id);
+
+        const el = {
+            barcode: $('barcodeInput'),
+            search: $('searchInput'),
+            status: $('statusBar'),
+            chips: $('catChips'),
+            area: $('productArea'),
+            empty: $('emptyMsg'),
+            scan: $('scanNotice'),
+            noDraft: $('noDraft'),
+            draftBlock: $('draftBlock'),
+            startBtn: $('startBtn'),
+            cancelBtn: $('cancelBtn'),
+            invNo: $('draftNumber'),
+            lines: $('lines'),
+            linesEmpty: $('linesEmpty'),
+            customer: $('customer'),
+            payment: $('payment'),
+            discount: $('discount'),
+            subtotal: $('subtotal'),
+            grand: $('grand'),
+            autoPrint: $('autoPrint'),
+            checkout: $('checkoutBtn'),
+            checkoutMore: $('checkoutMoreBtn'),
+            cartNote: $('cartNotice'),
+            receipt: $('receipt')
+        };
+
+        let products = [];
+        let invoices = [];
+        let draft = null;
+        let activeCat = 'الكل';
+
+        // ===== أدوات عامة =====
+        function esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function money(n) { return Number(n || 0).toLocaleString('en-US') + ' د.ع'; }
+        function num(n) { return Number(n || 0).toLocaleString('en-US'); }
+
+        function todayLocal() {
+            const d = new Date();
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            return d.toISOString().slice(0, 10);
+        }
+
+        function note(target, text, isErr = false) {
+            target.textContent = text;
+            target.classList.toggle('err', !!isErr);
+        }
+
+        function catLabel(p) {
+            return String(p.category || '').trim() || 'بدون فئة';
+        }
+
+        // ===== التخزين (مستقل عن أي ملف إضافي) =====
+        function read(key) {
+            try {
+                const v = JSON.parse(localStorage.getItem(KEYS[key]) || '[]');
+                return Array.isArray(v) ? v : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function write(key, value) {
+            localStorage.setItem(KEYS[key], JSON.stringify(value));
+        }
+
+        function itemKey(it) {
+            return String(it.description || it.category || '').trim();
+        }
+
+        // المتوفر = الافتتاحي + تعديلات المخزن والمشتريات − المباع في كل الفواتير
+        function stockOf(p, list) {
+            const name = String(p.name).trim();
+            const adjusted = read('adjustments')
+                .filter(a => a.productId === p.id)
+                .reduce((s, a) => s + Number(a.change || 0), 0);
+            const sold = (list || []).reduce((s, inv) => {
+                if (!Array.isArray(inv.items)) return s;
+                return s + inv.items
+                    .filter(it => itemKey(it) === name)
+                    .reduce((x, it) => x + Number(it.qty || 0), 0);
+            }, 0);
+            return Number(p.openingQty || 0) + adjusted - sold;
+        }
+
+        function nextNumber(list) {
+            let max = 0;
+            (list || []).forEach(inv => {
+                const m = String(inv.number || '').match(/^C(\d+)$/);
+                if (m) max = Math.max(max, Number(m[1]));
+            });
+            return 'C' + String(max + 1).padStart(5, '0');
+        }
+
+        // باركود داخلي (EAN-13 يبدأ بـ 200) للمنتجات التي لا تملك باركودًا
+        function newBarcode(used) {
+            let code;
+            do {
+                let body = '200';
+                for (let i = 0; i < 9; i++) body += Math.floor(Math.random() * 10);
+                let sum = 0;
+                for (let i = 0; i < 12; i++) sum += Number(body[i]) * (i % 2 === 0 ? 1 : 3);
+                code = body + String((10 - (sum % 10)) % 10);
+            } while (used.has(code));
+            return code;
+        }
+
+        function loadData() {
+            products = read('products');
+            const used = new Set(products.map(p => p.barcode).filter(Boolean));
+            let changed = false;
+            products.forEach(p => {
+                if (!p.barcode) {
+                    p.barcode = newBarcode(used);
+                    used.add(p.barcode);
+                    changed = true;
+                }
+            });
+            if (changed) write('products', products);
+            invoices = read('invoices');
+        }
+
+        function loadDraft() {
+            try {
+                const v = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+                return v && Array.isArray(v.lines) ? v : null;
+            } catch {
+                return null;
+            }
+        }
+
+        function saveDraft() {
+            if (draft) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+            else localStorage.removeItem(DRAFT_KEY);
+        }
+
+        // ===== الفاتورة المفتوحة =====
+        function startDraft() {
+            loadData();
+            draft = {
+                number: nextNumber(invoices),
+                date: todayLocal(),
+                customer: '',
+                payment: 'نقدي',
+                discount: 0,
+                lines: []
+            };
+            saveDraft();
+            render();
+            el.barcode.focus();
+            note(el.scan, `تم بدء الفاتورة ${draft.number}`);
+        }
+
+        function cancelDraft() {
+            if (!draft) return;
+            if (draft.lines.length && !confirm('هل تريد إلغاء الفاتورة الحالية؟ ستُحذف السلع المضافة إليها.')) return;
+            draft = null;
+            saveDraft();
+            note(el.scan, 'تم إلغاء الفاتورة');
+            note(el.cartNote, '');
+            render();
+        }
+
+        function inDraft(id) {
+            const line = draft ? draft.lines.find(x => x.id === id) : null;
+            return line ? line.qty : 0;
+        }
+
+        function remaining(p) {
+            return stockOf(p, invoices) - inDraft(p.id);
+        }
+
+        function addLine(p) {
+            if (!draft) {
+                note(el.scan, 'ابدأ فاتورة جديدة أولًا', true);
+                return;
+            }
+            if (!p) return;
+            if (!(Number(p.price) > 0)) {
+                note(el.scan, `"${p.name}" بدون سعر بيع. حدّد السعر من صفحة المخزن أولًا`, true);
+                return;
+            }
+            if (remaining(p) < 1) {
+                note(el.scan, `"${p.name}" غير متوفر في المخزن`, true);
+                return;
+            }
+
+            const line = draft.lines.find(x => x.id === p.id);
+            if (line) line.qty++;
+            else draft.lines.push({ id: p.id, name: p.name, category: catLabel(p), price: Number(p.price), qty: 1 });
+
+            saveDraft();
+            note(el.scan, `تمت إضافة ${p.name}`);
+            renderDraft();
+            renderProducts();
+        }
+
+        // ===== العرض =====
+        function render() {
+            renderStatus();
+            renderChips();
+            renderProducts();
+            renderDraft();
+        }
+
+        function renderStatus() {
+            el.barcode.disabled = !draft;
+            el.status.classList.toggle('idle', !draft);
+            el.status.textContent = draft
+                ? `فاتورة مفتوحة: ${draft.number} — عدد الأصناف: ${num(draft.lines.length)}`
+                : 'لا توجد فاتورة مفتوحة. ابدأ فاتورة جديدة للبيع.';
+        }
+
+        function renderChips() {
+            const labels = [...new Set(products.map(catLabel))].sort((a, b) => a.localeCompare(b, 'ar'));
+            const all = ['الكل', ...labels];
+            if (!all.includes(activeCat)) activeCat = 'الكل';
+            el.chips.innerHTML = all.map(c =>
+                `<button class="chip" type="button" data-cat="${esc(c)}" aria-pressed="${c === activeCat}">${esc(c)}</button>`
+            ).join('');
+        }
+
+        // السلع تُعرض داخل خانات كل فئة
+        function renderProducts() {
+            const q = el.search.value.trim().toLowerCase();
+
+            const list = products
+                .filter(p => activeCat === 'الكل' || catLabel(p) === activeCat)
+                .filter(p => !q || `${p.name} ${p.barcode || ''}`.toLowerCase().includes(q));
+
+            const groups = new Map();
+            list.forEach(p => {
+                const label = catLabel(p);
+                if (!groups.has(label)) groups.set(label, []);
+                groups.get(label).push(p);
+            });
+
+            const labels = [...groups.keys()].sort((a, b) => a.localeCompare(b, 'ar'));
+
+            el.area.innerHTML = labels.map(label => {
+                const items = groups.get(label).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+                return `
+                <section class="cat-section">
+                    <h3 class="cat-title">${esc(label)} <span>(${num(items.length)} سلعة)</span></h3>
+                    <div class="grid">${items.map(prodHtml).join('')}</div>
+                </section>`;
+            }).join('');
+
+            el.empty.hidden = labels.length > 0;
+        }
+
+        function prodHtml(p) {
+            const stock = draft ? remaining(p) : stockOf(p, invoices);
+            const noPrice = !(Number(p.price) > 0);
+            const out = stock <= 0 || noPrice;
+            const locked = !draft;
+            return `<button class="prod ${out ? 'out' : ''} ${locked ? 'locked' : ''}" type="button" data-id="${esc(p.id)}">
+                <span class="name">${esc(p.name)}</span>
+                <span class="price">${noPrice ? 'بدون سعر' : money(p.price)}</span>
+                <span class="meta">المتوفر: ${num(Math.max(0, stock))}</span>
+                <span class="meta">${esc(p.barcode || '')}</span>
+            </button>`;
+        }
+
+        function renderDraft() {
+            el.noDraft.hidden = !!draft;
+            el.draftBlock.hidden = !draft;
+            if (!draft) return;
+
+            el.invNo.textContent = draft.number;
+            el.payment.value = draft.payment;
+            if (document.activeElement !== el.customer) el.customer.value = draft.customer || '';
+            if (document.activeElement !== el.discount) el.discount.value = draft.discount || '';
+
+            el.lines.innerHTML = draft.lines.map((l, i) => `
+                <div class="line">
+                    <div class="top"><span>${esc(l.name)}</span><span>${money(l.price * l.qty)}</span></div>
+                    <div class="cat">الفئة: ${esc(l.category)}</div>
+                    <div class="ctrl">
+                        <button class="qbtn" type="button" data-act="dec" data-i="${i}" aria-label="تقليل">−</button>
+                        <span>${num(l.qty)}</span>
+                        <button class="qbtn" type="button" data-act="inc" data-i="${i}" aria-label="زيادة">+</button>
+                        <span class="meta">× ${money(l.price)}</span>
+                        <button class="rm" type="button" data-act="rm" data-i="${i}">حذف</button>
+                    </div>
+                </div>`).join('');
+
+            el.linesEmpty.hidden = draft.lines.length > 0;
+            const hasLines = draft.lines.length > 0;
+            el.checkout.disabled = !hasLines;
+            el.checkoutMore.disabled = !hasLines;
+
+            renderTotals();
+        }
+
+        function renderTotals() {
+            if (!draft) return;
+            const subtotal = draft.lines.reduce((s, l) => s + l.price * l.qty, 0);
+            const disc = Math.min(Number(draft.discount || 0), subtotal);
+            el.subtotal.textContent = money(subtotal);
+            el.grand.textContent = money(Math.max(0, subtotal - disc));
+        }
+
+        // ===== الأحداث =====
+        el.startBtn.addEventListener('click', () => {
+            try {
+                startDraft();
+            } catch (err) {
+                console.error('فشل بدء الفاتورة:', err);
+                note(el.scan, 'تعذر بدء الفاتورة: ' + err.message, true);
+            }
+        });
+
+        el.cancelBtn.addEventListener('click', cancelDraft);
+
+        el.barcode.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const code = el.barcode.value.trim();
+            el.barcode.value = '';
+            if (!code) return;
+            if (!draft) {
+                note(el.scan, 'ابدأ فاتورة جديدة أولًا', true);
+                return;
+            }
+            const p = products.find(x => x.barcode === code);
+            if (!p) {
+                note(el.scan, `الباركود ${code} غير مسجّل في المخزن`, true);
+                return;
+            }
+            addLine(p);
+        });
+
+        el.chips.addEventListener('click', e => {
+            const b = e.target.closest('[data-cat]');
+            if (!b) return;
+            activeCat = b.dataset.cat;
+            renderChips();
+            renderProducts();
+        });
+
+        el.area.addEventListener('click', e => {
+            const b = e.target.closest('[data-id]');
+            if (!b) return;
+            addLine(products.find(p => String(p.id) === b.dataset.id));
+        });
+
+        el.search.addEventListener('input', renderProducts);
+
+        el.lines.addEventListener('click', e => {
+            const b = e.target.closest('[data-act]');
+            if (!b || !draft) return;
+            const i = Number(b.dataset.i);
+            const line = draft.lines[i];
+            if (!line) return;
+
+            if (b.dataset.act === 'inc') {
+                const p = products.find(x => x.id === line.id);
+                if (!p || remaining(p) < 1) {
+                    note(el.cartNote, 'لا توجد كمية إضافية متوفرة', true);
+                    return;
+                }
+                line.qty++;
+            } else if (b.dataset.act === 'dec') {
+                line.qty--;
+                if (line.qty <= 0) draft.lines.splice(i, 1);
+            } else {
+                draft.lines.splice(i, 1);
+            }
+
+            saveDraft();
+            note(el.cartNote, '');
+            renderDraft();
+            renderProducts();
+        });
+
+        el.customer.addEventListener('input', () => {
+            if (!draft) return;
+            draft.customer = el.customer.value;
+            saveDraft();
+        });
+
+        el.payment.addEventListener('change', () => {
+            if (!draft) return;
+            draft.payment = el.payment.value;
+            saveDraft();
+        });
+
+        el.discount.addEventListener('input', () => {
+            if (!draft) return;
+            draft.discount = Math.max(0, Number(el.discount.value || 0));
+            saveDraft();
+            renderTotals();
+        });
+
+        // ===== الإيصال =====
+        function printReceipt(inv) {
+            const info = window.getStoreInfo ? window.getStoreInfo() : { name: 'اسم المتجر' };
+            el.receipt.innerHTML = `
+                <div style="text-align:center"><strong>${esc(info.name)}</strong><div>${esc(info.phone || '')}</div></div>
+                <div>فاتورة: ${esc(inv.number)} — ${esc(inv.date)}</div>
+                <div>الزبون: ${esc(inv.customer)}</div>
+                <hr>
+                <table>${inv.items.map(it => `
+                    <tr><td>${esc(it.description)} × ${num(it.qty)}</td><td style="text-align:left">${money(it.total)}</td></tr>`).join('')}
+                </table>
+                <hr>
+                <table>
+                    <tr><td>الخصم</td><td style="text-align:left">${money(inv.discount)}</td></tr>
+                    <tr><td><strong>الإجمالي</strong></td><td style="text-align:left"><strong>${money(inv.amount)}</strong></td></tr>
+                </table>
+                <div style="text-align:center;margin-top:6px">${esc(info.footer || 'شكرًا لتسوقكم')}</div>`;
+            window.print();
+        }
+
+        // ===== إتمام البيع =====
+        function completeDraft(startNext) {
+            note(el.cartNote, '');
+            if (!draft || !draft.lines.length) {
+                note(el.cartNote, 'أضف سلعة واحدة على الأقل', true);
+                return;
+            }
+
+            loadData();
+
+            for (const l of draft.lines) {
+                const p = products.find(x => x.id === l.id);
+                if (!p) {
+                    note(el.cartNote, `السلعة ${l.name} لم تعد موجودة`, true);
+                    return;
+                }
+                if (stockOf(p, invoices) < l.qty) {
+                    note(el.cartNote, `الكمية المتوفرة من ${l.name} غير كافية`, true);
+                    return;
+                }
+            }
+
+            const cust = draft.customer.trim();
+            if (draft.payment === 'دين' && !cust) {
+                note(el.cartNote, 'حدّد اسم الزبون عند البيع بالدين', true);
+                return;
+            }
+
+            const subtotal = draft.lines.reduce((s, l) => s + l.price * l.qty, 0);
+            const disc = Math.min(Number(draft.discount || 0), subtotal);
+            const user = window.StoreAuth && StoreAuth.currentUser ? StoreAuth.currentUser() : null;
+
+            const items = draft.lines.map(l => ({
+                category: l.category === 'بدون فئة' ? '' : l.category,
+                description: l.name,
+                qty: l.qty,
+                price: l.price,
+                total: l.qty * l.price
+            }));
+            const cats = [...new Set(items.map(it => it.category).filter(Boolean))];
+
+            let number = draft.number;
+            if (invoices.some(inv => inv.number === number)) number = nextNumber(invoices);
+
+            const inv = {
+                number,
+                date: todayLocal(),
+                customer: cust || 'زبون نقدي',
+                employee: user ? user.name : '',
+                payment: draft.payment,
+                discount: disc,
+                notes: 'بيع من الكاشير',
+                items,
+                category: cats.join('، '),
+                amount: subtotal - disc
+            };
+
+            invoices.push(inv);
+            write('invoices', invoices);
+
+            draft = null;
+            saveDraft();
+
+            if (startNext) startDraft();
+            else render();
+
+            note(el.scan, startNext
+                ? `تم حفظ الفاتورة ${inv.number} بإجمالي ${money(inv.amount)}، وبدأت فاتورة جديدة`
+                : `تم حفظ الفاتورة ${inv.number} بإجمالي ${money(inv.amount)}`);
+
+            if (el.autoPrint.checked) printReceipt(inv);
+            if (startNext) el.barcode.focus();
+        }
+
+        el.checkout.addEventListener('click', () => completeDraft(false));
+        el.checkoutMore.addEventListener('click', () => completeDraft(true));
+
+        // ===== تحديث الشاشة عند تغيير البيانات من صفحات أخرى =====
+        window.addEventListener('storage', e => {
+            if ([KEYS.products, KEYS.invoices, KEYS.adjustments].includes(e.key)) {
+                loadData();
+                render();
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                loadData();
+                render();
+            }
+        });
+
+        // ===== التهيئة =====
+        try {
+            loadData();
+            draft = loadDraft();
+            render();
+            if (draft) el.barcode.focus();
+        } catch (err) {
+            console.error('فشل تحميل الكاشير:', err);
+            note(el.scan, 'خطأ في تحميل الصفحة: ' + err.message, true);
+        }
+    </script>
+</body>
+
+</html>

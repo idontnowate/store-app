@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>الإعدادات</title>
+    <script src="storage.js"></script>
+    <script src="theme.js"></script>
+    <script src="auth.js"></script>
+    <script src="layout.js"></script>
+    <style>
+        :root {
+            --page: #efede5;
+            --olive: #40570d;
+            --olive-dark: #344807;
+            --panel: #d1cec5;
+            --ink: #10110d;
+            --muted: #5a5a52;
+            --line: #bdb9ae;
+            --red: #c74845;
+            --green: #91d94c;
+            --font: Tahoma, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page);
+            color: var(--ink);
+            font-family: var(--font);
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 22px 22% 10px 4%;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: clamp(28px, 3vw, 44px);
+        }
+
+        .brand {
+            text-align: center;
+            color: var(--green);
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .brand span {
+            display: block;
+            color: var(--olive-dark);
+            font-size: 20px;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 4px;
+            right: 1.4%;
+            bottom: 1%;
+            width: 17.8%;
+            min-width: 230px;
+            border-radius: 48px;
+            background: var(--panel);
+            padding: 22px 16px 28px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 8px 10px 14px #0002;
+            overflow-y: auto;
+        }
+
+        .sidebar nav {
+            display: grid;
+            gap: 2px;
+        }
+
+        .sidebar nav.bottom {
+            margin-top: auto;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 8px 13px;
+            color: var(--ink);
+            text-decoration: none;
+            font-size: clamp(18px, 1.7vw, 28px);
+            font-weight: 700;
+            border-radius: 28px;
+            line-height: 1.2;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background: #8d956e;
+        }
+
+        main {
+            margin: 10px 21.7% 30px 3%;
+        }
+
+        .flash {
+            padding: 12px 18px;
+            border-radius: 16px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .flash.ok {
+            background: #d8ecc0;
+            color: var(--olive-dark);
+        }
+
+        .flash.err {
+            background: #f2c7c5;
+            color: #7a2a27;
+        }
+
+        .card {
+            background: var(--panel);
+            border-radius: 36px;
+            padding: 22px 26px 24px;
+            margin-bottom: 22px;
+            box-shadow: 8px 10px 12px #0003;
+        }
+
+        .card h2 {
+            margin: 0 0 16px;
+            font-size: 24px;
+            color: var(--olive-dark);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px 22px;
+        }
+
+        .grid .full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        input,
+        select,
+        textarea {
+            border: 3px solid #777;
+            border-radius: 12px;
+            background: #fff;
+            padding: 8px 12px;
+            font: 16px var(--font);
+            color: var(--ink);
+            width: 100%;
+        }
+
+        input,
+        select {
+            height: 46px;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 14px;
+            padding: 10px 18px;
+            font: 700 16px var(--font);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn.red {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .btn.olive {
+            background: var(--olive);
+            color: var(--page);
+        }
+
+        .btn.secondary {
+            background: #777;
+            color: #fff;
+        }
+
+        .btn.danger {
+            background: #7a2a27;
+            color: #fff;
+        }
+
+        .btn.view {
+            background: transparent;
+            color: var(--olive);
+            border: 2px solid var(--olive);
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .btn.view:hover {
+            background: var(--olive);
+            color: var(--page);
+        }
+
+        .btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .logo-box {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: var(--page);
+            border-radius: 20px;
+            padding: 14px 18px;
+        }
+
+        .logo-box img {
+            max-height: 80px;
+            max-width: 180px;
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+            margin: 4px 0 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--page);
+            border-radius: 18px;
+            overflow: hidden;
+            font-size: 16px;
+        }
+
+        th {
+            background: var(--olive);
+            color: var(--page);
+            padding: 10px;
+            text-align: center;
+        }
+
+        td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--line);
+            font-weight: 600;
+        }
+
+        .actions {
+            display: inline-flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .tag {
+            display: inline-block;
+            background: var(--olive);
+            color: var(--page);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            margin-inline-start: 6px;
+        }
+
+        dialog {
+            width: min(520px, 92vw);
+            border: 0;
+            border-radius: 28px;
+            background: var(--page);
+            padding: 24px;
+            box-shadow: 0 10px 30px #0005;
+            font-family: var(--font);
+        }
+
+        dialog::backdrop {
+            background: #0006;
+        }
+
+        dialog h2 {
+            margin: 0 0 14px;
+            color: var(--olive-dark);
+            font-size: 24px;
+        }
+
+        dialog form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .error {
+            color: var(--red);
+            font-weight: 700;
+            font-size: 14px;
+            min-height: 18px;
+        }
+
+        @media (max-width: 1050px) {
+            .sidebar {
+                width: 200px;
+                min-width: 0;
+                padding: 16px 10px;
+            }
+
+            .sidebar a {
+                font-size: 19px;
+            }
+
+            .topbar {
+                padding-right: 230px;
+            }
+
+            main {
+                margin: 10px 230px 30px 20px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 650px) {
+            .sidebar {
+                position: static;
+                width: auto;
+                min-width: 0;
+                margin: 0 4% 16px;
+                padding: 10px;
+                border-radius: 20px;
+                box-shadow: none;
+            }
+
+            .sidebar nav {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .topbar {
+                padding: 16px 5%;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            main {
+                margin: 0 4% 20px;
+            }
+
+            .card {
+                padding: 16px;
+                border-radius: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <h1>الإعدادات</h1>
+        <div class="brand">مرحبا بك<span>“اسم المتجر”</span></div>
+    </header>
+
+    <aside class="sidebar" aria-label="القائمة الرئيسية">
+        <nav>
+            <a href="cashier.html">الكاشير</a>
+            <a href="home.html">الصفحة الرئيسية</a>
+            <a href="sales-new_1.html">المبيعات</a>
+            <a href="inventory.html">المخزن</a>
+            <a href="purchases.html">المشتريات</a>
+            <a href="debts.html">الديون</a>
+            <a href="cashbox.html">الصندوق</a>
+            <a href="reports.html">التقارير</a>
+        </nav>
+        <nav class="bottom">
+            <a class="active" href="settings.html" aria-current="page">الإعدادات</a>
+            <a href="exchange-rate.html">سعر الصرف</a>
+        </nav>
+    </aside>
+
+    <main>
+        <div class="flash" id="flash" hidden></div>
+        <section class="card">
+            <h2>المظهر واللغة</h2>
+            <form class="grid" id="prefsForm">
+                <label>الوضع
+                    <select name="theme">
+                        <option value="light">الفاتح</option>
+                        <option value="dark">الداكن</option>
+                    </select>
+                </label>
+                <label>اللغة
+                    <select name="lang">
+                        <option value="ar">العربية</option>
+                        <option value="en">English</option>
+                    </select>
+                </label>
+            </form>
+        </section>
+        <!-- بيانات المتجر -->
+        <section class="card">
+            <h2>بيانات المتجر</h2>
+            <form class="grid" id="storeForm" novalidate>
+                <label>اسم المتجر
+                    <input name="name" required>
+                </label>
+                <label>الهاتف
+                    <input name="phone">
+                </label>
+                <label>العنوان
+                    <input name="address">
+                </label>
+                <label>البريد الإلكتروني
+                    <input name="email" type="email">
+                </label>
+                <label>الموقع الإلكتروني
+                    <input name="website">
+                </label>
+                <label>نص الشكر أسفل الفاتورة
+                    <input name="footer">
+                </label>
+                <label class="full">سياسة الاستبدال والاسترجاع (سطر لكل بند)
+                    <textarea name="policies" rows="4"></textarea>
+                </label>
+
+                <div class="full logo-box">
+                    <div>
+                        <strong>شعار المتجر</strong>
+                        <p class="hint">PNG أو JPG، بحجم لا يتجاوز 300 كيلوبايت</p>
+                        <div class="btn-row">
+                            <input type="file" id="logoFile" accept="image/*"
+                                style="height:auto;width:auto;border:0;background:none;padding:0">
+                            <button class="btn secondary" type="button" id="removeLogo">إزالة الشعار</button>
+                        </div>
+                    </div>
+                    <img id="logoPreview" alt="شعار المتجر" hidden>
+                </div>
+
+                <div class="full">
+                    <button class="btn red" type="submit">حفظ بيانات المتجر</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- الصندوق -->
+        <section class="card">
+            <h2>الصندوق</h2>
+            <form class="grid" id="cashForm" novalidate>
+                <label class="full">الرصيد الافتتاحي للصندوق (د.ع)
+                    <input name="opening" type="number" min="0" step="1" inputmode="numeric">
+                </label>
+                <p class="hint full">المبلغ الذي كان في الصندوق عند بدء استخدام النظام. يُضاف إلى الرصيد في صفحة
+                    الصندوق.</p>
+                <div class="full">
+                    <button class="btn red" type="submit">حفظ الرصيد الافتتاحي</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- المستخدمون -->
+        <section class="card">
+            <div class="btn-row" style="justify-content:space-between;margin-bottom:14px">
+                <h2 style="margin:0">المستخدمون</h2>
+                <button class="btn olive" type="button" id="addUserBtn">+ إضافة مستخدم</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>الاسم</th>
+                        <th>اسم الدخول</th>
+                        <th>الدور</th>
+                        <th>إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="usersRows"></tbody>
+            </table>
+            <p class="hint" style="margin-top:12px">
+                المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى الإعدادات. لا يمكن حذف حسابك الحالي أو آخر مدير.
+            </p>
+        </section>
+
+        <!-- النسخ الاحتياطي -->
+        <section class="card">
+            <h2>النسخ الاحتياطي</h2>
+            <p class="hint">النسخة تحتوي على كل البيانات والحسابات. احفظها في مكان آمن.</p>
+            <div class="btn-row" style="margin-bottom:16px">
+                <button class="btn olive" type="button" id="exportBtn">تصدير نسخة احتياطية</button>
+            </div>
+            <div class="btn-row">
+                <input type="file" id="backupFile" accept="application/json,.json"
+                    style="height:auto;width:auto;border:0;background:none;padding:0">
+                <button class="btn secondary" type="button" id="importBtn" disabled>استعادة النسخة</button>
+            </div>
+            <hr style="border:0;border-top:2px solid var(--line);margin:22px 0">
+            <h2 style="font-size:20px">منطقة الخطر</h2>
+            <p class="hint">يحذف الفواتير والمشتريات والمنتجات والتسديدات والحركات. الحسابات والإعدادات تبقى.</p>
+            <button class="btn danger" type="button" id="resetBtn">حذف بيانات العمل</button>
+        </section>
+    </main>
+
+    <!-- نافذة المستخدم -->
+    <dialog id="userDialog" aria-labelledby="userTitle">
+        <h2 id="userTitle">إضافة مستخدم</h2>
+        <form id="userForm" novalidate>
+            <label>الاسم الظاهر
+                <input name="name" required autocomplete="off">
+            </label>
+            <label>اسم الدخول
+                <input name="username" required autocomplete="off" placeholder="بالأحرف الإنكليزية">
+            </label>
+            <label>كلمة المرور
+                <input name="password" type="password" autocomplete="new-password">
+            </label>
+            <label>الدور
+                <select name="role">
+                    <option value="admin">مدير (كل الصفحات)</option>
+                    <option value="cashier">موظف مبيعات (بدون الإعدادات)</option>
+                </select>
+            </label>
+            <div class="error" id="userError" role="alert"></div>
+            <div class="btn-row">
+                <button class="btn red" type="submit">حفظ</button>
+                <button class="btn secondary" type="button" id="closeUser">إلغاء</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script>
+        const A = window.StoreAuth;
+        const me = A.currentUser();
+
+        const $ = id => document.getElementById(id);
+        const flashEl = $('flash');
+
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        function flash(text, isError = false) {
+            flashEl.textContent = text;
+            flashEl.className = 'flash ' + (isError ? 'err' : 'ok');
+            flashEl.hidden = false;
+            clearTimeout(flash.timer);
+            flash.timer = setTimeout(() => { flashEl.hidden = true; }, 4000);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ===== بيانات المتجر =====
+        let logoData = '';
+
+        function loadStoreForm() {
+            const info = A.getStoreInfo();
+            const f = $('storeForm').elements;
+            f.name.value = info.name || '';
+            f.phone.value = info.phone || '';
+            f.address.value = info.address || '';
+            f.email.value = info.email || '';
+            f.website.value = info.website || '';
+            f.footer.value = info.footer || '';
+            f.policies.value = (info.policies || []).join('\n');
+
+            logoData = info.logo || '';
+            $('logoPreview').src = logoData;
+            $('logoPreview').hidden = !logoData;
+        }
+
+        $('logoFile').addEventListener('change', event => {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (file.size > 300 * 1024) {
+                flash('حجم الشعار يجب ألا يتجاوز 300 كيلوبايت', true);
+                event.target.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                logoData = reader.result;
+                $('logoPreview').src = logoData;
+                $('logoPreview').hidden = false;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        $('removeLogo').addEventListener('click', () => {
+            logoData = '';
+            $('logoPreview').hidden = true;
+            $('logoFile').value = '';
+        });
+
+        $('storeForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const f = event.target.elements;
+            const name = f.name.value.trim();
+            if (!name) {
+                flash('أدخل اسم المتجر', true);
+                return;
+            }
+
+            A.saveStoreInfo({
+                name,
+                phone: f.phone.value.trim(),
+                address: f.address.value.trim(),
+                email: f.email.value.trim(),
+                website: f.website.value.trim(),
+                footer: f.footer.value.trim(),
+                policies: f.policies.value.split('\n').map(s => s.trim()).filter(Boolean),
+                logo: logoData
+            });
+
+            document.querySelectorAll('.brand span').forEach(el => { el.textContent = `"${name}"`; });
+            flash('تم حفظ بيانات المتجر');
+        });
+
+        // ===== الصندوق =====
+        function loadCashForm() {
+            const value = Number(localStorage.getItem('storeCashOpening') || 0);
+            $('cashForm').elements.opening.value = value || '';
+        }
+
+        $('cashForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const value = Math.max(0, Number(event.target.elements.opening.value || 0));
+            localStorage.setItem('storeCashOpening', String(value));
+            flash('تم حفظ الرصيد الافتتاحي');
+        });
+
+        // ===== المستخدمون =====
+        let editingUserId = null;
+
+        function renderUsers() {
+            const users = A.getUsers();
+            $('usersRows').innerHTML = users.map(u => {
+                const isMe = me && u.id === me.id;
+                return `<tr>
+                    <td>${esc(u.name)}${isMe ? '<span class="tag">أنت</span>' : ''}</td>
+                    <td>${esc(u.username)}</td>
+                    <td>${A.roleLabel(u.role)}</td>
+                    <td>
+                        <span class="actions">
+                            <button class="btn view" type="button" data-edit="${u.id}">تعديل</button>
+                            ${isMe ? '' : `<button class="btn danger" type="button" data-del="${u.id}">حذف</button>`}
+                        </span>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function openUserDialog(id = null) {
+            editingUserId = id;
+            const users = A.getUsers();
+            const u = id ? users.find(x => x.id === id) : null;
+            const isMe = !!u && me && u.id === me.id;
+
+            const f = $('userForm');
+            f.reset();
+            $('userError').textContent = '';
+            $('userTitle').textContent = u ? 'تعديل مستخدم' : 'إضافة مستخدم';
+
+            f.elements.name.value = u?.name || '';
+            f.elements.username.value = u?.username || '';
+            f.elements.password.value = '';
+            f.elements.password.required = !u;
+            f.elements.password.placeholder = u ? 'اتركه فارغًا للإبقاء على الحالية' : '';
+            f.elements.role.value = u?.role || 'cashier';
+            f.elements.role.disabled = isMe;
+
+            $('userDialog').showModal();
+        }
+
+        $('addUserBtn').addEventListener('click', () => openUserDialog());
+
+        $('usersRows').addEventListener('click', event => {
+            const edit = event.target.closest('[data-edit]');
+            if (edit) return openUserDialog(edit.dataset.edit);
+
+            const del = event.target.closest('[data-del]');
+            if (!del) return;
+
+            const users = A.getUsers();
+            const target = users.find(u => u.id === del.dataset.del);
+            if (!target || (me && target.id === me.id)) return;
+
+            const admins = users.filter(u => u.role === 'admin');
+            if (target.role === 'admin' && admins.length <= 1) {
+                flash('لا يمكن حذف آخر مدير في النظام', true);
+                return;
+            }
+            if (!confirm(`هل تريد حذف المستخدم "${target.name}"؟`)) return;
+
+            A.saveUsers(users.filter(u => u.id !== target.id));
+            renderUsers();
+            flash('تم حذف المستخدم');
+        });
+
+        $('closeUser').addEventListener('click', () => $('userDialog').close());
+
+        $('userForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const f = event.target.elements;
+            const errorEl = $('userError');
+            errorEl.textContent = '';
+
+            const name = f.name.value.trim();
+            const username = f.username.value.trim().toLowerCase();
+            const password = f.password.value;
+
+            if (!name || !username) {
+                errorEl.textContent = 'أدخل الاسم واسم الدخول';
+                return;
+            }
+            if (!/^[a-z0-9_.]+$/.test(username)) {
+                errorEl.textContent = 'اسم الدخول بالأحرف الإنكليزية والأرقام والنقطة والشرطة السفلية فقط';
+                return;
+            }
+
+            const users = A.getUsers();
+            if (users.some(u => u.username === username && u.id !== editingUserId)) {
+                errorEl.textContent = 'اسم الدخول مستخدم بالفعل';
+                return;
+            }
+
+            const existing = users.find(u => u.id === editingUserId) || null;
+            if (!existing && password.length < 4) {
+                errorEl.textContent = 'كلمة المرور 4 أحرف على الأقل';
+                return;
+            }
+            if (existing && password && password.length < 4) {
+                errorEl.textContent = 'كلمة المرور 4 أحرف على الأقل';
+                return;
+            }
+
+            // دور الحساب الحالي لا يُغيَّر من نفسه
+            const isMe = existing && me && existing.id === me.id;
+            const role = isMe ? existing.role : f.role.value;
+
+            if (existing && existing.role === 'admin' && role !== 'admin') {
+                const admins = users.filter(u => u.role === 'admin');
+                if (admins.length <= 1) {
+                    errorEl.textContent = 'يجب أن يبقى مدير واحد على الأقل';
+                    return;
+                }
+            }
+
+            const passwordHash = password
+                ? await A.hash(password)
+                : existing?.password;
+
+            if (existing) {
+                Object.assign(existing, { name, username, role, password: passwordHash });
+            } else {
+                users.push({ id: A.newId(), name, username, role, password: passwordHash });
+            }
+
+            A.saveUsers(users);
+            $('userDialog').close();
+            renderUsers();
+            flash(existing ? 'تم تحديث المستخدم' : 'تمت إضافة المستخدم');
+        });
+
+        // ===== النسخ الاحتياطي =====
+        $('exportBtn').addEventListener('click', () => {
+            const data = {};
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('store') && key !== 'storeSession') {
+                    data[key] = localStorage.getItem(key);
+                }
+            });
+
+            const payload = {
+                app: 'store-backup',
+                version: 1,
+                date: new Date().toISOString(),
+                data
+            };
+
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `نسخة_المتجر_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            flash('تم تصدير النسخة الاحتياطية');
+        });
+
+        let pendingBackup = null;
+
+        $('backupFile').addEventListener('change', event => {
+            pendingBackup = null;
+            $('importBtn').disabled = true;
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const payload = JSON.parse(reader.result);
+                    if (payload.app !== 'store-backup' || !payload.data || typeof payload.data !== 'object') {
+                        throw new Error('invalid');
+                    }
+                    pendingBackup = payload;
+                    $('importBtn').disabled = false;
+                    flash('تم قراءة النسخة. اضغط "استعادة النسخة" للتأكيد.');
+                } catch {
+                    flash('الملف غير صالح أو ليس نسخة احتياطية للمتجر', true);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        $('importBtn').addEventListener('click', () => {
+            if (!pendingBackup) return;
+            if (!confirm('سيتم استبدال كل البيانات الحالية بالنسخة الاحتياطية. متابعة؟')) return;
+
+            Object.keys(localStorage)
+                .filter(k => k.startsWith('store') && k !== 'storeSession')
+                .forEach(k => localStorage.removeItem(k));
+
+            Object.entries(pendingBackup.data).forEach(([k, v]) => {
+                if (k.startsWith('store') && k !== 'storeSession') localStorage.setItem(k, v);
+            });
+
+            localStorage.removeItem('storeSession');
+            alert('تمت الاستعادة. سجّل الدخول مرة أخرى.');
+            location.replace('login.html');
+        });
+
+        $('resetBtn').addEventListener('click', () => {
+            if (!confirm('سيتم حذف كل الفواتير والمشتريات والمنتجات والتسديدات والحركات. الحسابات والإعدادات تبقى. متابعة؟')) return;
+            if (!confirm('تأكيد أخير: لا يمكن التراجع. هل تريد الحذف؟')) return;
+
+            [
+                'storeInvoices',
+                'storePurchases',
+                'storeDebtPayments',
+                'storeProducts',
+                'storeStockAdjustments',
+                'storeCashManual',
+                'storeCashOpening'
+            ].forEach(k => localStorage.removeItem(k));
+
+            loadCashForm();
+            flash('تم حذف بيانات العمل');
+        });
+
+        // ===== التهيئة =====
+        loadStoreForm();
+        loadCashForm();
+        renderUsers();
+        const prefsForm = document.getElementById('prefsForm');
+            const currentPrefs = StoreTheme.get();
+            prefsForm.elements.theme.value = currentPrefs.theme;
+            prefsForm.elements.lang.value = currentPrefs.lang;
+
+            prefsForm.addEventListener('change', () => {
+                StoreTheme.set({
+                    theme: prefsForm.elements.theme.value,
+                    lang: prefsForm.elements.lang.value
+                });
+            });
+    </script>
+</body>
+
+</html>

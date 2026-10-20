@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>إضافة فاتورة</title>
     <script src="storage.js"></script>
+    <script src="log.js"></script>
     <script src="theme.js"></script>
     <script src="auth.js"></script>
     <script src="layout.js"></script>
@@ -619,8 +620,8 @@
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
         <nav>
-            <a href="cashier.html">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
+            <a href="cashier.html">الكاشير</a>
             <a class="active" href="sales-new_1.html">المبيعات</a>
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
@@ -686,7 +687,7 @@
                 <div class="form-actions">
                     <button class="button" type="submit" name="action" value="add">إضافة</button>
                     <button class="button more" type="submit" name="action" value="addMore">إضافة وبدء المزيد</button>
-                <a class="button cancel" href="sales-new_1.html">إلغاء</a>
+                    <a class="button cancel" href="sales-new_1.html">إلغاء</a>
                     <button class="button print" type="button" id="printBtn" hidden>طباعة</button>
                     <button class="button delete" type="button" id="deleteBtn" hidden>حذف</button>
                     <span id="notice" role="status" aria-live="polite"></span>
@@ -714,6 +715,15 @@
         const addItemBtn = document.getElementById('addItemBtn');
         const printSheet = document.getElementById('printSheet');
         const productList = document.getElementById('productList');
+
+        // التسجيل في السجل لا يجب أن يوقف الحفظ أو الحذف أو التنقل أبدًا
+        function safeLog(action, entity, details) {
+            try {
+                if (window.StoreLog) StoreLog.add(action, entity, details);
+            } catch (err) {
+                console.error('خطأ في سجل العمليات:', err);
+            }
+        }
 
         function safeParse(text) {
             try {
@@ -1009,6 +1019,7 @@
             }
 
             const categories = [...new Set(items.map(it => it.category).filter(Boolean))];
+            const isEdit = editingIndex !== -1;
 
             const data = {
                 number,
@@ -1023,10 +1034,22 @@
                 amount: total
             };
 
-            if (editingIndex !== -1) savedInvoices[editingIndex] = data;
+            if (isEdit) savedInvoices[editingIndex] = data;
             else savedInvoices.push(data);
 
-            localStorage.setItem(INVOICES_KEY, JSON.stringify(savedInvoices));
+            try {
+                localStorage.setItem(INVOICES_KEY, JSON.stringify(savedInvoices));
+            } catch (err) {
+                console.error('فشل حفظ الفاتورة:', err);
+                showNotice('تعذر حفظ الفاتورة في الجهاز، حاول مرة أخرى', true);
+                return;
+            }
+
+            safeLog(
+                isEdit ? 'edit' : 'create',
+                'فاتورة بيع ' + number,
+                `الزبون: ${data.customer || '—'} — المبلغ: ${money(total)} — الدفع: ${data.payment || '—'} — الموظف: ${data.employee || '—'} — الأصناف: ${num(items.length)}`
+            );
 
             if (event.submitter && event.submitter.value === 'addMore') {
                 resetForNew();
@@ -1040,9 +1063,24 @@
         // ===== الحذف =====
         deleteBtn.addEventListener('click', () => {
             if (editingIndex === -1) return;
-            if (!confirm('هل أنت متأكد من حذف هذه الفاتورة؟')) return;
+            const inv = savedInvoices[editingIndex];
+            if (!inv) return;
+            if (!confirm(`هل أنت متأكد من حذف الفاتورة رقم ${inv.number}؟`)) return;
+
+            safeLog(
+                'delete',
+                'فاتورة بيع ' + inv.number,
+                `الزبون: ${inv.customer || '—'} — المبلغ: ${money(inv.amount)} — الدفع: ${inv.payment || '—'}`
+            );
+
             savedInvoices.splice(editingIndex, 1);
-            localStorage.setItem(INVOICES_KEY, JSON.stringify(savedInvoices));
+            try {
+                localStorage.setItem(INVOICES_KEY, JSON.stringify(savedInvoices));
+            } catch (err) {
+                console.error('فشل حفظ بعد الحذف:', err);
+                showNotice('تعذر تحديث البيانات بعد الحذف', true);
+                return;
+            }
             location.href = SALES_PAGE;
         });
 

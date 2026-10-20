@@ -256,6 +256,7 @@
         }
 
         .badge.update,
+        .badge.edit,
         .badge.stock {
             background: #f5e3b0;
             color: #6b4e00;
@@ -284,16 +285,6 @@
 
         .empty.show {
             display: block;
-        }
-
-        .denied {
-            background: var(--panel);
-            border-radius: 28px;
-            padding: 30px;
-            font-weight: 700;
-            font-size: 20px;
-            text-align: center;
-            color: var(--red);
         }
 
         @media (max-width: 1050px) {
@@ -444,6 +435,7 @@
 
         const ACTIONS = {
             create: 'إضافة',
+            edit: 'تعديل',
             update: 'تعديل',
             delete: 'حذف',
             pay: 'تسديد',
@@ -489,7 +481,9 @@
             const actionSel = $('actionFilter');
             if (!actionSel.options.length) {
                 actionSel.innerHTML = '<option value="">كل العمليات</option>' +
-                    Object.entries(ACTIONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+                    Object.entries(ACTIONS)
+                        .filter(([k, v], i, arr) => arr.findIndex(([, x]) => x === v) === i)
+                        .map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
             }
 
             const userSel = $('userFilter');
@@ -569,14 +563,6 @@
             setTimeout(() => URL.revokeObjectURL(a.href), 1000);
         }
 
-        // ===== الصلاحيات: هذه الصفحة للمدير فقط =====
-        function guardAdmin() {
-            const u = window.StoreAuth && StoreAuth.currentUser ? StoreAuth.currentUser() : null;
-            if (u && u.role === 'admin') return true;
-            $('mainArea').innerHTML = '<div class="denied">هذه الصفحة للمدير فقط</div>';
-            return false;
-        }
-
         // ===== الأحداث =====
         ['searchInput', 'actionFilter', 'userFilter', 'fromDate', 'toDate'].forEach(id => {
             $(id).addEventListener('input', render);
@@ -599,10 +585,14 @@
         });
 
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && guardAdmin()) render();
+            if (!document.hidden) render();
         });
 
-        if (guardAdmin()) render();
+        // حماية الصفحة للمدير فقط تتم في auth.js؛ نعرض السجل بعد التحقق من الجلسة
+        StoreAuth.ready.then(() => {
+            const u = StoreAuth.currentUser();
+            if (u && u.role === 'admin') render();
+        });
     </script>
 </body>
 

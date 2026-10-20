@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المبيعات</title>
     <script src="storage.js"></script>
+    <script src="log.js"></script>
     <script src="theme.js"></script>
     <script src="auth.js"></script>
     <script src="layout.js"></script>
@@ -417,9 +418,9 @@
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
         <nav>
-            <a href="cashier.html">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
-            <a class="active" href="sales.html" aria-current="page">المبيعات</a>
+            <a href="cashier.html">الكاشير</a>
+            <a class="active" href="sales-new_1.html" aria-current="page">المبيعات</a>
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
             <a href="debts.html">الديون</a>
@@ -509,6 +510,15 @@
 
         const payClass = { 'نقدي': 'cash', 'بطاقة': 'card', 'دين': 'debt' };
 
+        // التسجيل في السجل لا يجب أن يوقف الحذف أو العرض أبدًا
+        function safeLog(action, entity, details) {
+            try {
+                if (window.StoreLog) StoreLog.add(action, entity, details);
+            } catch (err) {
+                console.error('خطأ في سجل العمليات:', err);
+            }
+        }
+
         function loadInvoices() {
             try {
                 const value = JSON.parse(localStorage.getItem(storageKey) || '[]');
@@ -590,8 +600,20 @@
 
             if (!confirm(`هل تريد حذف الفاتورة رقم ${inv.number}؟`)) return;
 
+            safeLog(
+                'delete',
+                'فاتورة بيع ' + inv.number,
+                `الزبون: ${inv.customer || '—'} — المبلغ: ${money(inv.amount)} — الدفع: ${inv.payment || '—'}`
+            );
+
             invoices.splice(index, 1);
-            saveInvoices();
+            try {
+                saveInvoices();
+            } catch (err) {
+                console.error('فشل حفظ بعد الحذف:', err);
+                alert('تعذر تحديث البيانات بعد الحذف');
+                loadInvoices();
+            }
             render();
         });
 

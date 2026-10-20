@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المشتريات</title>
     <script src="storage.js"></script>
+    <script src="log.js"></script>
     <script src="barcode-camera.js"></script>
     <script src="scanbridge.js"></script>
     <script src="theme.js"></script>
@@ -664,8 +665,8 @@
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
         <nav>
-            <a href="cashier.html">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
+            <a href="cashier.html">الكاشير</a>
             <a href="sales-new_1.html">المبيعات</a>
             <a href="inventory.html">المخزن</a>
             <a class="active" href="purchases.html" aria-current="page">المشتريات</a>
@@ -859,6 +860,15 @@
         const payForm = $('payForm');
         const payError = $('payError');
 
+        // التسجيل في السجل لا يجب أن يوقف الحفظ أو الحذف أبدًا
+        function safeLog(action, entity, details) {
+            try {
+                if (window.StoreLog) StoreLog.add(action, entity, details);
+            } catch (err) {
+                console.error('خطأ في سجل العمليات:', err);
+            }
+        }
+
         function safeParse(text) {
             try {
                 const v = JSON.parse(text || '[]');
@@ -891,9 +901,36 @@
             adjustments = safeParse(localStorage.getItem(ADJ_KEY));
         }
 
-        function savePurchases() { localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases)); }
-        function saveProducts() { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); }
-        function saveAdjustments() { localStorage.setItem(ADJ_KEY, JSON.stringify(adjustments)); }
+        // حفظ آمن: يعيد false عند الفشل بدل أن يرمي خطأ يوقف الصفحة
+        function savePurchases() {
+            try {
+                localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ المشتريات:', err);
+                return false;
+            }
+        }
+
+        function saveProducts() {
+            try {
+                localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ المنتجات:', err);
+                return false;
+            }
+        }
+
+        function saveAdjustments() {
+            try {
+                localStorage.setItem(ADJ_KEY, JSON.stringify(adjustments));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ التعديلات:', err);
+                return false;
+            }
+        }
 
         // ===== المبالغ والدفعات =====
         function purchaseTotal(p) {
@@ -1094,6 +1131,7 @@
 
             const amount = Number(payForm.elements.amount.value || 0);
             const date = payForm.elements.date.value;
+            const note = payForm.elements.note.value.trim();
             const rem = remainingOf(p);
 
             if (!(amount > 0)) {
@@ -1109,14 +1147,25 @@
                 return;
             }
 
-            ensurePayments(p).push({
-                id: newId(),
-                date,
-                amount,
-                note: payForm.elements.note.value.trim()
-            });
+            const list = ensurePayments(p);
+            list.push({ id: newId(), date, amount, note });
             syncSettled(p);
-            savePurchases();
+
+            if (!savePurchases()) {
+                list.pop();
+                syncSettled(p);
+                payError.textContent = 'تعذر حفظ الدفعة على الجهاز';
+                return;
+            }
+
+            const remainingAfter = remainingOf(p);
+            safeLog(
+                'pay',
+                'تسديد فاتورة شراء ' + p.number,
+                `المورد: ${p.supplier || '—'} — المبلغ المدفوع: ${money(amount)} — التاريخ: ${date}` +
+                ` — المتبقي بعد الدفع: ${money(remainingAfter)}` +
+                (note ? ` — ملاحظة: ${note}` : '')
+            );
 
             payForm.reset();
             payForm.elements.date.value = todayLocal();
@@ -1131,11 +1180,27 @@
             if (!p || !Array.isArray(p.payments)) return;
 
             const i = Number(btn.dataset.delPay);
-            if (!confirm(`حذف الدفعة بمبلغ ${money(p.payments[i].amount)}؟`)) return;
+            const removed = p.payments[i];
+            if (!removed) return;
+            if (!confirm(`حذف الدفعة بمبلغ ${money(removed.amount)}؟`)) return;
 
             p.payments.splice(i, 1);
             syncSettled(p);
-            savePurchases();
+
+            if (!savePurchases()) {
+                p.payments.splice(i, 0, removed);
+                syncSettled(p);
+                payError.textContent = 'تعذر حذف الدفعة من الجهاز';
+                return;
+            }
+
+            safeLog(
+                'delete',
+                'دفعة فاتورة شراء ' + p.number,
+                `المورد: ${p.supplier || '—'} — المبلغ المحذوف: ${money(removed.amount)} — التاريخ: ${removed.date || '—'}` +
+                ` — المتبقي بعد الحذف: ${money(remainingOf(p))}`
+            );
+
             renderPayDialog();
             render();
         });
@@ -1350,14 +1415,25 @@
                 subtotal
             };
 
+            const previousList = purchases.slice();
             if (existing) {
                 purchases[purchases.indexOf(existing)] = purchase;
             } else {
                 purchases.push(purchase);
             }
 
-            savePurchases();
+            if (!savePurchases()) {
+                purchases = previousList;
+                errorEl.textContent = 'تعذر حفظ الفاتورة على الجهاز';
+                return;
+            }
             applyToStock(purchase);
+
+            safeLog(
+                existing ? 'edit' : 'create',
+                'فاتورة شراء ' + number,
+                `المورد: ${purchase.supplier || '—'} — الإجمالي: ${money(total)} — الدفع: ${payment || '—'} — الأصناف: ${num(items.length)}`
+            );
 
             dialog.close();
             render();
@@ -1377,9 +1453,24 @@
                 const p = purchases[index];
                 if (!p) return;
                 if (!confirm(`هل تريد حذف فاتورة الشراء رقم ${p.number}؟ ستنخفض الكميات المضافة منها في المخزن.`)) return;
+
+                safeLog(
+                    'delete',
+                    'فاتورة شراء ' + p.number,
+                    `المورد: ${p.supplier || '—'} — الإجمالي: ${money(purchaseTotal(p))} — الدفع: ${p.payment || '—'}`
+                );
+
+                const oldAdjustments = adjustments.slice();
                 removeFromStock(p.id);
                 purchases.splice(index, 1);
-                savePurchases();
+
+                if (!savePurchases()) {
+                    purchases.splice(index, 0, p);
+                    adjustments = oldAdjustments;
+                    saveAdjustments();
+                    alert('تعذر حذف الفاتورة من الجهاز، حاول مرة أخرى');
+                    return;
+                }
                 render();
             }
         });

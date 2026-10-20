@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الديون</title>
     <script src="storage.js"></script>
+    <script src="log.js"></script>
     <script src="theme.js"></script>
     <script src="auth.js"></script>
     <script src="layout.js"></script>
@@ -363,6 +364,11 @@
             gap: 12px;
         }
 
+        /* مهم: بدون هذه القاعدة يتغلب display:grid على خاصية hidden فيبقى النموذج ظاهرًا */
+        .pay-form[hidden] {
+            display: none;
+        }
+
         .pay-form label {
             display: grid;
             gap: 5px;
@@ -510,8 +516,8 @@
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
         <nav>
-            <a class="active" href="cashier.html" aria-current="page">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
+            <a href="cashier.html">الكاشير</a>
             <a href="sales-new_1.html">المبيعات</a>
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
@@ -614,295 +620,348 @@
     </dialog>
 
     <script>
-    const INVOICES_KEY = 'storeInvoices';
-    const PAYMENTS_KEY = 'storeDebtPayments';
+        const INVOICES_KEY = 'storeInvoices';
+        const PAYMENTS_KEY = 'storeDebtPayments';
 
-    let invoices = [];
-    let payments = [];
-    let statusFilter = 'open';
-    let activeNumber = null;
+        let invoices = [];
+        let payments = [];
+        let statusFilter = 'open';
+        let activeNumber = null;
 
-    const body = document.getElementById('debtRows');
-    const emptyMessage = document.getElementById('emptyMessage');
-    const searchInput = document.getElementById('searchInput');
-    const dialog = document.getElementById('payDialog');
-    const payForm = document.getElementById('payForm');
-    const payAmount = document.getElementById('payAmount');
-    const payDate = document.getElementById('payDate');
-    const payError = document.getElementById('payError');
+        const body = document.getElementById('debtRows');
+        const emptyMessage = document.getElementById('emptyMessage');
+        const searchInput = document.getElementById('searchInput');
+        const dialog = document.getElementById('payDialog');
+        const payForm = document.getElementById('payForm');
+        const payAmount = document.getElementById('payAmount');
+        const payDate = document.getElementById('payDate');
+        const payError = document.getElementById('payError');
 
-    function safeParse(text) {
-        try {
-            const value = JSON.parse(text || '[]');
-            return Array.isArray(value) ? value : [];
-        } catch {
-            return [];
-        }
-    }
-
-    function loadData() {
-        invoices = safeParse(localStorage.getItem(INVOICES_KEY));
-        payments = safeParse(localStorage.getItem(PAYMENTS_KEY));
-    }
-
-    function saveInvoices() {
-        localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
-    }
-
-    function savePayments() {
-        localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
-    }
-
-    function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-    }
-
-    function money(n) {
-        return Number(n || 0).toLocaleString('en-US') + ' د.ع';
-    }
-
-    function todayLocal() {
-        const d = new Date();
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        return d.toISOString().slice(0, 10);
-    }
-
-    function paidFor(number) {
-        return payments
-            .filter(p => p.invoiceNumber === number)
-            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    }
-
-    // عند اكتمال التسديد تتحول الفاتورة إلى "نقدي"، وإذا حُذف تسديد وعاد المتبقي تعود إلى "دين"
-    function syncInvoicePayments() {
-        let changed = false;
-
-        invoices.forEach(inv => {
-            const isDebt = inv.payment === 'دين';
-            if (!isDebt && !inv.debtSettled) return;
-
-            const remaining = Math.max(0, Number(inv.amount || 0) - paidFor(inv.number));
-
-            if (remaining <= 0 && isDebt) {
-                inv.payment = 'نقدي';
-                inv.debtSettled = true;
-                changed = true;
-            } else if (remaining > 0 && inv.debtSettled) {
-                inv.payment = 'دين';
-                delete inv.debtSettled;
-                changed = true;
+        // التسجيل في السجل لا يجب أن يوقف التسديد أو الحذف أبدًا
+        function safeLog(action, entity, details) {
+            try {
+                if (window.StoreLog) StoreLog.add(action, entity, details);
+            } catch (err) {
+                console.error('خطأ في سجل العمليات:', err);
             }
-        });
-
-        if (changed) saveInvoices();
-    }
-
-    // الديون: فواتير نوع دفعها "دين" أو فواتير دين مسددة بالكامل (أصبحت نقدي)
-    function buildDebts() {
-        return invoices
-            .map((inv, index) => {
-                const amount = Number(inv.amount || 0);
-                const paid = paidFor(inv.number);
-                return { inv, index, amount, paid, remaining: Math.max(0, amount - paid) };
-            })
-            .filter(d => d.inv.payment === 'دين' || d.inv.debtSettled);
-    }
-
-    function matchesFilter(d) {
-        if (statusFilter === 'open') return d.remaining > 0;
-        if (statusFilter === 'closed') return d.remaining <= 0;
-        return true;
-    }
-
-    function matchesSearch(d, q) {
-        if (!q) return true;
-        return [d.inv.number, d.inv.customer, d.inv.employee, d.inv.date]
-            .join(' ').toLowerCase().includes(q);
-    }
-
-    function render() {
-        const all = buildDebts();
-        const q = searchInput.value.trim().toLowerCase();
-
-        const rows = all
-            .filter(d => matchesFilter(d) && matchesSearch(d, q))
-            .sort((a, b) => (a.inv.date || '').localeCompare(b.inv.date || '') || a.index - b.index);
-
-        body.innerHTML = rows.map(d => {
-            const closed = d.remaining <= 0;
-            return `<tr>
-                <td>${escapeHtml(d.inv.date)}</td>
-                <td>${escapeHtml(d.inv.number)}</td>
-                <td>${escapeHtml(d.inv.customer)}</td>
-                <td>${money(d.amount)}</td>
-                <td class="paid-full">${money(d.paid)}</td>
-                <td class="remaining">${money(d.remaining)}</td>
-                <td><span class="status ${closed ? 'closed' : ''}">${closed ? 'مسددة' : 'مستحقة'}</span></td>
-                <td>
-                    <span class="actions">
-                        ${closed ? '' : `<button class="btn pay" type="button" data-pay="${escapeHtml(d.inv.number)}">تسديد</button>`}
-                        <button class="btn view" type="button" data-history="${escapeHtml(d.inv.number)}">السجل</button>
-                        <a class="btn view" href="add-invoice.html?invoice=${d.index}">الفاتورة</a>
-                    </span>
-                </td>
-            </tr>`;
-        }).join('');
-
-        emptyMessage.classList.toggle('show', rows.length === 0);
-
-        const openDebts = all.filter(d => d.remaining > 0);
-        const totalRemaining = openDebts.reduce((s, d) => s + d.remaining, 0);
-        const customers = new Set(openDebts.map(d => (d.inv.customer || '').trim())).size;
-        const totalPaid = all.reduce((s, d) => s + d.paid, 0);
-
-        document.getElementById('totalRemaining').textContent = money(totalRemaining);
-        document.getElementById('openCount').textContent = openDebts.length.toLocaleString('en-US');
-        document.getElementById('customerCount').textContent = customers.toLocaleString('en-US');
-        document.getElementById('totalPaid').textContent = money(totalPaid);
-        document.getElementById('resultText').textContent = `عرض ${rows.length} من ${all.length} فاتورة دين`;
-    }
-
-    function findDebt(number) {
-        return buildDebts().find(d => d.inv.number === number) || null;
-    }
-
-    function renderHistory(number) {
-        const list = document.getElementById('historyList');
-        const items = payments
-            .map((p, index) => ({ p, index }))
-            .filter(({ p }) => p.invoiceNumber === number)
-            .sort((a, b) => (a.p.date || '').localeCompare(b.p.date || ''));
-
-        if (!items.length) {
-            list.innerHTML = '<li class="none">لا توجد تسديدات لهذه الفاتورة</li>';
-            return;
         }
 
-        list.innerHTML = items.map(({ p, index }) => `
-            <li>
-                <span>${escapeHtml(p.date)} — <strong>${money(p.amount)}</strong>${p.note ? ' — ' + escapeHtml(p.note) : ''}</span>
-                <button class="btn danger" type="button" data-del="${index}">حذف</button>
-            </li>`).join('');
-    }
-
-    function openDialog(number) {
-        const d = findDebt(number);
-        if (!d) return;
-        activeNumber = number;
-
-        document.getElementById('payTitle').textContent = d.remaining > 0 ? 'تسديد دين' : 'سجل التسديدات';
-        document.getElementById('dlgNumber').textContent = d.inv.number;
-        document.getElementById('dlgCustomer').textContent = d.inv.customer || '—';
-        document.getElementById('dlgAmount').textContent = money(d.amount);
-        document.getElementById('dlgRemaining').textContent = money(d.remaining);
-
-        payForm.hidden = d.remaining <= 0;
-        payAmount.value = d.remaining;
-        payAmount.max = d.remaining;
-        payDate.value = todayLocal();
-        payForm.elements.note.value = '';
-        payError.textContent = '';
-
-        renderHistory(number);
-        dialog.showModal();
-    }
-
-    function closeDialog() {
-        dialog.close();
-        activeNumber = null;
-    }
-
-    body.addEventListener('click', event => {
-        const payBtn = event.target.closest('[data-pay]');
-        if (payBtn) return openDialog(payBtn.dataset.pay);
-
-        const histBtn = event.target.closest('[data-history]');
-        if (histBtn) openDialog(histBtn.dataset.history);
-    });
-
-    payForm.addEventListener('submit', event => {
-        event.preventDefault();
-        if (!activeNumber) return;
-
-        const d = findDebt(activeNumber);
-        if (!d || d.remaining <= 0) return;
-
-        const amount = Number(payAmount.value);
-        const date = payDate.value;
-
-        if (!amount || amount <= 0) {
-            payError.textContent = 'أدخل مبلغًا أكبر من صفر';
-            return;
-        }
-        if (amount > d.remaining) {
-            payError.textContent = 'المبلغ أكبر من المتبقي على الفاتورة';
-            return;
-        }
-        if (!date) {
-            payError.textContent = 'اختر تاريخ التسديد';
-            return;
+        function safeParse(text) {
+            try {
+                const value = JSON.parse(text || '[]');
+                return Array.isArray(value) ? value : [];
+            } catch {
+                return [];
+            }
         }
 
-        payments.push({
-            invoiceNumber: activeNumber,
-            amount,
-            date,
-            note: payForm.elements.note.value.trim()
-        });
-        savePayments();
-        syncInvoicePayments();
+        function loadData() {
+            invoices = safeParse(localStorage.getItem(INVOICES_KEY));
+            payments = safeParse(localStorage.getItem(PAYMENTS_KEY));
+        }
 
-        closeDialog();
-        render();
-    });
+        // حفظ آمن: يعيد false عند الفشل بدل أن يرمي خطأ يوقف الصفحة
+        function saveInvoices() {
+            try {
+                localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ الفواتير:', err);
+                return false;
+            }
+        }
 
-    document.getElementById('historyList').addEventListener('click', event => {
-        const delBtn = event.target.closest('[data-del]');
-        if (!delBtn) return;
-        if (!confirm('هل تريد حذف هذا التسديد؟')) return;
+        function savePayments() {
+            try {
+                localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ التسديدات:', err);
+                return false;
+            }
+        }
 
-        payments.splice(Number(delBtn.dataset.del), 1);
-        savePayments();
-        syncInvoicePayments();
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
 
-        const d = findDebt(activeNumber);
-        if (d) {
+        function money(n) {
+            return Number(n || 0).toLocaleString('en-US') + ' د.ع';
+        }
+
+        function todayLocal() {
+            const d = new Date();
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            return d.toISOString().slice(0, 10);
+        }
+
+        function paidFor(number) {
+            return payments
+                .filter(p => p.invoiceNumber === number)
+                .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        }
+
+        // عند اكتمال التسديد تتحول الفاتورة إلى "نقدي"، وإذا حُذف تسديد وعاد المتبقي تعود إلى "دين"
+        function syncInvoicePayments() {
+            let changed = false;
+
+            invoices.forEach(inv => {
+                const isDebt = inv.payment === 'دين';
+                if (!isDebt && !inv.debtSettled) return;
+
+                const remaining = Math.max(0, Number(inv.amount || 0) - paidFor(inv.number));
+
+                if (remaining <= 0 && isDebt) {
+                    inv.payment = 'نقدي';
+                    inv.debtSettled = true;
+                    changed = true;
+                } else if (remaining > 0 && inv.debtSettled) {
+                    inv.payment = 'دين';
+                    delete inv.debtSettled;
+                    changed = true;
+                }
+            });
+
+            if (changed) saveInvoices();
+        }
+
+        // الديون: فواتير نوع دفعها "دين" أو فواتير دين مسددة بالكامل (أصبحت نقدي)
+        function buildDebts() {
+            return invoices
+                .map((inv, index) => {
+                    const amount = Number(inv.amount || 0);
+                    const paid = paidFor(inv.number);
+                    return { inv, index, amount, paid, remaining: Math.max(0, amount - paid) };
+                })
+                .filter(d => d.inv.payment === 'دين' || d.inv.debtSettled);
+        }
+
+        function matchesFilter(d) {
+            if (statusFilter === 'open') return d.remaining > 0;
+            if (statusFilter === 'closed') return d.remaining <= 0;
+            return true;
+        }
+
+        function matchesSearch(d, q) {
+            if (!q) return true;
+            return [d.inv.number, d.inv.customer, d.inv.employee, d.inv.date]
+                .join(' ').toLowerCase().includes(q);
+        }
+
+        function render() {
+            const all = buildDebts();
+            const q = searchInput.value.trim().toLowerCase();
+
+            const rows = all
+                .filter(d => matchesFilter(d) && matchesSearch(d, q))
+                .sort((a, b) => (a.inv.date || '').localeCompare(b.inv.date || '') || a.index - b.index);
+
+            body.innerHTML = rows.map(d => {
+                const closed = d.remaining <= 0;
+                return `<tr>
+                    <td>${escapeHtml(d.inv.date)}</td>
+                    <td>${escapeHtml(d.inv.number)}</td>
+                    <td>${escapeHtml(d.inv.customer)}</td>
+                    <td>${money(d.amount)}</td>
+                    <td class="paid-full">${money(d.paid)}</td>
+                    <td class="remaining">${money(d.remaining)}</td>
+                    <td><span class="status ${closed ? 'closed' : ''}">${closed ? 'مسددة' : 'مستحقة'}</span></td>
+                    <td>
+                        <span class="actions">
+                            ${closed ? '' : `<button class="btn pay" type="button" data-pay="${escapeHtml(d.inv.number)}">تسديد</button>`}
+                            <button class="btn view" type="button" data-history="${escapeHtml(d.inv.number)}">السجل</button>
+                            <a class="btn view" href="add-invoice.html?invoice=${d.index}">الفاتورة</a>
+                        </span>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            emptyMessage.classList.toggle('show', rows.length === 0);
+
+            const openDebts = all.filter(d => d.remaining > 0);
+            const totalRemaining = openDebts.reduce((s, d) => s + d.remaining, 0);
+            const customers = new Set(openDebts.map(d => (d.inv.customer || '').trim())).size;
+            const totalPaid = all.reduce((s, d) => s + d.paid, 0);
+
+            document.getElementById('totalRemaining').textContent = money(totalRemaining);
+            document.getElementById('openCount').textContent = openDebts.length.toLocaleString('en-US');
+            document.getElementById('customerCount').textContent = customers.toLocaleString('en-US');
+            document.getElementById('totalPaid').textContent = money(totalPaid);
+            document.getElementById('resultText').textContent = `عرض ${rows.length} من ${all.length} فاتورة دين`;
+        }
+
+        function findDebt(number) {
+            return buildDebts().find(d => d.inv.number === number) || null;
+        }
+
+        function renderHistory(number) {
+            const list = document.getElementById('historyList');
+            const items = payments
+                .map((p, index) => ({ p, index }))
+                .filter(({ p }) => p.invoiceNumber === number)
+                .sort((a, b) => (a.p.date || '').localeCompare(b.p.date || ''));
+
+            if (!items.length) {
+                list.innerHTML = '<li class="none">لا توجد تسديدات لهذه الفاتورة</li>';
+                return;
+            }
+
+            list.innerHTML = items.map(({ p, index }) => `
+                <li>
+                    <span>${escapeHtml(p.date)} — <strong>${money(p.amount)}</strong>${p.note ? ' — ' + escapeHtml(p.note) : ''}</span>
+                    <button class="btn danger" type="button" data-del="${index}">حذف</button>
+                </li>`).join('');
+        }
+
+        function refreshDialog() {
+            const d = findDebt(activeNumber);
+            if (!d) return;
+
+            document.getElementById('payTitle').textContent = d.remaining > 0 ? 'تسديد دين' : 'سجل التسديدات';
+            document.getElementById('dlgNumber').textContent = d.inv.number;
+            document.getElementById('dlgCustomer').textContent = d.inv.customer || '—';
+            document.getElementById('dlgAmount').textContent = money(d.amount);
             document.getElementById('dlgRemaining').textContent = money(d.remaining);
+
             payForm.hidden = d.remaining <= 0;
             payAmount.value = d.remaining;
             payAmount.max = d.remaining;
-            document.getElementById('payTitle').textContent = d.remaining > 0 ? 'تسديد دين' : 'سجل التسديدات';
+            renderHistory(activeNumber);
         }
-        renderHistory(activeNumber);
-        render();
-    });
 
-    document.getElementById('closeDialog').addEventListener('click', closeDialog);
+        function openDialog(number) {
+            const d = findDebt(number);
+            if (!d) return;
+            activeNumber = number;
 
-    document.getElementById('statusChips').addEventListener('click', event => {
-        const chip = event.target.closest('.chip');
-        if (!chip) return;
-        statusFilter = chip.dataset.filter;
-        document.querySelectorAll('#statusChips .chip')
-            .forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
-        render();
-    });
+            payDate.value = todayLocal();
+            payForm.elements.note.value = '';
+            payError.textContent = '';
 
-    searchInput.addEventListener('input', render);
+            refreshDialog();
+            dialog.showModal();
+        }
 
-    // تحديث الصفحة عند تغيير البيانات من تبويب آخر
-    window.addEventListener('storage', event => {
-        if (event.key === INVOICES_KEY || event.key === PAYMENTS_KEY) {
-            loadData();
+        function closeDialog() {
+            dialog.close();
+            activeNumber = null;
+        }
+
+        body.addEventListener('click', event => {
+            const payBtn = event.target.closest('[data-pay]');
+            if (payBtn) return openDialog(payBtn.dataset.pay);
+
+            const histBtn = event.target.closest('[data-history]');
+            if (histBtn) openDialog(histBtn.dataset.history);
+        });
+
+        payForm.addEventListener('submit', event => {
+            event.preventDefault();
+            if (!activeNumber) return;
+
+            const d = findDebt(activeNumber);
+            if (!d || d.remaining <= 0) return;
+
+            const amount = Number(payAmount.value);
+            const date = payDate.value;
+            const note = payForm.elements.note.value.trim();
+
+            if (!amount || amount <= 0) {
+                payError.textContent = 'أدخل مبلغًا أكبر من صفر';
+                return;
+            }
+            if (amount > d.remaining) {
+                payError.textContent = 'المبلغ أكبر من المتبقي على الفاتورة';
+                return;
+            }
+            if (!date) {
+                payError.textContent = 'اختر تاريخ التسديد';
+                return;
+            }
+
+            const invoiceNumber = activeNumber;
+            payments.push({ invoiceNumber, amount, date, note });
+
+            if (!savePayments()) {
+                payments.pop();
+                payError.textContent = 'تعذر حفظ التسديد على الجهاز';
+                return;
+            }
+
             syncInvoicePayments();
-            render();
-        }
-    });
+            const remainingAfter = Math.max(0, d.remaining - amount);
 
-    loadData();
-    syncInvoicePayments();
-    render();
-</script>
+            safeLog(
+                'pay',
+                'تسديد دين فاتورة ' + invoiceNumber,
+                `الزبون: ${d.inv.customer || '—'} — المبلغ المدفوع: ${money(amount)} — التاريخ: ${date}` +
+                ` — المتبقي بعد الدفع: ${money(remainingAfter)}` +
+                (remainingAfter === 0 ? ' — أصبحت الفاتورة مسددة بالكامل' : '') +
+                (note ? ` — ملاحظة: ${note}` : '')
+            );
+
+            closeDialog();
+            render();
+        });
+
+        document.getElementById('historyList').addEventListener('click', event => {
+            const delBtn = event.target.closest('[data-del]');
+            if (!delBtn) return;
+            if (!activeNumber) return;
+            if (!confirm('هل تريد حذف هذا التسديد؟')) return;
+
+            const index = Number(delBtn.dataset.del);
+            const removed = payments[index];
+            if (!removed) return;
+
+            payments.splice(index, 1);
+
+            if (!savePayments()) {
+                payments.splice(index, 0, removed);
+                payError.textContent = 'تعذر حذف التسديد من الجهاز';
+                return;
+            }
+
+            syncInvoicePayments();
+
+            const d = findDebt(activeNumber);
+            safeLog(
+                'delete',
+                'تسديد دين فاتورة ' + activeNumber,
+                `الزبون: ${d?.inv.customer || '—'} — المبلغ المحذوف: ${money(removed.amount)} — التاريخ: ${removed.date || '—'}` +
+                ` — المتبقي بعد الحذف: ${money(d ? d.remaining : 0)}`
+            );
+
+            refreshDialog();
+            render();
+        });
+
+        document.getElementById('closeDialog').addEventListener('click', closeDialog);
+
+        document.getElementById('statusChips').addEventListener('click', event => {
+            const chip = event.target.closest('.chip');
+            if (!chip) return;
+            statusFilter = chip.dataset.filter;
+            document.querySelectorAll('#statusChips .chip')
+                .forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+            render();
+        });
+
+        searchInput.addEventListener('input', render);
+
+        // تحديث الصفحة عند تغيير البيانات من تبويب آخر
+        window.addEventListener('storage', event => {
+            if (event.key === INVOICES_KEY || event.key === PAYMENTS_KEY) {
+                loadData();
+                syncInvoicePayments();
+                render();
+            }
+        });
+
+        loadData();
+        syncInvoicePayments();
+        render();
+    </script>
 </body>
 
 </html>

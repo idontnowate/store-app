@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
     <script src="storage.js"></script>
+    <script src="log.js"></script>
     <script src="theme.js"></script>
     <script src="auth.js"></script>
     <script src="layout.js"></script>
@@ -182,6 +183,8 @@
             font: 700 16px var(--font);
             cursor: pointer;
             white-space: nowrap;
+            text-decoration: none;
+            display: inline-block;
         }
 
         .btn.red {
@@ -202,19 +205,6 @@
         .btn.danger {
             background: #7a2a27;
             color: #fff;
-        }
-
-        .btn.view {
-            background: transparent;
-            color: var(--olive);
-            border: 2px solid var(--olive);
-            padding: 6px 12px;
-            font-size: 14px;
-        }
-
-        .btn.view:hover {
-            background: var(--olive);
-            color: var(--page);
         }
 
         .btn:disabled {
@@ -254,76 +244,10 @@
             margin: 4px 0 8px;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: var(--page);
-            border-radius: 18px;
-            overflow: hidden;
-            font-size: 16px;
-        }
-
-        th {
-            background: var(--olive);
-            color: var(--page);
-            padding: 10px;
-            text-align: center;
-        }
-
-        td {
-            padding: 10px;
-            text-align: center;
-            border-bottom: 1px solid var(--line);
-            font-weight: 600;
-        }
-
-        .actions {
-            display: inline-flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .tag {
-            display: inline-block;
-            background: var(--olive);
-            color: var(--page);
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 12px;
-            margin-inline-start: 6px;
-        }
-
-        dialog {
-            width: min(520px, 92vw);
+        .divider {
             border: 0;
-            border-radius: 28px;
-            background: var(--page);
-            padding: 24px;
-            box-shadow: 0 10px 30px #0005;
-            font-family: var(--font);
-        }
-
-        dialog::backdrop {
-            background: #0006;
-        }
-
-        dialog h2 {
-            margin: 0 0 14px;
-            color: var(--olive-dark);
-            font-size: 24px;
-        }
-
-        dialog form {
-            display: grid;
-            gap: 12px;
-        }
-
-        .error {
-            color: var(--red);
-            font-weight: 700;
-            font-size: 14px;
-            min-height: 18px;
+            border-top: 2px solid var(--line);
+            margin: 22px 0;
         }
 
         @media (max-width: 1050px) {
@@ -391,8 +315,8 @@
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
         <nav>
-            <a href="cashier.html">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
+            <a href="cashier.html">الكاشير</a>
             <a href="sales-new_1.html">المبيعات</a>
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
@@ -408,6 +332,8 @@
 
     <main>
         <div class="flash" id="flash" hidden></div>
+
+        <!-- المظهر واللغة -->
         <section class="card">
             <h2>المظهر واللغة</h2>
             <form class="grid" id="prefsForm">
@@ -425,6 +351,7 @@
                 </label>
             </form>
         </section>
+
         <!-- بيانات المتجر -->
         <section class="card">
             <h2>بيانات المتجر</h2>
@@ -487,30 +414,20 @@
 
         <!-- المستخدمون -->
         <section class="card">
-            <div class="btn-row" style="justify-content:space-between;margin-bottom:14px">
-                <h2 style="margin:0">المستخدمون</h2>
-                <button class="btn olive" type="button" id="addUserBtn">+ إضافة مستخدم</button>
+            <h2>المستخدمون</h2>
+            <p class="hint">إضافة الموظفين والمديرين وتحديد صلاحياتهم تتم من صفحة المستخدمين.</p>
+            <div class="btn-row">
+                <a class="btn olive" href="users.html">فتح صفحة المستخدمين</a>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>الاسم</th>
-                        <th>اسم الدخول</th>
-                        <th>الدور</th>
-                        <th>إجراءات</th>
-                    </tr>
-                </thead>
-                <tbody id="usersRows"></tbody>
-            </table>
             <p class="hint" style="margin-top:12px">
-                المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى الإعدادات. لا يمكن حذف حسابك الحالي أو آخر مدير.
+                المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى الإعدادات والمستخدمين وسجل العمليات.
             </p>
         </section>
 
         <!-- النسخ الاحتياطي -->
         <section class="card">
             <h2>النسخ الاحتياطي</h2>
-            <p class="hint">النسخة تحتوي على كل البيانات والحسابات. احفظها في مكان آمن.</p>
+            <p class="hint">النسخة تحتوي على بيانات هذا المتجر فقط، ولا تحتوي على كلمات المرور. احفظها في مكان آمن.</p>
             <div class="btn-row" style="margin-bottom:16px">
                 <button class="btn olive" type="button" id="exportBtn">تصدير نسخة احتياطية</button>
             </div>
@@ -519,50 +436,23 @@
                     style="height:auto;width:auto;border:0;background:none;padding:0">
                 <button class="btn secondary" type="button" id="importBtn" disabled>استعادة النسخة</button>
             </div>
-            <hr style="border:0;border-top:2px solid var(--line);margin:22px 0">
+
+            <hr class="divider">
+
             <h2 style="font-size:20px">منطقة الخطر</h2>
-            <p class="hint">يحذف الفواتير والمشتريات والمنتجات والتسديدات والحركات. الحسابات والإعدادات تبقى.</p>
+            <p class="hint">يحذف الفواتير والمشتريات والمنتجات والتسديدات والحركات من هذا المتجر. الحسابات والإعدادات
+                تبقى.</p>
             <button class="btn danger" type="button" id="resetBtn">حذف بيانات العمل</button>
         </section>
     </main>
 
-    <!-- نافذة المستخدم -->
-    <dialog id="userDialog" aria-labelledby="userTitle">
-        <h2 id="userTitle">إضافة مستخدم</h2>
-        <form id="userForm" novalidate>
-            <label>الاسم الظاهر
-                <input name="name" required autocomplete="off">
-            </label>
-            <label>اسم الدخول
-                <input name="username" required autocomplete="off" placeholder="بالأحرف الإنكليزية">
-            </label>
-            <label>كلمة المرور
-                <input name="password" type="password" autocomplete="new-password">
-            </label>
-            <label>الدور
-                <select name="role">
-                    <option value="admin">مدير (كل الصفحات)</option>
-                    <option value="cashier">موظف مبيعات (بدون الإعدادات)</option>
-                </select>
-            </label>
-            <div class="error" id="userError" role="alert"></div>
-            <div class="btn-row">
-                <button class="btn red" type="submit">حفظ</button>
-                <button class="btn secondary" type="button" id="closeUser">إلغاء</button>
-            </div>
-        </form>
-    </dialog>
-
     <script>
         const A = window.StoreAuth;
-        const me = A.currentUser();
-
         const $ = id => document.getElementById(id);
         const flashEl = $('flash');
 
-        function esc(value) {
-            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-        }
+        // مفاتيح البيانات التي تُزامن مع السحابة (نفس قاعدة storage.js)
+        const isSyncKey = k => k.startsWith('store') && k !== 'storeSession';
 
         function flash(text, isError = false) {
             flashEl.textContent = text;
@@ -572,6 +462,19 @@
             flash.timer = setTimeout(() => { flashEl.hidden = true; }, 4000);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+
+        // ===== المظهر واللغة =====
+        const prefsForm = $('prefsForm');
+        const currentPrefs = StoreTheme.get();
+        prefsForm.elements.theme.value = currentPrefs.theme;
+        prefsForm.elements.lang.value = currentPrefs.lang;
+
+        prefsForm.addEventListener('change', () => {
+            StoreTheme.set({
+                theme: prefsForm.elements.theme.value,
+                lang: prefsForm.elements.lang.value
+            });
+        });
 
         // ===== بيانات المتجر =====
         let logoData = '';
@@ -652,151 +555,16 @@
             flash('تم حفظ الرصيد الافتتاحي');
         });
 
-        // ===== المستخدمون =====
-        let editingUserId = null;
-
-        function renderUsers() {
-            const users = A.getUsers();
-            $('usersRows').innerHTML = users.map(u => {
-                const isMe = me && u.id === me.id;
-                return `<tr>
-                    <td>${esc(u.name)}${isMe ? '<span class="tag">أنت</span>' : ''}</td>
-                    <td>${esc(u.username)}</td>
-                    <td>${A.roleLabel(u.role)}</td>
-                    <td>
-                        <span class="actions">
-                            <button class="btn view" type="button" data-edit="${u.id}">تعديل</button>
-                            ${isMe ? '' : `<button class="btn danger" type="button" data-del="${u.id}">حذف</button>`}
-                        </span>
-                    </td>
-                </tr>`;
-            }).join('');
-        }
-
-        function openUserDialog(id = null) {
-            editingUserId = id;
-            const users = A.getUsers();
-            const u = id ? users.find(x => x.id === id) : null;
-            const isMe = !!u && me && u.id === me.id;
-
-            const f = $('userForm');
-            f.reset();
-            $('userError').textContent = '';
-            $('userTitle').textContent = u ? 'تعديل مستخدم' : 'إضافة مستخدم';
-
-            f.elements.name.value = u?.name || '';
-            f.elements.username.value = u?.username || '';
-            f.elements.password.value = '';
-            f.elements.password.required = !u;
-            f.elements.password.placeholder = u ? 'اتركه فارغًا للإبقاء على الحالية' : '';
-            f.elements.role.value = u?.role || 'cashier';
-            f.elements.role.disabled = isMe;
-
-            $('userDialog').showModal();
-        }
-
-        $('addUserBtn').addEventListener('click', () => openUserDialog());
-
-        $('usersRows').addEventListener('click', event => {
-            const edit = event.target.closest('[data-edit]');
-            if (edit) return openUserDialog(edit.dataset.edit);
-
-            const del = event.target.closest('[data-del]');
-            if (!del) return;
-
-            const users = A.getUsers();
-            const target = users.find(u => u.id === del.dataset.del);
-            if (!target || (me && target.id === me.id)) return;
-
-            const admins = users.filter(u => u.role === 'admin');
-            if (target.role === 'admin' && admins.length <= 1) {
-                flash('لا يمكن حذف آخر مدير في النظام', true);
-                return;
-            }
-            if (!confirm(`هل تريد حذف المستخدم "${target.name}"؟`)) return;
-
-            A.saveUsers(users.filter(u => u.id !== target.id));
-            renderUsers();
-            flash('تم حذف المستخدم');
-        });
-
-        $('closeUser').addEventListener('click', () => $('userDialog').close());
-
-        $('userForm').addEventListener('submit', async event => {
-            event.preventDefault();
-            const f = event.target.elements;
-            const errorEl = $('userError');
-            errorEl.textContent = '';
-
-            const name = f.name.value.trim();
-            const username = f.username.value.trim().toLowerCase();
-            const password = f.password.value;
-
-            if (!name || !username) {
-                errorEl.textContent = 'أدخل الاسم واسم الدخول';
-                return;
-            }
-            if (!/^[a-z0-9_.]+$/.test(username)) {
-                errorEl.textContent = 'اسم الدخول بالأحرف الإنكليزية والأرقام والنقطة والشرطة السفلية فقط';
-                return;
-            }
-
-            const users = A.getUsers();
-            if (users.some(u => u.username === username && u.id !== editingUserId)) {
-                errorEl.textContent = 'اسم الدخول مستخدم بالفعل';
-                return;
-            }
-
-            const existing = users.find(u => u.id === editingUserId) || null;
-            if (!existing && password.length < 4) {
-                errorEl.textContent = 'كلمة المرور 4 أحرف على الأقل';
-                return;
-            }
-            if (existing && password && password.length < 4) {
-                errorEl.textContent = 'كلمة المرور 4 أحرف على الأقل';
-                return;
-            }
-
-            // دور الحساب الحالي لا يُغيَّر من نفسه
-            const isMe = existing && me && existing.id === me.id;
-            const role = isMe ? existing.role : f.role.value;
-
-            if (existing && existing.role === 'admin' && role !== 'admin') {
-                const admins = users.filter(u => u.role === 'admin');
-                if (admins.length <= 1) {
-                    errorEl.textContent = 'يجب أن يبقى مدير واحد على الأقل';
-                    return;
-                }
-            }
-
-            const passwordHash = password
-                ? await A.hash(password)
-                : existing?.password;
-
-            if (existing) {
-                Object.assign(existing, { name, username, role, password: passwordHash });
-            } else {
-                users.push({ id: A.newId(), name, username, role, password: passwordHash });
-            }
-
-            A.saveUsers(users);
-            $('userDialog').close();
-            renderUsers();
-            flash(existing ? 'تم تحديث المستخدم' : 'تمت إضافة المستخدم');
-        });
-
         // ===== النسخ الاحتياطي =====
         $('exportBtn').addEventListener('click', () => {
             const data = {};
             Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('store') && key !== 'storeSession') {
-                    data[key] = localStorage.getItem(key);
-                }
+                if (isSyncKey(key)) data[key] = localStorage.getItem(key);
             });
 
             const payload = {
                 app: 'store-backup',
-                version: 1,
+                version: 2,
                 date: new Date().toISOString(),
                 data
             };
@@ -836,25 +604,26 @@
             reader.readAsText(file);
         });
 
+        // الاستعادة تكتب على متجر الجهاز الحالي فقط، وكل تغيير يُرفع تلقائيًا إلى السحابة
         $('importBtn').addEventListener('click', () => {
             if (!pendingBackup) return;
-            if (!confirm('سيتم استبدال كل البيانات الحالية بالنسخة الاحتياطية. متابعة؟')) return;
+            if (!confirm('سيتم استبدال كل بيانات هذا المتجر بالنسخة الاحتياطية. متابعة؟')) return;
 
             Object.keys(localStorage)
-                .filter(k => k.startsWith('store') && k !== 'storeSession')
+                .filter(isSyncKey)
                 .forEach(k => localStorage.removeItem(k));
 
             Object.entries(pendingBackup.data).forEach(([k, v]) => {
-                if (k.startsWith('store') && k !== 'storeSession') localStorage.setItem(k, v);
+                if (isSyncKey(k) && v !== null) localStorage.setItem(k, v);
             });
 
-            localStorage.removeItem('storeSession');
-            alert('تمت الاستعادة. سجّل الدخول مرة أخرى.');
-            location.replace('login.html');
+            alert('تمت الاستعادة بنجاح');
+            location.reload();
         });
 
+        // ===== منطقة الخطر =====
         $('resetBtn').addEventListener('click', () => {
-            if (!confirm('سيتم حذف كل الفواتير والمشتريات والمنتجات والتسديدات والحركات. الحسابات والإعدادات تبقى. متابعة؟')) return;
+            if (!confirm('سيتم حذف كل الفواتير والمشتريات والمنتجات والتسديدات والحركات من هذا المتجر. الحسابات والإعدادات تبقى. متابعة؟')) return;
             if (!confirm('تأكيد أخير: لا يمكن التراجع. هل تريد الحذف؟')) return;
 
             [
@@ -874,18 +643,6 @@
         // ===== التهيئة =====
         loadStoreForm();
         loadCashForm();
-        renderUsers();
-        const prefsForm = document.getElementById('prefsForm');
-            const currentPrefs = StoreTheme.get();
-            prefsForm.elements.theme.value = currentPrefs.theme;
-            prefsForm.elements.lang.value = currentPrefs.lang;
-
-            prefsForm.addEventListener('change', () => {
-                StoreTheme.set({
-                    theme: prefsForm.elements.theme.value,
-                    lang: prefsForm.elements.lang.value
-                });
-            });
     </script>
 </body>
 

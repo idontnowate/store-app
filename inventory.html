@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المخزن</title>
     <script src="storage.js"></script>
+    <script src="log.js"></script>
     <script src="barcode-camera.js"></script>
     <script src="scanbridge.js"></script>
     <script src="theme.js"></script>
@@ -610,8 +611,8 @@
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
         <nav>
-            <a href="cashier.html">الكاشير</a>
             <a href="home.html">الصفحة الرئيسية</a>
+            <a href="cashier.html">الكاشير</a>
             <a href="sales-new_1.html">المبيعات</a>
             <a class="active" href="inventory.html" aria-current="page">المخزن</a>
             <a href="purchases.html">المشتريات</a>
@@ -790,8 +791,18 @@
         const adjustDialog = $('adjustDialog');
         const adjustForm = $('adjustForm');
         const adjustError = $('adjustError');
+        const galleryInput = $('galleryInput');
 
         const STATUS_LABEL = { ok: 'متوفر', low: 'منخفض', out: 'نفد' };
+
+        // التسجيل في السجل لا يجب أن يوقف الحفظ أو الحذف أبدًا
+        function safeLog(action, entity, details) {
+            try {
+                if (window.StoreLog) StoreLog.add(action, entity, details);
+            } catch (err) {
+                console.error('خطأ في سجل العمليات:', err);
+            }
+        }
 
         function safeParse(text) {
             try {
@@ -819,8 +830,26 @@
             invoices = safeParse(localStorage.getItem(INV_KEY));
         }
 
-        function saveProducts() { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); }
-        function saveAdjustments() { localStorage.setItem(ADJ_KEY, JSON.stringify(adjustments)); }
+        // حفظ آمن: يعيد false عند الفشل بدل أن يرمي خطأ يوقف الصفحة
+        function saveProducts() {
+            try {
+                localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ المنتجات:', err);
+                return false;
+            }
+        }
+
+        function saveAdjustments() {
+            try {
+                localStorage.setItem(ADJ_KEY, JSON.stringify(adjustments));
+                return true;
+            } catch (err) {
+                console.error('فشل حفظ التعديلات:', err);
+                return false;
+            }
+        }
 
         // ===== الصور =====
         // تصغير الصورة إلى IMAGE_MAX بكسل وتحويلها إلى JPEG حتى لا تثقل المزامنة
@@ -859,8 +888,6 @@
                 removeImageBtn.hidden = true;
             }
         }
-
-        const galleryInput = $('galleryInput');
 
         $('takePhotoBtn').addEventListener('click', () => imageInput.click());
         $('pickImageBtn').addEventListener('click', () => galleryInput.click());
@@ -1055,14 +1082,32 @@
             // نضيف الصورة فقط إن تغيّرت أو حُذفت، فتبقى الصورة القديمة كما هي
             if (pendingImage !== undefined) data.image = pendingImage;
 
-            if (editingId) {
+            const isEdit = Boolean(editingId);
+            const previous = isEdit ? products.find(p => p.id === editingId) : null;
+            let productSnapshot = null;
+
+            if (isEdit) {
                 const i = products.findIndex(p => p.id === editingId);
                 if (i !== -1) products[i] = { ...products[i], ...data };
+                productSnapshot = products[i];
             } else {
-                products.push({ id: newId(), ...data });
+                const created = { id: newId(), ...data };
+                products.push(created);
+                productSnapshot = created;
             }
 
-            saveProducts();
+            if (!saveProducts()) {
+                productError.textContent = 'تعذر حفظ المنتج على الجهاز (ربما امتلأت المساحة). جرّب بدون صورة أو احذف صورًا قديمة';
+                return;
+            }
+
+            safeLog(
+                isEdit ? 'edit' : 'create',
+                'منتج ' + productSnapshot.name,
+                `الباركود: ${barcode} — الفئة: ${data.category || '—'} — سعر التكلفة: ${money(data.cost)} — سعر البيع: ${money(data.price)} — الكمية الافتتاحية: ${num(data.openingQty)}` +
+                (isEdit && previous && previous.name !== name ? ` — الاسم السابق: ${previous.name}` : '')
+            );
+
             productDialog.close();
             render();
         });
@@ -1091,18 +1136,33 @@
                 adjustError.textContent = 'أدخل كمية غير صفرية';
                 return;
             }
-            if (currentQty(p) + change < 0) {
+            const before = currentQty(p);
+            if (before + change < 0) {
                 adjustError.textContent = 'لا يمكن أن تصبح الكمية أقل من صفر';
                 return;
             }
 
+            const note = adjustForm.elements.note.value.trim();
             adjustments.push({
                 productId: p.id,
                 change,
-                note: adjustForm.elements.note.value.trim(),
+                note,
                 date: new Date().toISOString().slice(0, 10)
             });
-            saveAdjustments();
+
+            if (!saveAdjustments()) {
+                adjustments.pop();
+                adjustError.textContent = 'تعذر حفظ التعديل على الجهاز';
+                return;
+            }
+
+            safeLog(
+                'stock',
+                'تعديل كمية ' + p.name,
+                `الكمية قبل: ${num(before)} — التغيير: ${change > 0 ? '+' : ''}${num(change)} — الكمية بعد: ${num(before + change)}` +
+                (note ? ` — ملاحظة: ${note}` : '')
+            );
+
             adjustDialog.close();
             render();
         });
@@ -1127,10 +1187,23 @@
                     : `هل تريد حذف المنتج "${p.name}"؟`;
                 if (!confirm(msg)) return;
 
+                safeLog(
+                    'delete',
+                    'منتج ' + p.name,
+                    `الباركود: ${p.barcode || '—'} — الكمية وقت الحذف: ${num(currentQty(p))}`
+                );
+
+                const oldProducts = products;
+                const oldAdjustments = adjustments;
                 products = products.filter(x => x.id !== p.id);
                 adjustments = adjustments.filter(a => a.productId !== p.id);
-                saveProducts();
-                saveAdjustments();
+
+                if (!saveProducts() || !saveAdjustments()) {
+                    products = oldProducts;
+                    adjustments = oldAdjustments;
+                    alert('تعذر حذف المنتج من الجهاز، حاول مرة أخرى');
+                    return;
+                }
                 render();
             }
         });

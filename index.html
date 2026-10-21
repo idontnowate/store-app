@@ -5,142 +5,268 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>تسجيل الدخول</title>
-    <script src="log.js"></script>
     <script src="theme.js"></script>
     <script src="auth.js"></script>
     <style>
         :root {
-            --page: #efede5;
-            --olive: #40570d;
-            --olive-dark: #344807;
-            --panel: #d1cec5;
-            --ink: #10110d;
-            --muted: #5a5a52;
-            --line: #bdb9ae;
-            --red: #c74845;
-            --green: #91d94c;
-            --font: Tahoma, Arial, sans-serif;
+            --bg: #111827;
+            --card: #1e2738;
+            --card-border: #ffffff14;
+            --field: #161e2d;
+            --field-focus: #1d2739;
+            --separator: #2b3649;
+            --text: #f1f5f9;
+            --subtitle: #cfe0ff;
+            --placeholder: #6b7280;
+            --brand: #4fb88a;
+            --button: #2d3f66;
+            --button-hover: #3a5083;
+            --button-text: #f1f5f9;
+            --red: #f87171;
+            --font: -apple-system, "SF Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html,
+        body {
+            background: var(--bg);
+            color-scheme: dark;
+        }
+
         body {
             margin: 0;
             min-height: 100vh;
             display: grid;
-            place-content: center;
-            justify-items: center;
-            gap: 22px;
-            background: var(--page);
-            color: var(--ink);
+            place-items: center;
+            color: var(--text);
             font-family: var(--font);
-            padding: 16px;
+            padding: 24px 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .sheet {
+            width: min(640px, 100%);
+            min-height: 640px;
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 48px;
+            padding: 56px 48px 40px;
+            box-shadow: 0 30px 60px #0008;
+            display: flex;
+            flex-direction: column;
         }
 
         .brand {
             text-align: center;
-            color: var(--green);
-            font-size: 26px;
-            font-weight: 700;
-            line-height: 1.5;
+            margin-bottom: 36px;
+        }
+
+        .brand strong {
+            display: block;
+            color: var(--brand);
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.3;
         }
 
         .brand span {
             display: block;
-            color: var(--olive-dark);
-            font-size: 20px;
-        }
-
-        .card {
-            width: min(420px, 100%);
-            background: var(--panel);
-            border-radius: 36px;
-            padding: 32px 28px;
-            box-shadow: 8px 10px 12px #0003;
+            margin-top: 6px;
+            color: var(--subtitle);
+            font-size: 17px;
+            font-weight: 600;
         }
 
         h1 {
             margin: 0 0 22px;
-            text-align: center;
-            color: var(--olive-dark);
-            font-size: 30px;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            padding-inline-start: 6px;
         }
 
         form {
-            display: grid;
-            gap: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            flex: 1;
         }
 
-        label {
-            display: grid;
-            gap: 6px;
-            font-weight: 700;
-            font-size: 16px;
-            color: var(--olive-dark);
+        .group {
+            background: var(--field);
+            border-radius: 26px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 6px #0006;
         }
 
-        input {
-            height: 50px;
-            border: 3px solid #777;
-            border-radius: 12px;
-            padding: 0 12px;
-            font: 17px var(--font);
-            color: var(--ink);
-            background: #fff;
+        .field {
+            display: grid;
+            grid-template-columns: 130px 1fr;
+            align-items: center;
+            min-height: 62px;
+            padding: 0 22px;
+            gap: 14px;
+            font-weight: 600;
+            font-size: 17px;
+            color: var(--text);
+            background: transparent;
+            transition: background .2s;
+        }
+
+        .field+.field {
+            border-top: 1px solid var(--separator);
+        }
+
+        .field:focus-within {
+            background: var(--field-focus);
+        }
+
+        .field span {
+            color: var(--text);
+        }
+
+        .field input {
+            height: 62px;
+            width: 100%;
             min-width: 0;
-        }
-
-        input:focus {
-            outline: 3px solid var(--olive);
-            outline-offset: 1px;
-        }
-
-        button {
-            height: 52px;
             border: 0;
-            border-radius: 16px;
-            background: var(--olive);
-            color: var(--page);
-            font: 700 19px var(--font);
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            -webkit-text-fill-color: var(--text);
+            caret-color: var(--brand);
+            font: 18px var(--font);
+        }
+
+        .field input::placeholder {
+            color: var(--placeholder);
+        }
+
+        /* يمنع ظهور خلفية بيضاء عند تعبئة المتصفح تلقائيًا */
+        .field input:-webkit-autofill,
+        .field input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px var(--field) inset;
+            -webkit-text-fill-color: var(--text);
+            transition: background-color 9999s;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: auto;
+        }
+
+        .submit {
+            height: 62px;
+            border: 0;
+            border-radius: 999px;
+            background: var(--button);
+            color: var(--button-text);
+            font: 700 20px var(--font);
             cursor: pointer;
-            box-shadow: 4px 6px 10px #0002;
+            box-shadow: 0 10px 22px #0007;
+            transition: background .2s, transform .1s;
         }
 
-        button:hover {
-            background: var(--olive-dark);
+        .submit:hover {
+            background: var(--button-hover);
         }
 
-        button:disabled {
-            opacity: .6;
+        .submit:active {
+            transform: scale(.98);
+        }
+
+        .submit:disabled {
+            opacity: .55;
             cursor: default;
+            transform: none;
         }
 
         .error {
-            min-height: 20px;
+            min-height: 22px;
             color: var(--red);
             font-weight: 700;
             font-size: 15px;
             text-align: center;
         }
+
+        .terms {
+            margin: 14px 0 0;
+            text-align: center;
+            font-size: 15px;
+        }
+
+        .terms a {
+            color: var(--subtitle);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .terms a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 560px) {
+            .sheet {
+                min-height: 0;
+                padding: 40px 22px 30px;
+                border-radius: 36px;
+            }
+
+            .brand strong {
+                font-size: 26px;
+            }
+
+            .field {
+                grid-template-columns: 1fr;
+                gap: 2px;
+                padding: 12px 18px;
+                min-height: 0;
+            }
+
+            .field input {
+                height: 46px;
+            }
+
+            .submit {
+                height: 56px;
+                font-size: 18px;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <header class="brand">مرحبا بك<span>تسجيل الدخول إلى حسابك</span></header>
+    <main class="sheet">
+        <header class="brand">
+            <strong>مرحبا بك</strong>
+            <span>تسجيل الدخول إلى حسابك</span>
+        </header>
 
-    <main class="card">
         <h1>تسجيل الدخول</h1>
+
         <form id="loginForm" novalidate>
-            <label>اسم المستخدم
-                <input name="username" autocomplete="username" required>
-            </label>
-            <label>كلمة المرور
-                <input name="password" type="password" autocomplete="current-password" required>
-            </label>
+            <div class="group">
+                <label class="field">
+                    <span>اسم المستخدم</span>
+                    <input name="username" autocomplete="username" required>
+                </label>
+                <label class="field">
+                    <span>كلمة المرور</span>
+                    <input name="password" type="password" autocomplete="current-password" required>
+                </label>
+            </div>
+
             <div class="error" id="error" role="alert"></div>
-            <button type="submit" id="submitBtn">دخول</button>
+
+            <div class="actions">
+                <button type="submit" class="submit" id="submitBtn">دخول</button>
+                <p class="terms"><a href="terms.html">شروط الاستخدام</a></p>
+            </div>
         </form>
     </main>
 

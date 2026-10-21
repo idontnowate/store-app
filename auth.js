@@ -1,4 +1,4 @@
-/* auth.js — تسجيل الدخول عبر Supabase، وحماية الصفحات، والقائمة الجانبية المشتركة */
+/* auth.js — تسجيل الدخول عبر Supabase، وحماية الصفحات، والقائمة الجانبية المشتركة، وتسجيل الدخول والخروج في سجل العمليات */
 (function () {
     const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_I2L_KEOwIXjyuCOue4w_3g_MMhYImIU';
@@ -11,6 +11,10 @@
     const SETTINGS_KEY = 'storeSettings';
     // بيانات العضوية محليًا؛ لا تبدأ بـ store حتى لا تُزامن، ويقرأها storage.js لمعرفة المتجر
     const MEMBERSHIP_KEY = 'appMembership';
+    // يحفظ معرف المتجر الذي اكتملت مزامنته محليًا (يكتبه storage.js)
+    const SYNCED_STORE_KEY = 'appSyncedStore';
+    // علامة مؤقتة: تسجيل دخول جديد ينتظر كتابته في السجل بعد اكتمال المزامنة
+    const PENDING_LOGIN_KEY = 'pendingLoginLog';
 
     const page = (location.pathname.split('/').pop() || HOME_PAGE).toLowerCase();
     const isLogin = page === LOGIN_PAGE;
@@ -55,6 +59,19 @@
         return role === 'admin' ? 'مدير' : 'موظف مبيعات';
     }
 
+    function displayName(m) {
+        return (m && (m.display_name || m.username)) || '';
+    }
+
+    // كتابة في سجل العمليات، ولا توقف الدخول أو الخروج عند أي خطأ
+    function writeLog(action, entity, details) {
+        try {
+            if (window.StoreLog) StoreLog.add(action, entity, details);
+        } catch (err) {
+            console.error('تعذر تسجيل العملية:', err);
+        }
+    }
+
     function getStoreInfo() {
         return { ...DEFAULT_STORE, ...read(SETTINGS_KEY, {}) };
     }
@@ -84,7 +101,7 @@
         });
     });
 
-    // اسم المستخدم يتحول إلى البريد الداخلي، والبريد الكامل يُستخدم كما هو (للمالك)
+    // اسم المستخدم يتحول إلى البريد الداخلي، والبريد الكامل يُستخدم كما هو
     function usernameToEmail(input) {
         const v = String(input).trim().toLowerCase();
         return v.includes('@') ? v : `${v}@${INTERNAL_EMAIL_DOMAIN}`;
@@ -121,15 +138,36 @@
         }
         membership = m;
         saveMembership(m);
+
+        // نؤجل كتابة سجل الدخول إلى الصفحة التالية، بعد اكتمال مزامنة المتجر
+        try { sessionStorage.setItem(PENDING_LOGIN_KEY, '1'); } catch (e) {}
         return m;
     }
 
     async function logout() {
+        // نسجّل الخروج قبل حذف الجلسة، لأن المزامنة تحتاج رمز الدخول
+        writeLog('logout', 'تسجيل خروج', 'خرج المستخدم ' + displayName(membership));
+        try { sessionStorage.removeItem(PENDING_LOGIN_KEY); } catch (e) {}
+
         await clientReady;
         await sb.auth.signOut();
         membership = null;
         localStorage.removeItem(MEMBERSHIP_KEY);
         location.replace(LOGIN_PAGE);
+    }
+
+    // يكتب سجل الدخول مرة واحدة بعد أن تكون بيانات المتجر محمّلة محليًا
+    function flushPendingLogin() {
+        try {
+            if (sessionStorage.getItem(PENDING_LOGIN_KEY) !== '1') return;
+            if (!window.StoreLog || !membership) return;
+            if (localStorage.getItem(SYNCED_STORE_KEY) !== membership.store_id) return;
+
+            writeLog('login', 'تسجيل دخول', 'دخل المستخدم ' + displayName(membership));
+            sessionStorage.removeItem(PENDING_LOGIN_KEY);
+        } catch (err) {
+            console.error(err);
+        }
     }
 
     function currentUser() {
@@ -220,7 +258,7 @@
             box.style.cssText =
                 'margin-top:14px;padding:12px;border-radius:20px;background:#efede5;font-size:15px;font-weight:700;color:#10110d';
             box.innerHTML = `
-                <div>${esc(membership.display_name || membership.username)}</div>
+                <div>${esc(displayName(membership))}</div>
                 <div style="font-size:13px;color:#5a5a52;margin-bottom:8px">${roleLabel(membership.role)}</div>
                 <button type="button" id="logoutBtn"
                     style="width:100%;border:0;border-radius:12px;padding:8px;background:#c74845;color:#fff;font:700 15px Tahoma,Arial,sans-serif;cursor:pointer">تسجيل الخروج</button>`;
@@ -242,7 +280,10 @@
         .then(guard)
         .then(async ok => {
             await whenDomReady();
-            if (ok && !isLogin) buildUI();
+            if (ok && !isLogin) {
+                buildUI();
+                flushPendingLogin();
+            }
             return ok;
         })
         .catch(err => {

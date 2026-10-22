@@ -21,6 +21,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الصفحة الرئيسية</title>
     <script src="storage.js?v=20261022"></script>
+    <script src="products.js?v=20261022"></script>
     <script src="log.js?v=20261022"></script>
     <script src="theme.js?v=20261022"></script>
     <script src="auth.js?v=20261022"></script>
@@ -551,12 +552,7 @@
                 const adjusted = adjustments
                     .filter(a => a.productId === p.id)
                     .reduce((s, a) => s + Number(a.change || 0), 0);
-                const sold = rows.reduce((s, r) => {
-                    if (!Array.isArray(r.inv.items)) return s;
-                    return s + r.inv.items
-                        .filter(it => String(it.description || it.category || '').trim() === String(p.name).trim())
-                        .reduce((x, it) => x + Number(it.qty || 0), 0);
-                }, 0);
+                const sold = StoreProducts.soldQty(p, rows.map(r => r.inv));
                 const qty = Number(p.openingQty || 0) + adjusted - sold;
                 return { p, qty, value: Math.max(0, qty) * Number(p.cost || 0) };
             });
@@ -568,8 +564,7 @@
             rows.forEach(r => {
                 if (!Array.isArray(r.inv.items)) return;
                 r.inv.items.forEach(it => {
-                    const name = String(it.description || it.category || '').trim();
-                    const prod = products.find(p => String(p.name).trim() === name);
+                    const prod = StoreProducts.productOf(it, products);
                     cogs += Number(it.qty || 0) * Number(prod?.cost || 0);
                 });
             });

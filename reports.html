@@ -21,6 +21,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>التقارير</title>
 <script src="storage.js?v=20261022"></script>
+    <script src="products.js?v=20261022"></script>
 <script src="log.js?v=20261022"></script>
 <script src="theme.js?v=20261022"></script>
 <script src="auth.js?v=20261022"></script>
@@ -644,12 +645,6 @@
             return Math.max(0, subtotal - Number(p.discount || 0));
         }
 
-        // تكلفة المنتج: سعر التكلفة الحالي في المخزن، أو صفر إن لم يوجد
-        function costOf(name) {
-            const p = products.find(x => String(x.name).trim() === String(name || '').trim());
-            return Number(p?.cost || 0);
-        }
-
         // ===== بناء البيانات =====
         function build() {
             const r = currentRange();
@@ -679,11 +674,13 @@
                         const cat = it.category || 'غير محدد';
                         byCategory[cat] = (byCategory[cat] || 0) + Number(it.total || 0);
 
-                        const name = (it.description || it.category || 'غير محدد').trim();
+                        // نجمع حسب المنتج المرتبط (باسمه الحالي) حتى لو تغيّر اسمه بعد البيع
+                        const prod = StoreProducts.productOf(it, products);
+                        const name = prod ? String(prod.name).trim() : (it.description || it.category || 'غير محدد').trim();
                         const row = byProduct[name] || { qty: 0, value: 0, cost: 0 };
                         row.qty += Number(it.qty || 0);
                         row.value += Number(it.total || 0);
-                        row.cost += Number(it.qty || 0) * costOf(name);
+                        row.cost += Number(it.qty || 0) * Number(prod?.cost || 0);
                         byProduct[name] = row;
                     });
                 } else {
@@ -737,7 +734,7 @@
                     - invoices.reduce((s, inv) => {
                         if (!Array.isArray(inv.items)) return s;
                         return s + inv.items
-                            .filter(it => String(it.description || it.category || '').trim() === String(p.name).trim())
+                            .filter(it => StoreProducts.matches(it, p))
                             .reduce((x, it) => x + Number(it.qty || 0), 0);
                     }, 0);
                 return { p, qty };

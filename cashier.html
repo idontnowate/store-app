@@ -21,6 +21,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الكاشير</title>
     <script src="storage.js?v=20261022"></script>
+    <script src="products.js?v=20261022"></script>
     <script src="log.js?v=20261022"></script>
     <script src="theme.js?v=20261022"></script>
     <script src="auth.js?v=20261022"></script>
@@ -776,22 +777,12 @@
             localStorage.setItem(KEYS[key], JSON.stringify(value));
         }
 
-        function itemKey(it) {
-            return String(it.description || it.category || '').trim();
-        }
-
         // المتوفر = الافتتاحي + تعديلات المخزن والمشتريات − المباع في كل الفواتير
         function stockOf(p, list) {
-            const name = String(p.name).trim();
             const adjusted = read('adjustments')
                 .filter(a => a.productId === p.id)
                 .reduce((s, a) => s + Number(a.change || 0), 0);
-            const sold = (list || []).reduce((s, inv) => {
-                if (!Array.isArray(inv.items)) return s;
-                return s + inv.items
-                    .filter(it => itemKey(it) === name)
-                    .reduce((x, it) => x + Number(it.qty || 0), 0);
-            }, 0);
+            const sold = StoreProducts.soldQty(p, list);
             return Number(p.openingQty || 0) + adjusted - sold;
         }
 
@@ -1165,6 +1156,7 @@
             const items = draft.lines.map(l => ({
                 category: l.category === 'بدون فئة' ? '' : l.category,
                 description: l.name,
+                productId: l.id,
                 qty: l.qty,
                 price: l.price,
                 total: l.qty * l.price

@@ -21,6 +21,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>إضافة فاتورة</title>
     <script src="storage.js?v=20261022"></script>
+    <script src="products.js?v=20261022"></script>
     <script src="log.js?v=20261022"></script>
     <script src="theme.js?v=20261022"></script>
     <script src="auth.js?v=20261022"></script>
@@ -790,10 +791,6 @@
         if (paramIndex !== null && savedInvoices[Number(paramIndex)]) editingIndex = Number(paramIndex);
 
         // ===== المخزن =====
-        function itemKey(it) {
-            return String(it.description || it.category || '').trim();
-        }
-
         function findProduct(name) {
             return products.find(p => String(p.name).trim() === name) || null;
         }
@@ -808,12 +805,7 @@
                 .filter(a => a.productId === p.id)
                 .reduce((s, a) => s + Number(a.change || 0), 0);
 
-            const sold = savedInvoices.reduce((s, inv, i) => {
-                if (i === excludeIndex || !Array.isArray(inv.items)) return s;
-                return s + inv.items
-                    .filter(it => itemKey(it) === name)
-                    .reduce((x, it) => x + Number(it.qty || 0), 0);
-            }, 0);
+            const sold = StoreProducts.soldQty(p, savedInvoices.filter((inv, i) => i !== excludeIndex));
 
             return Number(p.openingQty || 0) + adjusted - sold;
         }
@@ -872,6 +864,7 @@
             tr.querySelector('[name=description]').value = item.description || '';
             tr.querySelector('[name=qty]').value = item.qty ?? 1;
             tr.querySelector('[name=price]').value = item.price ?? '';
+            if (item.productId) tr.dataset.productId = item.productId;
             itemsBody.appendChild(tr);
         }
 
@@ -879,9 +872,14 @@
             return Array.from(itemsBody.rows).map(tr => {
                 const qty = Number(tr.querySelector('[name=qty]').value || 0);
                 const price = Number(tr.querySelector('[name=price]').value || 0);
+                const description = tr.querySelector('[name=description]').value.trim();
+                // نربط السطر برقم المنتج؛ وإن لم يطابق اسمًا حاليًا نبقي ربطه السابق
+                const product = findProduct(description);
+                const productId = product ? product.id : tr.dataset.productId;
                 return {
                     category: tr.querySelector('[name=category]').value.trim(),
-                    description: tr.querySelector('[name=description]').value.trim(),
+                    description,
+                    ...(productId ? { productId } : {}),
                     qty,
                     price,
                     total: qty * price

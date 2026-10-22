@@ -278,6 +278,10 @@
             }
         }
 
+        // ماسح الباركود بالهاتف متاح لكل المستخدمين
+        const bottomNav = sidebar.querySelector('nav.bottom');
+        if (bottomNav) addLink(bottomNav, 'scanner.html', 'ماسح الهاتف');
+
         sidebar.querySelectorAll('a[href]').forEach(a => {
             const isCurrent = a.getAttribute('href') === page;
             a.classList.toggle('active', isCurrent);

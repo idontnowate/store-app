@@ -21,6 +21,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المخزن</title>
     <script src="storage.js?v=20261022"></script>
+    <script src="products.js?v=20261022"></script>
     <script src="log.js?v=20261022"></script>
     <script src="barcode-camera.js?v=20261022"></script>
     <script src="scanbridge.js?v=20261022"></script>
@@ -934,19 +935,9 @@
         });
 
         // ===== المخزون =====
-        // المباع من المنتج عبر كل الفواتير (يطابق وصف السلعة اسم المنتج)
-        function soldQty(name) {
-            const target = String(name || '').trim();
-            let total = 0;
-            invoices.forEach(inv => {
-                if (!Array.isArray(inv.items)) return;
-                inv.items.forEach(it => {
-                    if (String(it.description || it.category || '').trim() === target) {
-                        total += Number(it.qty || 0);
-                    }
-                });
-            });
-            return total;
+        // المباع من المنتج عبر كل الفواتير (بالربط برقم المنتج)
+        function soldQty(p) {
+            return StoreProducts.soldQty(p, invoices);
         }
 
         function adjustmentsFor(id) {
@@ -956,7 +947,7 @@
         }
 
         function currentQty(p) {
-            return Number(p.openingQty || 0) + adjustmentsFor(p.id) - soldQty(p.name);
+            return Number(p.openingQty || 0) + adjustmentsFor(p.id) - soldQty(p);
         }
 
         function statusOf(p, qty) {
@@ -1201,7 +1192,7 @@
             if (del) {
                 const p = products.find(x => x.id === del.dataset.delete);
                 if (!p) return;
-                const sold = soldQty(p.name) > 0;
+                const sold = soldQty(p) > 0;
                 const msg = sold
                     ? 'هذا المنتج مرتبط بفواتير سابقة. الفواتير لن تُحذف، لكن المنتج وتعديلاته ستُحذف. متابعة؟'
                     : `هل تريد حذف المنتج "${p.name}"؟`;

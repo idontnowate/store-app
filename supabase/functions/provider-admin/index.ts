@@ -123,6 +123,16 @@ async function createMember(admin, storeId: string, username: string, password: 
     return created.user.id;
 }
 
+// يسجّل المتجر في جدول stores (أعضاء المتجر مرتبطون به). نجرّب مع الاسم، وإن لم
+// يكن في الجدول عمود name نسجّله بالمعرّف فقط
+async function createStoreRow(admin, storeId: string, name: string) {
+    let { error } = await admin.from("stores").insert({ id: storeId, name });
+    if (error && /column|name/i.test(error.message || "") && error.code !== "23502") {
+        ({ error } = await admin.from("stores").insert({ id: storeId }));
+    }
+    if (error) throw new UserError("تعذر تسجيل المتجر: " + (error.message || error.code), 500);
+}
+
 async function memberOf(admin, userId: string) {
     const { data } = await admin.from("store_members").select("store_id, role, username").eq("user_id", userId).maybeSingle();
     if (!data) throw new UserError("الحساب غير موجود", 404);
@@ -197,7 +207,14 @@ const actions = {
         await ensureUsernameFree(admin, username);
 
         const storeId = crypto.randomUUID();
-        const userId = await createMember(admin, storeId, username, password, adminName, "admin");
+        await createStoreRow(admin, storeId, storeName);
+        let userId;
+        try {
+            userId = await createMember(admin, storeId, username, password, adminName, "admin");
+        } catch (err) {
+            await admin.from("stores").delete().eq("id", storeId);
+            throw err;
+        }
 
         const { error: subErr } = await admin.from("store_subscriptions").insert({
             store_id: storeId,
@@ -221,6 +238,7 @@ const actions = {
             await admin.auth.admin.deleteUser(userId);
             await admin.from("store_subscriptions").delete().eq("store_id", storeId);
             await admin.from("kv_store").delete().eq("store_id", storeId);
+            await admin.from("stores").delete().eq("id", storeId);
             const reason = (subErr || kvErr).message || (subErr || kvErr).code || "خطأ غير معروف";
             throw new UserError("تعذر إنشاء المتجر: " + reason, 500);
         }

@@ -3,86 +3,9 @@
     const PREFS_KEY = 'storePrefs';
     const DEFAULTS = { theme: 'dark', lang: 'ar' };
 
-    // ترجمة العناصر المشتركة: النص العربي (مطابق تمامًا) => الإنجليزي
-    const EN = {
-        'الصفحة الرئيسية': 'Home',
-        'المبيعات': 'Sales',
-        'المخزن': 'Inventory',
-        'المشتريات': 'Purchases',
-        'الديون': 'Debts',
-        'الصندوق': 'Cash box',
-        'التقارير': 'Reports',
-        'الإعدادات': 'Settings',
-        'سعر الصرف': 'Exchange rate',
-        'مرحبا بك': 'Welcome',
-        'تسجيل الخروج': 'Sign out',
-
-        'المتجر': 'Store',
-        'سجّل الدخول للمتابعة': 'Sign in to continue',
-        'اسم المستخدم': 'Username',
-        'كلمة المرور': 'Password',
-        'تسجيل الدخول': 'Sign in',
-
-        'حفظ': 'Save',
-        'إلغاء': 'Cancel',
-        'إضافة': 'Add',
-        'تعديل': 'Edit',
-        'حذف': 'Delete',
-        'بحث': 'Search',
-        'عرض': 'View',
-        'طباعة': 'Print',
-        'إغلاق': 'Close',
-        'الاسم': 'Name',
-        'الإجمالي': 'Total',
-        'الحالة': 'Status',
-        'التاريخ': 'Date',
-        'المبلغ': 'Amount',
-        'الفئة': 'Category',
-        'الزبون': 'Customer',
-        'الموظف': 'Employee',
-        'الدفع': 'Payment',
-        'ملاحظات': 'Notes',
-        'إجراءات': 'Actions',
-        'الكمية': 'Quantity',
-        'السعر': 'Price',
-        'الفاتورة': 'Invoice',
-
-        'آخر المبيعات': 'Latest sales',
-        'عرض الكل': 'View all',
-        'تنبيهات تحتاج إجراء': 'Alerts',
-        'لا توجد تنبيهات حالياً': 'No alerts right now',
-        'صافي الربح التقديري': 'Estimated net profit',
-        'مبيعات اليوم': "Today's sales",
-        'المخزون (بالتكلفة)': 'Inventory (at cost)',
-        'ديون الزبائن الكلية': 'Total customer debts',
-
-        'بيانات المتجر': 'Store details',
-        'اسم المتجر': 'Store name',
-        'الهاتف': 'Phone',
-        'العنوان': 'Address',
-        'البريد الإلكتروني': 'Email',
-        'الموقع الإلكتروني': 'Website',
-        'نص الشكر أسفل الفاتورة': 'Thank-you text at the bottom of the invoice',
-        'شعار المتجر': 'Store logo',
-        'حفظ بيانات المتجر': 'Save store details',
-        'الرصيد الافتتاحي للصندوق (د.ع)': 'Opening cash balance (IQD)',
-        'حفظ الرصيد الافتتاحي': 'Save opening balance',
-        'المستخدمون': 'Users',
-        '+ إضافة مستخدم': '+ Add user',
-        'اسم الدخول': 'Login name',
-        'الدور': 'Role',
-        'النسخ الاحتياطي': 'Backup',
-        'تصدير نسخة احتياطية': 'Export backup',
-        'استعادة النسخة': 'Restore backup',
-        'منطقة الخطر': 'Danger zone',
-        'حذف بيانات العمل': 'Delete work data',
-        'المظهر واللغة': 'Appearance & language',
-        'الوضع': 'Theme',
-        'الفاتح': 'Light',
-        'الداكن': 'Dark',
-        'اللغة': 'Language',
-        'العربية': 'Arabic'
-    };
+    // القاموس في i18n-en.js
+    const I18N = window.STORE_I18N_EN || { TEXT: {}, NOUNS: {}, PATTERNS: [] };
+    const AR = /[\u0600-\u06FF]/;
 
     function getPrefs() {
         try {
@@ -101,7 +24,47 @@
 
     // ===== الترجمة =====
     const originalText = new WeakMap();
-    const originalPh = new WeakMap();
+    const originalAttr = new WeakMap();
+    const ATTRS = ['placeholder', 'title', 'aria-label'];
+    let originalTitle = null;
+
+    function currency(text) {
+        return text.replace(/د\.ع/g, 'IQD');
+    }
+
+    // جزء ملتقط من نمط: يُترجم إن كان كلمة معروفة، وإلا يبقى كما هو
+    function part(text) {
+        if (text == null) return '';
+        const t = text.trim();
+        return I18N.NOUNS[t] ?? I18N.TEXT[t] ?? currency(t);
+    }
+
+    // يعيد الترجمة الإنجليزية لنص عربي، أو null إن لم توجد
+    function lookup(key) {
+        if (!key || !AR.test(key)) return null;
+        if (I18N.TEXT[key] != null) return I18N.TEXT[key];
+
+        const colon = key.match(/^(.+?)\s*:$/);
+        if (colon && I18N.TEXT[colon[1]] != null) return I18N.TEXT[colon[1]] + ':';
+
+        for (const [re, tpl] of I18N.PATTERNS) {
+            const m = key.match(re);
+            if (m) return tpl.replace(/\{(\d)\}/g, (_, i) => part(m[Number(i)])).replace(/\s{2,}/g, ' ').trim();
+        }
+
+        // مبالغ مثل "76,000 د.ع"
+        const money = currency(key);
+        if (money !== key && !AR.test(money)) return money;
+        return null;
+    }
+
+    function tr(text, lang) {
+        if (lang !== 'en' || typeof text !== 'string') return text;
+        const key = text.trim();
+        // النص قد يمتد على عدة أسطر في الصفحة؛ نطابقه بعد توحيد المسافات
+        const out = lookup(key.replace(/\s+/g, ' '));
+        return out == null ? text : text.replace(key, out);
+    }
 
     function translate(root, lang) {
         if (!root) return;
@@ -116,19 +79,39 @@
 
             if (!originalText.has(node)) originalText.set(node, node.nodeValue);
             const orig = originalText.get(node);
-            const key = orig.trim();
-            const next = lang === 'en' && EN[key] ? orig.replace(key, EN[key]) : orig;
+
+            // خيار بلا value تؤخذ قيمته من نصه: نثبّت القيمة العربية حتى لا تتغير البيانات المحفوظة
+            if (parent.nodeName === 'OPTION' && !parent.hasAttribute('value')) {
+                parent.setAttribute('value', orig.trim());
+            }
+
+            const next = tr(orig, lang);
             if (node.nodeValue !== next) node.nodeValue = next;
         });
 
-        root.querySelectorAll('[placeholder]').forEach(el => {
-            if (!originalPh.has(el)) originalPh.set(el, el.getAttribute('placeholder'));
-            const orig = originalPh.get(el);
-            const key = orig.trim();
-            const next = lang === 'en' && EN[key] ? EN[key] : orig;
-            if (el.getAttribute('placeholder') !== next) el.setAttribute('placeholder', next);
+        const els = root.querySelectorAll(ATTRS.map(a => `[${a}]`).join(','));
+        [root, ...els].forEach(el => {
+            if (!el.getAttribute) return;
+            ATTRS.forEach(attr => {
+                if (!el.hasAttribute(attr)) return;
+                let saved = originalAttr.get(el);
+                if (!saved) originalAttr.set(el, saved = {});
+                if (!(attr in saved)) saved[attr] = el.getAttribute(attr);
+                const next = tr(saved[attr], lang);
+                if (el.getAttribute(attr) !== next) el.setAttribute(attr, next);
+            });
         });
+
+        if (originalTitle === null) originalTitle = document.title;
+        const title = tr(originalTitle, lang);
+        if (document.title !== title) document.title = title;
     }
+
+    // رسائل التأكيد والتنبيه تظهر بلغة الواجهة
+    const nativeAlert = window.alert.bind(window);
+    const nativeConfirm = window.confirm.bind(window);
+    window.alert = msg => nativeAlert(tr(String(msg ?? ''), getPrefs().lang));
+    window.confirm = msg => nativeConfirm(tr(String(msg ?? ''), getPrefs().lang));
 
     const observer = new MutationObserver(() => {
         translate(document.body, getPrefs().lang);

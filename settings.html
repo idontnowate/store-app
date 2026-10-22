@@ -20,12 +20,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
-    <script src="storage.js?v=202610224"></script>
-    <script src="log.js?v=202610224"></script>
-    <script src="i18n-en.js?v=202610224"></script>
-    <script src="theme.js?v=202610224"></script>
-    <script src="auth.js?v=202610224"></script>
-    <script src="layout.js?v=202610224"></script>
+    <script src="storage.js?v=202610225"></script>
+    <script src="log.js?v=202610225"></script>
+    <script src="i18n-en.js?v=202610225"></script>
+    <script src="theme.js?v=202610225"></script>
+    <script src="auth.js?v=202610225"></script>
+    <script src="layout.js?v=202610225"></script>
     <style>
         :root {
             --page: #efede5;
@@ -585,11 +585,184 @@
                 align-items: flex-start;
             }
         }
+        /* عناوين المجموعات في قائمة الأقسام */
+        .set-nav-label {
+            margin: 14px 12px 4px;
+            font-size: 11.5px;
+            font-weight: 600;
+            letter-spacing: .02em;
+            color: var(--faint);
+        }
+
+        .set-nav-label:first-child {
+            margin-top: 0;
+        }
+
+        .set-layout [hidden] {
+            display: none !important;
+        }
+
+        /* صف بمفتاح تشغيل/إيقاف */
+        .set-toggle {
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 4px 0 18px;
+            cursor: pointer;
+        }
+
+        .set-toggle + .grid {
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .grid .set-toggle {
+            padding: 16px 0 0;
+            margin-top: 2px;
+            border-top: 1px solid var(--border);
+        }
+
+        .set-toggle strong {
+            display: block;
+            font-size: 14.5px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .set-toggle .hint {
+            display: block;
+            margin: 2px 0 0;
+            font-size: 13px;
+            font-weight: 400;
+            line-height: 1.7;
+        }
+
+        .set-sub {
+            margin: 0;
+            font-size: 14.5px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .set-sep {
+            margin-top: 22px;
+            padding-top: 18px !important;
+            border-top: 1px solid var(--border);
+        }
+
+        /* بطاقة الحساب */
+        .account-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px;
+            margin-bottom: 22px;
+            border-radius: 14px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+        }
+
+        .account-card > div {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .account-card strong {
+            display: block;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        /* اسم الدخول إنجليزي: يبقى تحت الاسم في بداية السطر */
+        .account-card .hint {
+            display: inline-block;
+            margin: 2px 0 0;
+            font-size: 13px;
+            font-weight: 400;
+        }
+
+        .account-avatar {
+            flex: none;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            background: var(--accent-soft);
+            color: var(--accent-text);
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .account-avatar.has-logo {
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+
+        .account-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .role-pill {
+            flex: none;
+            padding: 4px 12px;
+            border-radius: 999px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-2);
+        }
+
+        /* حالة المزامنة */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 2px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .sync-status::before {
+            content: "";
+            flex: none;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+
+        .sync-status.warn {
+            color: var(--warn-text);
+        }
+
+        .sync-status.warn::before {
+            background: var(--warn);
+            box-shadow: 0 0 0 4px var(--warn-soft);
+        }
+
+        .sync-status.busy::before {
+            background: var(--faint);
+            box-shadow: none;
+            animation: pulse 1s var(--ease) infinite;
+        }
+
+        @keyframes pulse {
+            50% {
+                opacity: .3;
+            }
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610224">
+    <link rel="stylesheet" href="design.css?v=202610225">
 </head>
 
 <body>
@@ -599,6 +772,10 @@
     </header>
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
+        <div class="side-brand">
+            <span class="logo" data-store-logo></span>
+            <span class="name"><span data-store-name></span><span class="sub" data-user-role></span></span>
+        </div>
         <nav>
             <a href="home.html">الصفحة الرئيسية</a>
             <a href="cashier.html">الكاشير</a>
@@ -608,30 +785,50 @@
             <a href="debts.html">الديون</a>
             <a href="cashbox.html">الصندوق</a>
             <a href="reports.html">التقارير</a>
+            <a href="users.html" data-admin-only>المستخدمين</a>
+            <a href="log.html" data-admin-only>سجل العمليات</a>
         </nav>
         <nav class="bottom">
-            <a class="active" href="settings.html" aria-current="page">الإعدادات</a>
+            <a href="settings.html" class="active" aria-current="page">الإعدادات</a>
             <a href="exchange-rate.html">سعر الصرف</a>
+            <a href="scanner.html">ماسح الهاتف</a>
         </nav>
+        <div id="userBox">
+            <a class="who-link" href="settings.html#account" title="حسابي">
+                <span class="avatar" data-account-logo aria-hidden="true"></span>
+                <span class="who"><b data-user-name></b><small data-user-role></small></span>
+            </a>
+            <button type="button" id="logoutBtn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>
+            </button>
+        </div>
     </aside>
 
     <main>
-        <div class="flash" id="flash" hidden></div>
+        <div class="flash" id="flash" role="status" hidden></div>
 
         <div class="set-layout">
             <!-- أقسام الإعدادات -->
             <nav class="set-nav" aria-label="أقسام الإعدادات">
-                <a href="#store">بيانات المتجر</a>
-                <a href="#invoice">الفاتورة المطبوعة</a>
+                <p class="set-nav-label" data-admin-only>المتجر</p>
+                <a href="#store" data-admin-only>بيانات المتجر</a>
+                <a href="#invoice" data-admin-only>الفاتورة المطبوعة</a>
+                <a href="#sales" data-admin-only>البيع والمخزون</a>
+                <a href="#cash" data-admin-only>الصندوق</a>
+                <a href="#users" data-admin-only>المستخدمون</a>
+
+                <p class="set-nav-label">حسابي وهذا الجهاز</p>
+                <a href="#account">حسابي</a>
                 <a href="#appearance">المظهر واللغة</a>
-                <a href="#cash">الصندوق</a>
-                <a href="#users">المستخدمون</a>
-                <a href="#backup">النسخ الاحتياطي</a>
-                <a href="#danger" class="danger">منطقة الخطر</a>
+                <a href="#printing">الطباعة</a>
+
+                <p class="set-nav-label">البيانات</p>
+                <a href="#data">المزامنة والنسخ</a>
+                <a href="#danger" class="danger" data-admin-only>منطقة الخطر</a>
             </nav>
 
             <div class="set-body">
-                <form id="storeForm" class="set-stack" novalidate>
+                <form id="storeForm" class="set-stack" data-admin-only novalidate>
                     <!-- بيانات المتجر -->
                     <section class="card set-card" id="store">
                         <header class="set-head">
@@ -697,6 +894,105 @@
                     </section>
                 </form>
 
+                <!-- البيع والمخزون -->
+                <section class="card set-card" id="sales" data-admin-only>
+                    <header class="set-head">
+                        <h2>البيع والمخزون</h2>
+                        <p>خيارات تنطبق على كل أجهزة المتجر.</p>
+                    </header>
+                    <form id="optionsForm" novalidate>
+                        <label class="set-toggle">
+                            <span>
+                                <strong>السماح بالبيع عند نفاد المخزون</strong>
+                                <span class="hint">يمكن بيع منتج كميته صفر، وتصبح كميته بالسالب حتى تُسجَّل مشتريات له.</span>
+                            </span>
+                            <input type="checkbox" class="switch" name="allowNegativeStock">
+                        </label>
+                        <div class="grid">
+                            <label>طريقة الدفع الافتراضية في الكاشير
+                                <select name="defaultPayment">
+                                    <option value="نقدي">نقدي</option>
+                                    <option value="بطاقة">بطاقة</option>
+                                </select>
+                            </label>
+                            <label>الحد الأدنى الافتراضي للمنتجات الجديدة
+                                <input name="defaultMinQty" type="number" min="0" step="1" inputmode="numeric">
+                            </label>
+                        </div>
+                        <div class="set-actions">
+                            <span class="hint">الحد الأدنى يظهر تنبيه "منخفض" عند الوصول إليه.</span>
+                            <button class="btn red" type="submit">حفظ إعدادات البيع</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- الصندوق -->
+                <section class="card set-card" id="cash" data-admin-only>
+                    <header class="set-head">
+                        <h2>الصندوق</h2>
+                        <p>المبلغ الذي كان في الصندوق عند بدء استخدام النظام. يُضاف إلى الرصيد في صفحة الصندوق.</p>
+                    </header>
+                    <form class="set-inline" id="cashForm" novalidate>
+                        <label>الرصيد الافتتاحي للصندوق (د.ع)
+                            <input name="opening" type="number" min="0" step="1" inputmode="numeric">
+                        </label>
+                        <button class="btn red" type="submit">حفظ الرصيد الافتتاحي</button>
+                    </form>
+                </section>
+
+                <!-- المستخدمون -->
+                <section class="card set-card" id="users" data-admin-only>
+                    <header class="set-head">
+                        <h2>المستخدمون</h2>
+                        <p>المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى المستخدمين وسجل العمليات، ويرى في الإعدادات حسابه وإعدادات جهازه فقط.</p>
+                    </header>
+                    <div class="set-row">
+                        <span class="hint">إضافة الموظفين والمديرين وتحديد صلاحياتهم تتم من صفحة المستخدمين.</span>
+                        <a class="btn secondary" href="users.html">فتح صفحة المستخدمين</a>
+                    </div>
+                </section>
+
+                <!-- حسابي -->
+                <section class="card set-card" id="account">
+                    <header class="set-head">
+                        <h2>حسابي</h2>
+                        <p>بيانات دخولك إلى البرنامج.</p>
+                    </header>
+                    <div class="account-card">
+                        <span class="account-avatar" data-account-logo aria-hidden="true"></span>
+                        <div>
+                            <strong data-user-name></strong>
+                            <span class="hint" id="accountLogin" dir="ltr"></span>
+                        </div>
+                        <span class="role-pill" data-user-role></span>
+                    </div>
+
+                    <form id="passwordForm" class="grid" novalidate>
+                        <p class="set-sub full">تغيير كلمة المرور</p>
+                        <label class="full">كلمة المرور الحالية
+                            <input name="current" type="password" autocomplete="current-password" required>
+                        </label>
+                        <label>كلمة المرور الجديدة
+                            <input name="next" type="password" autocomplete="new-password" minlength="8" required>
+                        </label>
+                        <label>تأكيد كلمة المرور الجديدة
+                            <input name="confirm" type="password" autocomplete="new-password" minlength="8" required>
+                        </label>
+                        <div class="set-actions full">
+                            <span class="hint">8 أحرف على الأقل.</span>
+                            <button class="btn red" type="submit">تغيير كلمة المرور</button>
+                        </div>
+                    </form>
+
+                    <div class="set-row set-sep">
+                        <div>
+                            <strong>تسجيل الخروج من الأجهزة الأخرى</strong>
+                            <span class="hint">ينهي دخول حسابك على كل الأجهزة ما عدا هذا الجهاز. استخدمه إذا فقدت هاتفًا أو شككت أن أحدًا يعرف كلمة مرورك.</span>
+                        </div>
+                        <button class="btn secondary" type="button" id="signOutOthers">تسجيل الخروج من الأجهزة الأخرى</button>
+                    </div>
+                </section>
+
                 <!-- المظهر واللغة -->
                 <section class="card set-card" id="appearance">
                     <header class="set-head">
@@ -716,49 +1012,62 @@
                                 <option value="en">English</option>
                             </select>
                         </label>
-                    </form>
-                </section>
-
-                <!-- الصندوق -->
-                <section class="card set-card" id="cash">
-                    <header class="set-head">
-                        <h2>الصندوق</h2>
-                        <p>المبلغ الذي كان في الصندوق عند بدء استخدام النظام. يُضاف إلى الرصيد في صفحة الصندوق.</p>
-                    </header>
-                    <form class="set-inline" id="cashForm" novalidate>
-                        <label>الرصيد الافتتاحي للصندوق (د.ع)
-                            <input name="opening" type="number" min="0" step="1" inputmode="numeric">
+                        <label class="set-toggle full">
+                            <span>
+                                <strong>الحركة والتأثيرات</strong>
+                                <span class="hint">انتقالات ناعمة بين الصفحات وظهور تدريجي للمحتوى. أوقفها إذا كان الجهاز بطيئًا.</span>
+                            </span>
+                            <input type="checkbox" class="switch" name="motion">
                         </label>
-                        <button class="btn red" type="submit">حفظ الرصيد الافتتاحي</button>
                     </form>
                 </section>
 
-                <!-- المستخدمون -->
-                <section class="card set-card" id="users">
+                <!-- الطباعة -->
+                <section class="card set-card" id="printing">
                     <header class="set-head">
-                        <h2>المستخدمون</h2>
-                        <p>المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى الإعدادات والمستخدمين وسجل العمليات.</p>
+                        <h2>الطباعة</h2>
+                        <p>خاصة بهذا الجهاز وطابعته، وتُحفظ تلقائيًا.</p>
                     </header>
-                    <div class="set-row">
-                        <span class="hint">إضافة الموظفين والمديرين وتحديد صلاحياتهم تتم من صفحة المستخدمين.</span>
-                        <a class="btn secondary" href="users.html">فتح صفحة المستخدمين</a>
-                    </div>
+                    <form id="printForm">
+                        <label class="set-toggle">
+                            <span>
+                                <strong>طباعة الإيصال تلقائيًا بعد كل بيع</strong>
+                                <span class="hint">في صفحة الكاشير. يمكن تغييرها من الكاشير أيضًا.</span>
+                            </span>
+                            <input type="checkbox" class="switch" name="autoPrint">
+                        </label>
+                        <div class="grid">
+                            <label>عرض ورق الإيصال
+                                <select name="receiptWidth">
+                                    <option value="80">80 ملم (الأكثر شيوعًا)</option>
+                                    <option value="58">58 ملم (طابعات صغيرة)</option>
+                                </select>
+                            </label>
+                        </div>
+                    </form>
                 </section>
 
-                <!-- النسخ الاحتياطي -->
-                <section class="card set-card" id="backup">
+                <!-- المزامنة والنسخ الاحتياطي -->
+                <section class="card set-card" id="data">
                     <header class="set-head">
-                        <h2>النسخ الاحتياطي</h2>
-                        <p>النسخة تحتوي على بيانات هذا المتجر فقط، ولا تحتوي على كلمات المرور. احفظها في مكان آمن.</p>
+                        <h2>المزامنة والنسخ الاحتياطي</h2>
+                        <p>بيانات المتجر محفوظة في السحابة وتتزامن بين كل أجهزته.</p>
                     </header>
                     <div class="set-row">
                         <div>
+                            <strong>المزامنة مع السحابة</strong>
+                            <span class="sync-status" id="syncStatus"></span>
+                        </div>
+                        <button class="btn secondary" type="button" id="syncNow">مزامنة الآن</button>
+                    </div>
+                    <div class="set-row" data-admin-only>
+                        <div>
                             <strong>تصدير نسخة</strong>
-                            <span class="hint">ملف واحد بكل بيانات المتجر.</span>
+                            <span class="hint">ملف واحد بكل بيانات المتجر، بدون كلمات المرور. احفظه في مكان آمن.</span>
                         </div>
                         <button class="btn secondary" type="button" id="exportBtn">تصدير نسخة احتياطية</button>
                     </div>
-                    <div class="set-row">
+                    <div class="set-row" data-admin-only>
                         <div>
                             <strong>استعادة نسخة</strong>
                             <span class="hint">اختر الملف ثم اضغط "استعادة النسخة". تستبدل كل بيانات المتجر الحالية.</span>
@@ -772,7 +1081,7 @@
                 </section>
 
                 <!-- منطقة الخطر -->
-                <section class="card set-card danger-card" id="danger">
+                <section class="card set-card danger-card" id="danger" data-admin-only>
                     <header class="set-head">
                         <h2>منطقة الخطر</h2>
                         <p>إجراءات لا يمكن التراجع عنها.</p>
@@ -804,7 +1113,13 @@
             flashEl.hidden = false;
             clearTimeout(flash.timer);
             flash.timer = setTimeout(() => { flashEl.hidden = true; }, 4000);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        const isAdmin = () => (A.currentUser() || {}).role === 'admin';
+        const smooth = () => (StoreTheme.motionOff() ? 'auto' : 'smooth');
+
+        function log(entity, details) {
+            try { if (window.StoreLog) StoreLog.add('settings', entity, details); } catch (e) { }
         }
 
         // ===== المظهر واللغة =====
@@ -812,12 +1127,144 @@
         const currentPrefs = StoreTheme.get();
         prefsForm.elements.theme.value = currentPrefs.theme;
         prefsForm.elements.lang.value = currentPrefs.lang;
+        prefsForm.elements.motion.checked = currentPrefs.motion !== 'off';
 
         prefsForm.addEventListener('change', () => {
             StoreTheme.set({
                 theme: prefsForm.elements.theme.value,
-                lang: prefsForm.elements.lang.value
+                lang: prefsForm.elements.lang.value,
+                motion: prefsForm.elements.motion.checked ? 'on' : 'off'
             });
+        });
+
+        // ===== الطباعة (هذا الجهاز) =====
+        const printForm = $('printForm');
+        printForm.elements.autoPrint.checked = currentPrefs.autoPrint !== false;
+        printForm.elements.receiptWidth.value = currentPrefs.receiptWidth === '58' ? '58' : '80';
+
+        printForm.addEventListener('change', () => {
+            StoreTheme.set({
+                autoPrint: printForm.elements.autoPrint.checked,
+                receiptWidth: printForm.elements.receiptWidth.value
+            });
+            flash('تم حفظ إعدادات الطباعة');
+        });
+
+        // ===== البيع والمخزون (المتجر) =====
+        const optionsForm = $('optionsForm');
+
+        function loadOptionsForm() {
+            const o = A.getStoreOptions();
+            optionsForm.elements.allowNegativeStock.checked = !!o.allowNegativeStock;
+            optionsForm.elements.defaultPayment.value = o.defaultPayment === 'بطاقة' ? 'بطاقة' : 'نقدي';
+            optionsForm.elements.defaultMinQty.value = Number(o.defaultMinQty || 0);
+        }
+
+        optionsForm.addEventListener('submit', event => {
+            event.preventDefault();
+            if (!isAdmin()) return;
+            const f = optionsForm.elements;
+            const options = {
+                allowNegativeStock: f.allowNegativeStock.checked,
+                defaultPayment: f.defaultPayment.value,
+                defaultMinQty: Math.max(0, Math.floor(Number(f.defaultMinQty.value || 0)))
+            };
+            A.saveStoreOptions(options);
+            loadOptionsForm();
+            log('إعدادات البيع', `البيع عند النفاد: ${options.allowNegativeStock ? 'مسموح' : 'ممنوع'} — الدفع الافتراضي: ${options.defaultPayment} — الحد الأدنى الافتراضي: ${options.defaultMinQty}`);
+            flash('تم حفظ إعدادات البيع');
+        });
+
+        // ===== حسابي =====
+        function loadAccount() {
+            const me = A.currentUser();
+            if (me) $('accountLogin').textContent = '@' + (me.username || '');
+        }
+
+        $('passwordForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const form = event.target;
+            const f = form.elements;
+            const btn = form.querySelector('button[type=submit]');
+
+            if (!f.current.value) {
+                flash('أدخل كلمة المرور الحالية', true);
+                return;
+            }
+            if (f.next.value.length < 8) {
+                flash('كلمة المرور الجديدة 8 أحرف على الأقل', true);
+                return;
+            }
+            if (f.next.value !== f.confirm.value) {
+                flash('تأكيد كلمة المرور غير مطابق', true);
+                return;
+            }
+
+            btn.disabled = true;
+            try {
+                await A.changePassword(f.current.value, f.next.value);
+                form.reset();
+                flash('تم تغيير كلمة المرور');
+            } catch (err) {
+                flash(err.message || 'تعذر تغيير كلمة المرور', true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        $('signOutOthers').addEventListener('click', async event => {
+            if (!confirm('سيتم إنهاء دخول حسابك على كل الأجهزة الأخرى. متابعة؟')) return;
+            const btn = event.currentTarget;
+            btn.disabled = true;
+            try {
+                await A.signOutOthers();
+                flash('تم تسجيل الخروج من الأجهزة الأخرى');
+            } catch (err) {
+                flash(err.message || 'تعذر تسجيل الخروج من الأجهزة الأخرى', true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // ===== المزامنة =====
+        function formatSyncTime(iso) {
+            const d = new Date(iso);
+            if (isNaN(d)) return '';
+            const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            return d.toDateString() === new Date().toDateString() ? time : d.toISOString().slice(0, 10) + ' ' + time;
+        }
+
+        function renderSync() {
+            const el = $('syncStatus');
+            if (!window.StoreSync || !StoreSync.status) {
+                el.textContent = 'غير متاحة في هذه الصفحة';
+                return;
+            }
+            const st = StoreSync.status();
+            if (st.pending > 0) {
+                el.className = 'sync-status warn';
+                el.textContent = `توجد ${st.pending} تغييرات لم تُرفع بعد. تحقق من الإنترنت ثم اضغط "مزامنة الآن".`;
+            } else {
+                el.className = 'sync-status';
+                el.textContent = 'كل التغييرات محفوظة في السحابة' + (st.lastSync ? ' — آخر مزامنة ' + formatSyncTime(st.lastSync) : '');
+            }
+        }
+
+        $('syncNow').addEventListener('click', event => {
+            const btn = event.currentTarget;
+            btn.disabled = true;
+            const el = $('syncStatus');
+            el.className = 'sync-status busy';
+            el.textContent = 'جارِ المزامنة…';
+            // نترك المتصفح يرسم حالة الانتظار قبل طلبات المزامنة
+            setTimeout(() => {
+                const left = StoreSync.flush();
+                const ok = StoreSync.refresh();
+                renderSync();
+                btn.disabled = false;
+                if (ok && left === 0) flash('تمت المزامنة');
+                else flash('تعذر الاتصال بالسحابة، حاول مرة أخرى', true);
+            }, 50);
         });
 
         // ===== بيانات المتجر =====
@@ -997,8 +1444,17 @@
 
         // ===== قائمة الأقسام: تمييز القسم الظاهر =====
         const navLinks = [...document.querySelectorAll('.set-nav a')];
-        const sections = navLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+
+        function visibleSections() {
+            return navLinks
+                .filter(a => !a.hidden)
+                .map(a => document.querySelector(a.getAttribute('href')))
+                .filter(sec => sec && !sec.closest('[hidden]'));
+        }
+
         function markCurrent() {
+            const sections = visibleSections();
+            if (!sections.length) return;
             let current = sections[0];
             sections.forEach(sec => { if (sec.getBoundingClientRect().top < 140) current = sec; });
             if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = sections[sections.length - 1];
@@ -1007,13 +1463,29 @@
         window.addEventListener('scroll', markCurrent, { passive: true });
         navLinks.forEach(a => a.addEventListener('click', e => {
             e.preventDefault();
-            document.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const id = a.getAttribute('href');
+            document.querySelector(id).scrollIntoView({ behavior: smooth(), block: 'start' });
+            history.replaceState(null, '', id);
         }));
-        markCurrent();
+
+        // ===== الصلاحيات: أقسام المتجر للمدير فقط =====
+        function applyRole() {
+            const admin = isAdmin();
+            document.querySelectorAll('.set-layout [data-admin-only]').forEach(el => { el.hidden = !admin; });
+            loadAccount();
+            markCurrent();
+        }
 
         // ===== التهيئة =====
         loadStoreForm();
         loadCashForm();
+        loadOptionsForm();
+        renderSync();
+        applyRole();
+        A.ready.then(applyRole);
+        // تحديث حالة المزامنة عند الرجوع للصفحة أو وصول تغييرات من جهاز آخر
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) renderSync(); });
+        window.addEventListener('storage', () => renderSync());
     </script>
 </body>
 

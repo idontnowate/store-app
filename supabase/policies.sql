@@ -27,12 +27,20 @@ as $$
     select exists (select 1 from store_members where store_id = sid and user_id = auth.uid() and role = 'admin');
 $$;
 
--- مفاتيح لا يكتبها إلا المدير
+-- إعدادات المتجر وخيارات البيع: لا يضيفها أو يعدّلها إلا المدير
+create or replace function public.is_admin_setting(k text)
+returns boolean
+language sql immutable
+as $$
+    select k in ('storeSettings', 'storeOptions');
+$$;
+
+-- مفاتيح لا يعدّلها إلا المدير (الإعدادات + سطور السجل الموجودة)
 create or replace function public.is_admin_key(k text)
 returns boolean
 language sql immutable
 as $$
-    select k = 'storeSettings' or k like 'storeLog\_%';
+    select public.is_admin_setting(k) or k like 'storeLog\_%';
 $$;
 
 -- ===== kv_store =====
@@ -48,12 +56,12 @@ create policy kv_select on public.kv_store
     for select to authenticated
     using (public.is_store_member(store_id));
 
--- الإضافة: أعضاء المتجر؛ الإعدادات للمدير فقط (سطر السجل الجديد يُسمح به للجميع)
+-- الإضافة: أعضاء المتجر؛ الإعدادات وخيارات البيع للمدير فقط (سطر السجل الجديد يُسمح به للجميع)
 create policy kv_insert on public.kv_store
     for insert to authenticated
     with check (
         public.is_store_member(store_id)
-        and (key <> 'storeSettings' or public.is_store_admin(store_id))
+        and (not public.is_admin_setting(key) or public.is_store_admin(store_id))
     );
 
 -- التعديل: أعضاء المتجر؛ الإعدادات وسطور السجل الموجودة للمدير فقط

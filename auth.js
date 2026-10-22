@@ -7,8 +7,14 @@
     const INTERNAL_EMAIL_DOMAIN = 'users.storeapp.io';
     const LOGIN_PAGE = 'index.html';
     const HOME_PAGE = 'home.html';
-    const ADMIN_ONLY_PAGES = ['settings.html', 'log.html', 'users.html'];
+    // الإعدادات متاحة للجميع: الموظف يرى فيها حسابه وإعدادات جهازه فقط
+    const ADMIN_ONLY_PAGES = ['log.html', 'users.html'];
+    // صفحات فرعية تُميَّز في القائمة بصفحتها الأم
+    const PARENT_PAGE = { 'add-invoice.html': 'sales-new_1.html' };
     const SETTINGS_KEY = 'storeSettings';
+    // خيارات البيع والمخزون على مستوى المتجر (تُزامن، يعدّلها المدير)
+    const OPTIONS_KEY = 'storeOptions';
+    const SESSION_TOKEN_KEY = 'sb-pxxgydllfustqkpkfiqn-auth-token';
     // بيانات العضوية محليًا؛ لا تبدأ بـ store حتى لا تُزامن، ويقرأها storage.js لمعرفة المتجر
     const MEMBERSHIP_KEY = 'appMembership';
     // يحفظ معرف المتجر الذي اكتملت مزامنته محليًا (يكتبه storage.js)
@@ -32,6 +38,12 @@
             'لا يمكن استبدال المنتجات التي لم تعد في حالتها الأصلية'
         ],
         footer: 'شكرًا لتسوقكم وثقتكم بنا!'
+    };
+
+    const DEFAULT_OPTIONS = {
+        allowNegativeStock: false,
+        defaultPayment: 'نقدي',
+        defaultMinQty: 0
     };
 
     function read(key, fallback) {
@@ -78,6 +90,14 @@
 
     function saveStoreInfo(info) {
         write(SETTINGS_KEY, { ...DEFAULT_STORE, ...info });
+    }
+
+    function getStoreOptions() {
+        return { ...DEFAULT_OPTIONS, ...read(OPTIONS_KEY, {}) };
+    }
+
+    function saveStoreOptions(options) {
+        write(OPTIONS_KEY, { ...getStoreOptions(), ...options });
     }
 
     // ===== تحميل مكتبة Supabase ثم إنشاء العميل =====
@@ -182,6 +202,34 @@
         return membership;
     }
 
+    // ===== الحساب والأمان =====
+    // نتحقق من كلمة المرور الحالية أولًا، ثم نغيّرها لحساب المستخدم الحالي فقط
+    async function changePassword(current, next) {
+        await clientReady;
+        const { data } = await sb.auth.getSession();
+        const email = data.session && data.session.user && data.session.user.email;
+        if (!email) throw new Error('انتهت الجلسة، سجّل الدخول من جديد');
+
+        const check = await sb.auth.signInWithPassword({ email, password: current });
+        if (check.error) throw new Error('كلمة المرور الحالية غير صحيحة');
+
+        const { error } = await sb.auth.updateUser({ password: next });
+        if (error) {
+            throw new Error(/different/i.test(error.message)
+                ? 'كلمة المرور الجديدة يجب أن تختلف عن الحالية'
+                : 'تعذر تغيير كلمة المرور');
+        }
+        writeLog('settings', 'كلمة المرور', 'غيّر المستخدم ' + displayName(membership) + ' كلمة مروره');
+    }
+
+    // يلغي جلسات هذا الحساب على كل الأجهزة الأخرى، ويبقى هذا الجهاز مسجّلًا
+    async function signOutOthers() {
+        await clientReady;
+        const { error } = await sb.auth.signOut({ scope: 'others' });
+        if (error) throw new Error('تعذر تسجيل الخروج من الأجهزة الأخرى');
+        writeLog('settings', 'الأمان', 'سجّل المستخدم ' + displayName(membership) + ' الخروج من الأجهزة الأخرى');
+    }
+
     // ===== الحماية =====
     async function guard() {
         const session = await getSession();
@@ -258,13 +306,8 @@
     }
 
     function buildUI() {
-        const info = getStoreInfo();
-        document.querySelectorAll('.brand span').forEach(el => {
-            el.textContent = `"${info.name}"`;
-        });
-
         const sidebar = document.querySelector('.sidebar');
-        if (!sidebar) return;
+        if (!sidebar || !membership) return;
 
         if (membership.role !== 'admin') {
             ADMIN_ONLY_PAGES.forEach(p => {
@@ -282,34 +325,42 @@
         const bottomNav = sidebar.querySelector('nav.bottom');
         if (bottomNav) addLink(bottomNav, 'scanner.html', 'ماسح الهاتف');
 
-        sidebar.querySelectorAll('a[href]').forEach(a => {
-            const isCurrent = a.getAttribute('href') === page;
+        const current = PARENT_PAGE[page] || page;
+        sidebar.querySelectorAll('nav a[href]').forEach(a => {
+            const isCurrent = a.getAttribute('href') === current;
             a.classList.toggle('active', isCurrent);
             if (isCurrent) a.setAttribute('aria-current', 'page');
             else a.removeAttribute('aria-current');
         });
 
+        // الصفحات القديمة التي لا تحتوي القائمة الكاملة في HTML
         if (!sidebar.querySelector('.side-brand')) {
             const brand = document.createElement('div');
             brand.className = 'side-brand';
             brand.innerHTML = `
                 <span class="logo" data-store-logo></span>
-                <span class="name"><span data-store-name></span><span class="sub">${roleLabel(membership.role)}</span></span>`;
+                <span class="name"><span data-store-name></span><span class="sub" data-user-role></span></span>`;
             sidebar.prepend(brand);
         }
 
         if (!document.getElementById('userBox')) {
-            const name = displayName(membership);
             const box = document.createElement('div');
             box.id = 'userBox';
             box.innerHTML = `
-                <span class="avatar" data-account-logo aria-hidden="true"></span>
-                <span class="who"><b>${esc(name)}</b><small>${roleLabel(membership.role)}</small></span>
+                <a class="who-link" href="settings.html#account" title="حسابي">
+                    <span class="avatar" data-account-logo aria-hidden="true"></span>
+                    <span class="who"><b data-user-name></b><small data-user-role></small></span>
+                </a>
                 <button type="button" id="logoutBtn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>
                 </button>`;
             sidebar.appendChild(box);
-            document.getElementById('logoutBtn').addEventListener('click', logout);
+        }
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn && !logoutBtn.dataset.bound) {
+            logoutBtn.dataset.bound = '1';
+            logoutBtn.addEventListener('click', logout);
         }
 
         refreshBrand();
@@ -331,6 +382,12 @@
             el.innerHTML = logo || esc(displayName(membership).trim().charAt(0).toUpperCase());
             el.classList.toggle('has-logo', !!logo);
         });
+        document.querySelectorAll('[data-user-name]').forEach(el => {
+            el.textContent = displayName(membership);
+        });
+        document.querySelectorAll('[data-user-role]').forEach(el => {
+            el.textContent = roleLabel(membership.role);
+        });
         document.querySelectorAll('.brand span').forEach(el => {
             el.textContent = `"${info.name}"`;
         });
@@ -347,8 +404,22 @@
             : Promise.resolve();
     }
 
-    // نخفي الصفحة حتى نعرف هل المستخدم مسموح له بها
-    if (!isLogin) document.documentElement.style.visibility = 'hidden';
+    // إذا كان على الجهاز دخول سابق محفوظ نعرض الصفحة فورًا بالبيانات المحفوظة
+    // (التحقق من الخادم يكمل في الخلفية ويعيد إلى صفحة الدخول إن فشل)،
+    // وإلا نخفي الصفحة حتى نعرف هل المستخدم مسموح له بها
+    const cachedAtStart = read(MEMBERSHIP_KEY, null);
+    let hasStoredSession = false;
+    try { hasStoredSession = !!localStorage.getItem(SESSION_TOKEN_KEY); } catch (e) { }
+    const optimistic = !isLogin && !!(cachedAtStart && cachedAtStart.store_id && hasStoredSession);
+
+    if (optimistic) {
+        membership = cachedAtStart;
+        if (ADMIN_ONLY_PAGES.includes(page) && cachedAtStart.role !== 'admin') location.replace(HOME_PAGE);
+        // القائمة تكتمل قبل أول رسم للصفحة فلا تقفز عناصرها
+        whenDomReady().then(buildUI);
+    } else if (!isLogin) {
+        document.documentElement.style.visibility = 'hidden';
+    }
 
     const ready = clientReady
         .then(guard)
@@ -384,6 +455,10 @@
         saveStoreInfo,
         roleLabel,
         refreshBrand,
+        getStoreOptions,
+        saveStoreOptions,
+        changePassword,
+        signOutOthers,
         config: {
             url: SUPABASE_URL,
             key: SUPABASE_KEY,

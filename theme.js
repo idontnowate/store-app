@@ -1,7 +1,9 @@
 /* theme.js — الوضع الداكن واللغة. الألوان والتنسيق في design.css */
 (function () {
     const PREFS_KEY = 'storePrefs';
-    const DEFAULTS = { theme: 'dark', lang: 'ar' };
+    // إعدادات خاصة بهذا الجهاز (لا تُزامن): المظهر، اللغة، الحركة، الطباعة
+    const DEFAULTS = { theme: 'dark', lang: 'ar', motion: 'on', autoPrint: true, receiptWidth: '80' };
+    const REDUCED = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
     // القاموس في i18n-en.js
     const I18N = window.STORE_I18N_EN || { TEXT: {}, NOUNS: {}, PATTERNS: [] };
@@ -15,12 +17,25 @@
         }
     }
 
+    // الحركة متوقفة إذا أوقفها المستخدم أو طلب الجهاز تقليل الحركة
+    function motionOff(p) {
+        return (p || getPrefs()).motion === 'off' || REDUCED.matches;
+    }
+
     function applyRoot(p) {
         const root = document.documentElement;
         root.dataset.theme = p.theme;
+        root.dataset.motion = p.motion === 'off' ? 'off' : 'on';
         root.lang = p.lang;
         root.dir = p.lang === 'en' ? 'ltr' : 'rtl';
     }
+
+    // الانتقال بين الصفحات: لا حركة إذا كانت متوقفة
+    ['pageswap', 'pagereveal'].forEach(type => {
+        window.addEventListener(type, e => {
+            if (e.viewTransition && motionOff()) e.viewTransition.skipTransition();
+        });
+    });
 
     // ===== الترجمة =====
     const originalText = new WeakMap();
@@ -125,13 +140,21 @@
     }
 
     function setPrefs(changes) {
-        const next = { ...getPrefs(), ...changes };
+        const prev = getPrefs();
+        const next = { ...prev, ...changes };
         localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-        applyRoot(next);
-        translate(document.body, next.lang);
+
+        const apply = () => {
+            applyRoot(next);
+            translate(document.body, next.lang);
+        };
+        // تبديل الوضع أو اللغة بتلاشٍ ناعم بين الشكلين
+        const visual = prev.theme !== next.theme || prev.lang !== next.lang;
+        if (visual && document.startViewTransition && !motionOff(next)) document.startViewTransition(apply);
+        else apply();
     }
 
-    window.StoreTheme = { get: getPrefs, set: setPrefs };
+    window.StoreTheme = { get: getPrefs, set: setPrefs, motionOff };
 
     applyRoot(getPrefs());
     if (document.readyState === 'loading') {

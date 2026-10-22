@@ -328,6 +328,7 @@
         pushDirty(storeId);
         const result = pull(storeId);
         if (!result) return false;
+        setLocal(stateKey('Last', storeId), new Date().toISOString());
         if (notify) result.applied.forEach(([k, o, n]) => notifyPage(k, o, n));
         return result;
     }
@@ -418,6 +419,15 @@
         },
         // عند تسجيل الخروج: لا تبقى بيانات المتجر على الجهاز للمستخدم التالي
         clearLocal: wipeLocal,
+        // حالة المزامنة لصفحة الإعدادات: عدد التغييرات التي لم تُرفع، ووقت آخر مزامنة ناجحة
+        status() {
+            const sid = currentStoreId();
+            if (!sid) return { pending: 0, lastSync: null };
+            return {
+                pending: Object.keys(loadState('Dirty', sid)).length,
+                lastSync: getLocal(stateKey('Last', sid))
+            };
+        },
         refresh() {
             const sid = currentStoreId();
             if (!sid) return false;

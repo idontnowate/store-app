@@ -20,11 +20,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المستخدمين</title>
-    <script src="log.js?v=202610224"></script>
-    <script src="i18n-en.js?v=202610224"></script>
-    <script src="theme.js?v=202610224"></script>
-    <script src="auth.js?v=202610224"></script>
-    <script src="layout.js?v=202610224"></script>
+    <script src="log.js?v=202610225"></script>
+    <script src="i18n-en.js?v=202610225"></script>
+    <script src="theme.js?v=202610225"></script>
+    <script src="auth.js?v=202610225"></script>
+    <script src="layout.js?v=202610225"></script>
     <style>
         :root {
             --page: #efede5;
@@ -290,7 +290,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610224">
+    <link rel="stylesheet" href="design.css?v=202610225">
 </head>
 
 <body>
@@ -300,6 +300,10 @@
     </header>
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
+        <div class="side-brand">
+            <span class="logo" data-store-logo></span>
+            <span class="name"><span data-store-name></span><span class="sub" data-user-role></span></span>
+        </div>
         <nav>
             <a href="home.html">الصفحة الرئيسية</a>
             <a href="cashier.html">الكاشير</a>
@@ -309,11 +313,23 @@
             <a href="debts.html">الديون</a>
             <a href="cashbox.html">الصندوق</a>
             <a href="reports.html">التقارير</a>
+            <a href="users.html" class="active" aria-current="page" data-admin-only>المستخدمين</a>
+            <a href="log.html" data-admin-only>سجل العمليات</a>
         </nav>
         <nav class="bottom">
             <a href="settings.html">الإعدادات</a>
             <a href="exchange-rate.html">سعر الصرف</a>
+            <a href="scanner.html">ماسح الهاتف</a>
         </nav>
+        <div id="userBox">
+            <a class="who-link" href="settings.html#account" title="حسابي">
+                <span class="avatar" data-account-logo aria-hidden="true"></span>
+                <span class="who"><b data-user-name></b><small data-user-role></small></span>
+            </a>
+            <button type="button" id="logoutBtn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>
+            </button>
+        </div>
     </aside>
 
     <main>

@@ -49,6 +49,15 @@
     --sidebar: 256px;
     --gutter: 36px;
     --font-ui: "IBM Plex Sans Arabic", -apple-system, "SF Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+
+    /* الحركة: كل المدد ومنحنيات التسارع من هنا */
+    --ease: cubic-bezier(.2, .8, .2, 1);
+    --ease-out: cubic-bezier(.16, 1, .3, 1);
+    --ease-in: cubic-bezier(.4, 0, 1, 1);
+    --dur-1: 120ms;
+    --dur-2: 180ms;
+    --dur-3: 280ms;
+    --dur-4: 560ms;
 }
 
 /* ===== الألوان: الوضع الداكن ===== */
@@ -252,7 +261,7 @@ html[data-theme="dark"] {
         font-weight: 500 !important;
         line-height: 1.4 !important;
         text-decoration: none;
-        transition: background .15s, color .15s;
+        transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
     }
 
     .sidebar nav a svg {
@@ -265,7 +274,7 @@ html[data-theme="dark"] {
         stroke-linecap: round;
         stroke-linejoin: round;
         color: var(--muted);
-        transition: color .15s;
+        transition: color var(--dur-2) var(--ease);
     }
 
     .sidebar nav a:hover {
@@ -295,6 +304,29 @@ html[data-theme="dark"] {
         border: 1px solid var(--border) !important;
         box-shadow: none !important;
         color: var(--text) !important;
+    }
+
+    /* الضغط على الاسم يفتح "حسابي" في الإعدادات */
+    #userBox .who-link {
+        display: flex !important;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+        margin: -4px;
+        padding: 4px !important;
+        border-radius: 10px !important;
+        background: transparent !important;
+        color: inherit !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+        line-height: inherit !important;
+        text-decoration: none !important;
+        transition: background var(--dur-2) var(--ease);
+    }
+
+    #userBox .who-link:hover {
+        background: var(--surface-3) !important;
     }
 
     #userBox .avatar {
@@ -354,7 +386,7 @@ html[data-theme="dark"] {
         color: var(--muted) !important;
         cursor: pointer;
         padding: 0 !important;
-        transition: background .15s, color .15s;
+        transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
     }
 
     #logoutBtn:hover {
@@ -608,7 +640,7 @@ html[data-theme="dark"] {
         border-radius: var(--radius-sm) !important;
         box-shadow: none !important;
         font-size: 14.5px !important;
-        transition: border-color .15s, box-shadow .15s;
+        transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
     }
 
     input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="range"]),
@@ -687,13 +719,15 @@ html[data-theme="dark"] {
         text-decoration: none !important;
         cursor: pointer;
         box-shadow: none !important;
-        transition: background .15s, border-color .15s, color .15s, transform .1s;
+        transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease), transform var(--dur-1) var(--ease);
     }
 
     .btn:active,
     .button:active,
-    .add-button:active {
-        transform: translateY(1px);
+    .add-button:active,
+    .chip:active,
+    .qbtn:active {
+        transform: scale(.97);
     }
 
     .btn[hidden],
@@ -812,7 +846,7 @@ html[data-theme="dark"] {
         border-radius: 8px !important;
         cursor: pointer;
         box-shadow: none !important;
-        transition: background .15s, color .15s;
+        transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
     }
 
     .remove-row:hover,
@@ -837,7 +871,7 @@ html[data-theme="dark"] {
         font-size: 13.5px !important;
         font-weight: 500 !important;
         cursor: pointer;
-        transition: background .15s, color .15s, border-color .15s;
+        transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
     }
 
     .chip:hover {
@@ -895,7 +929,7 @@ html[data-theme="dark"] {
     }
 
     tbody tr {
-        transition: background .12s;
+        transition: background var(--dur-1) var(--ease);
     }
 
     tbody tr:hover {
@@ -1072,7 +1106,7 @@ html[data-theme="dark"] {
         border-radius: 12px !important;
         box-shadow: none !important;
         font-weight: 500 !important;
-        transition: border-color .15s, background .15s;
+        transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
     }
 
     a.alert:hover {
@@ -1148,7 +1182,7 @@ html[data-theme="dark"] {
         border-radius: var(--radius) !important;
         box-shadow: none !important;
         color: var(--text) !important;
-        transition: border-color .15s, box-shadow .15s, transform .15s !important;
+        transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease), transform var(--dur-2) var(--ease) !important;
     }
 
     .prod:hover {
@@ -1403,5 +1437,317 @@ html[data-theme="dark"] {
         .form-card {
             padding: 16px !important;
         }
+    }
+}
+
+/* ===================================================================
+ * الحركة والتأثيرات
+ * ناعمة وقصيرة؛ تتوقف تمامًا إذا أوقفها المستخدم من الإعدادات
+ * أو إذا طلب الجهاز تقليل الحركة
+ * =================================================================== */
+
+/* الانتقال بين الصفحات */
+@view-transition {
+    navigation: auto;
+}
+
+@keyframes vt-fade-out {
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes vt-fade-in {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
+@keyframes drop-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -10px) scale(.98);
+    }
+}
+
+@media screen {
+    /* القائمة الجانبية وزرها ثابتان أثناء التنقل؛ المحتوى وحده يتبدل */
+    .sidebar {
+        view-transition-name: sidebar;
+    }
+
+    .nav-toggle {
+        view-transition-name: nav-toggle;
+    }
+
+    ::view-transition-group(*) {
+        animation-duration: var(--dur-3);
+        animation-timing-function: var(--ease-out);
+    }
+
+    ::view-transition-old(root) {
+        animation: vt-fade-out var(--dur-2) var(--ease-in) both;
+    }
+
+    ::view-transition-new(root) {
+        animation: vt-fade-in var(--dur-3) var(--ease-out) both;
+    }
+
+    /* ظهور المحتوى عند فتح الصفحة: البطاقات تصعد بالتتابع (يضيف layout.js الصنف enter) */
+    html.is-entering .enter {
+        animation: rise var(--dur-4) var(--ease-out) both;
+        animation-delay: var(--enter-delay, 0ms);
+    }
+
+    /* صفحات الدخول والشروط والماسح */
+    body.standalone > main {
+        animation: rise var(--dur-4) var(--ease-out) both;
+    }
+
+    /* النوافذ المنبثقة: تظهر وتختفي بتلاشٍ وتكبير خفيف */
+    dialog {
+        transition:
+            opacity var(--dur-2) var(--ease),
+            transform var(--dur-3) var(--ease-out),
+            overlay var(--dur-3) allow-discrete,
+            display var(--dur-3) allow-discrete;
+    }
+
+    dialog:not([open]) {
+        opacity: 0;
+        transform: translateY(10px) scale(.98);
+    }
+
+    @starting-style {
+        dialog[open] {
+            opacity: 0;
+            transform: translateY(10px) scale(.98);
+        }
+    }
+
+    dialog::backdrop {
+        transition:
+            opacity var(--dur-3) var(--ease),
+            overlay var(--dur-3) allow-discrete,
+            display var(--dur-3) allow-discrete;
+    }
+
+    dialog:not([open])::backdrop {
+        opacity: 0;
+    }
+
+    @starting-style {
+        dialog[open]::backdrop {
+            opacity: 0;
+        }
+    }
+
+    /* رسالة الحفظ: تطفو أعلى الشاشة */
+    .flash {
+        position: fixed !important;
+        top: 20px;
+        left: 50%;
+        z-index: 90;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: max-content;
+        max-width: calc(100vw - 32px);
+        margin: 0 !important;
+        padding: 12px 18px !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+        background: var(--surface) !important;
+        color: var(--text) !important;
+        box-shadow: var(--shadow-lg) !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+    }
+
+    .flash[hidden] {
+        display: none !important;
+    }
+
+    .flash:not([hidden]) {
+        animation: drop-in var(--dur-3) var(--ease-out);
+    }
+
+    .flash::before {
+        content: "";
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .flash.err::before {
+        background: var(--danger);
+        box-shadow: 0 0 0 4px var(--danger-soft);
+    }
+
+    .flash.ok,
+    .flash.err {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+    }
+
+    /* مفتاح تشغيل/إيقاف */
+    input[type="checkbox"].switch {
+        appearance: none;
+        -webkit-appearance: none;
+        position: relative;
+        flex: none;
+        width: 42px;
+        height: 24px;
+        margin: 0;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface-3);
+        cursor: pointer;
+        transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+    }
+
+    input[type="checkbox"].switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        inset-inline-start: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(16, 24, 40, .3);
+        transition: transform var(--dur-3) var(--ease-out);
+    }
+
+    input[type="checkbox"].switch:checked {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+
+    html[dir="rtl"] input[type="checkbox"].switch:checked::after {
+        transform: translateX(-18px);
+    }
+
+    html[dir="ltr"] input[type="checkbox"].switch:checked::after {
+        transform: translateX(18px);
+    }
+
+    input[type="checkbox"].switch:disabled {
+        opacity: .5;
+        cursor: not-allowed;
+    }
+}
+
+/* سلوك القائمة الجانبية (يتحكم به layout.js) */
+@media screen {
+    .nav-toggle {
+        position: fixed;
+        z-index: 70;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .nav-toggle svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+    }
+
+    body.nav-ready .sidebar {
+        transition: transform var(--dur-3) var(--ease-out);
+    }
+
+    body.nav-ready > header,
+    body.nav-ready .topbar,
+    body.nav-ready > main {
+        transition: margin var(--dur-3) var(--ease-out);
+    }
+
+    .nav-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: rgba(10, 12, 16, .45);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity var(--dur-3) var(--ease), visibility var(--dur-3);
+    }
+
+    /* الكمبيوتر: إخفاء القائمة بالانزلاق للخارج */
+    @media (min-width: 651px) {
+        html[dir="rtl"].nav-collapsed .sidebar {
+            transform: translateX(101%);
+        }
+
+        html[dir="ltr"].nav-collapsed .sidebar {
+            transform: translateX(-101%);
+        }
+
+        html.nav-collapsed body > header,
+        html.nav-collapsed .topbar {
+            margin-inline-start: 0 !important;
+        }
+
+        html.nav-collapsed body > main {
+            margin-inline-start: var(--gutter) !important;
+        }
+
+        .nav-backdrop {
+            display: none;
+        }
+    }
+
+    /* الهاتف: القائمة طبقة تنزلق فوق الصفحة */
+    @media (max-width: 650px) {
+        body.nav-open .nav-backdrop {
+            opacity: 1;
+            visibility: visible;
+        }
+    }
+}
+
+/* إيقاف الحركة: من الإعدادات */
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after,
+html[data-motion="off"] ::backdrop {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+}
+
+/* إيقاف الحركة: إذا طلب نظام الجهاز تقليلها */
+@media (prefers-reduced-motion: reduce) {
+    @view-transition {
+        navigation: none;
+    }
+
+    *,
+    *::before,
+    *::after,
+    ::backdrop {
+        animation-duration: 1ms !important;
+        animation-delay: 0s !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+        scroll-behavior: auto !important;
     }
 }

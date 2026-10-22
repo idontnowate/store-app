@@ -3,34 +3,42 @@
     const UI_KEY = 'uiNav'; // لا يبدأ بـ store حتى لا يُرفع إلى السحابة
     const MOBILE = window.matchMedia('(max-width: 650px)');
 
-    // التنسيق البصري في design.css؛ هنا سلوك الإخفاء والإظهار فقط
-    const css = `
-        .sidebar { transition: transform .28s cubic-bezier(.2, .8, .2, 1); }
-        body > header, .topbar, body > main { transition: margin .28s cubic-bezier(.2, .8, .2, 1); }
-        .nav-toggle {
-            position: fixed; z-index: 70; display: grid; place-items: center;
-            cursor: pointer; padding: 0;
+    // حالة القائمة المطوية تُطبَّق قبل أول رسم للصفحة، حتى لا تنزلق القائمة عند كل انتقال
+    // (التنسيق في design.css)
+    try {
+        if (localStorage.getItem(UI_KEY) === 'collapsed' && !MOBILE.matches) {
+            document.documentElement.classList.add('nav-collapsed');
         }
-        .nav-toggle svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
-        .nav-backdrop {
-            display: none; position: fixed; inset: 0; z-index: 40;
-            background: rgba(10, 12, 16, .45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-        }
+    } catch (e) { }
 
-        /* الكمبيوتر: إخفاء القائمة بالانزلاق للخارج */
-        @media (min-width: 651px) {
-            html[dir="rtl"] body.nav-collapsed .sidebar { transform: translateX(101%); }
-            html[dir="ltr"] body.nav-collapsed .sidebar { transform: translateX(-101%); }
-            body.nav-collapsed > header,
-            body.nav-collapsed .topbar { margin-inline-start: 0 !important; }
-            body.nav-collapsed > main { margin-inline-start: var(--gutter) !important; }
-        }
+    // ظهور المحتوى بالتتابع عند فتح الصفحة
+    const ENTER_SELECTOR = [
+        'body:not(.standalone) > main > :not(.summary):not(.stats):not(.cols):not(.pos):not(.set-layout):not(.flash):not(dialog)',
+        'main .summary > *',
+        'main .stats > *',
+        'main .cols > *',
+        'main .pos > *',
+        '.set-layout > .set-nav',
+        '.set-body > *'
+    ].join(',');
 
-        /* الهاتف: القائمة طبقة تنزلق فوق الصفحة */
-        @media (max-width: 650px) {
-            body.nav-open .nav-backdrop { display: block; }
-        }
-    `;
+    function playEntrance() {
+        if (window.StoreTheme && StoreTheme.motionOff()) return;
+        const root = document.documentElement;
+        const els = [...document.querySelectorAll(ENTER_SELECTOR)].filter(el => el.getClientRects().length);
+        els.forEach((el, i) => {
+            el.classList.add('enter');
+            el.style.setProperty('--enter-delay', Math.min(i, 8) * 45 + 'ms');
+        });
+        root.classList.add('is-entering');
+        setTimeout(() => {
+            root.classList.remove('is-entering');
+            els.forEach(el => {
+                el.classList.remove('enter');
+                el.style.removeProperty('--enter-delay');
+            });
+        }, 1100);
+    }
 
     // أيقونات القائمة (خطوط بسيطة بنفس السماكة)
     const ICONS = {
@@ -63,7 +71,7 @@
 
     function applyDesktopState() {
         const collapsed = localStorage.getItem(UI_KEY) === 'collapsed';
-        document.body.classList.toggle('nav-collapsed', !MOBILE.matches && collapsed);
+        document.documentElement.classList.toggle('nav-collapsed', !MOBILE.matches && collapsed);
     }
 
     function toggle() {
@@ -71,16 +79,12 @@
             document.body.classList.toggle('nav-open');
             return;
         }
-        const collapsed = !document.body.classList.contains('nav-collapsed');
-        document.body.classList.toggle('nav-collapsed', collapsed);
+        const collapsed = !document.documentElement.classList.contains('nav-collapsed');
+        document.documentElement.classList.toggle('nav-collapsed', collapsed);
         localStorage.setItem(UI_KEY, collapsed ? 'collapsed' : 'open');
     }
 
     function init() {
-        const style = document.createElement('style');
-        style.textContent = css;
-        document.head.appendChild(style);
-
         const btn = document.createElement('button');
         btn.className = 'nav-toggle';
         btn.type = 'button';
@@ -113,6 +117,13 @@
         });
 
         applyDesktopState();
+
+        // الحركات تبدأ بعد أول رسم فقط، فلا يتحرك شيء أثناء تحميل الصفحة
+        requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('nav-ready')));
+
+        // المحتوى ظاهر الآن، أو بعد أن يتحقق auth.js من الدخول
+        if (document.documentElement.style.visibility !== 'hidden') playEntrance();
+        else if (window.StoreAuth) StoreAuth.ready.then(ok => { if (ok) playEntrance(); });
     }
 
     if (document.readyState === 'loading') {

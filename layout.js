@@ -62,9 +62,9 @@
     }
 
     function addIcons() {
-        document.querySelectorAll('.sidebar a[href]').forEach(a => {
+        document.querySelectorAll('.sidebar a[href], .sidebar a[data-href]').forEach(a => {
             if (a.querySelector('svg')) return;
-            const icon = ICONS[a.getAttribute('href')];
+            const icon = ICONS[a.getAttribute('href') || a.dataset.href];
             if (icon) a.insertAdjacentHTML('afterbegin', svg(icon));
         });
     }

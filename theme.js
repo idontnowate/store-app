@@ -122,6 +122,49 @@
         if (document.title !== title) document.title = title;
     }
 
+    // ===== إخفاء عناوين الروابط =====
+    // المتصفح يعرض عنوان أي رابط أسفل الشاشة عند المرور عليه. ننقل العنوان من href إلى data-href
+    // ونتنقل بالكود، فلا يظهر شيء. (شريط العنوان أعلى المتصفح يبقى كما هو في كل المواقع)
+    function hideLinks(root) {
+        if (!root || !root.querySelectorAll) return;
+        root.querySelectorAll('a[href]').forEach(a => {
+            const href = a.getAttribute('href');
+            if (!href || a.hasAttribute('download') || a.target || /^(https?:|mailto:|tel:|blob:|data:|javascript:)/i.test(href)) return;
+            a.dataset.href = href;
+            a.removeAttribute('href');
+            a.setAttribute('role', 'link');
+            if (!a.hasAttribute('tabindex')) a.tabIndex = 0;
+        });
+    }
+
+    function follow(a, newTab) {
+        const href = a.dataset.href;
+        if (href.startsWith('#') && !newTab) return; // الصفحة تتولى روابط الأقسام
+        if (newTab) window.open(href, '_blank');
+        else location.href = href;
+    }
+
+    document.addEventListener('click', e => {
+        const a = e.target.closest && e.target.closest('a[data-href]');
+        if (!a || e.defaultPrevented) return;
+        e.preventDefault();
+        follow(a, e.ctrlKey || e.metaKey || e.shiftKey);
+    });
+    document.addEventListener('auxclick', e => {
+        const a = e.button === 1 && e.target.closest && e.target.closest('a[data-href]');
+        if (a) {
+            e.preventDefault();
+            follow(a, true);
+        }
+    });
+    document.addEventListener('keydown', e => {
+        const a = e.key === 'Enter' && e.target.closest && e.target.closest('a[data-href]');
+        if (a) {
+            e.preventDefault();
+            follow(a, false);
+        }
+    });
+
     // رسائل التأكيد والتنبيه تظهر بلغة الواجهة
     const nativeAlert = window.alert.bind(window);
     const nativeConfirm = window.confirm.bind(window);
@@ -130,12 +173,14 @@
 
     const observer = new MutationObserver(() => {
         translate(document.body, getPrefs().lang);
+        hideLinks(document.body);
     });
 
     function init() {
         const p = getPrefs();
         applyRoot(p);
         translate(document.body, p.lang);
+        hideLinks(document.body);
         observer.observe(document.body, { childList: true, subtree: true });
     }
 

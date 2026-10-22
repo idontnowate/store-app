@@ -390,7 +390,7 @@
 
     // ===== الواجهة المشتركة =====
     function addLink(nav, href, text) {
-        if (nav.querySelector(`a[href="${href}"]`)) return;
+        if (nav.querySelector(`a[href="${href}"], a[data-href="${href}"]`)) return;
         const a = document.createElement('a');
         a.href = href;
         a.textContent = text;
@@ -403,7 +403,7 @@
 
         if (membership.role !== 'admin') {
             ADMIN_ONLY_PAGES.forEach(p => {
-                sidebar.querySelectorAll(`a[href="${p}"]`).forEach(a => a.remove());
+                sidebar.querySelectorAll(`a[href="${p}"], a[data-href="${p}"]`).forEach(a => a.remove());
             });
         } else {
             const nav = sidebar.querySelector('nav:not(.bottom)');
@@ -418,8 +418,8 @@
         if (bottomNav) addLink(bottomNav, 'scanner.html', 'ماسح الهاتف');
 
         const current = PARENT_PAGE[page] || page;
-        sidebar.querySelectorAll('nav a[href]').forEach(a => {
-            const isCurrent = a.getAttribute('href') === current;
+        sidebar.querySelectorAll('nav a[href], nav a[data-href]').forEach(a => {
+            const isCurrent = (a.getAttribute('href') || a.dataset.href) === current;
             a.classList.toggle('active', isCurrent);
             if (isCurrent) a.setAttribute('aria-current', 'page');
             else a.removeAttribute('aria-current');

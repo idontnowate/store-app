@@ -426,6 +426,8 @@
         .then(async ok => {
             await whenDomReady();
             if (ok && !isLogin) {
+                // الجلسة جُدّدت الآن إن كانت منتهية: نعيد مزامنة البداية إن فشلت
+                if (window.StoreSync && StoreSync.retryIfFailed) StoreSync.retryIfFailed();
                 buildUI();
                 flushPendingLogin();
             }

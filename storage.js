@@ -190,29 +190,54 @@
         return new Date(Math.max(now, (prevMs || 0) + 1)).toISOString();
     }
 
-    // كتابة مشروطة: تنجح فقط إذا لم يتغير الصف منذ قراءته. تعيد updated_at الجديد أو null
+    // كتابة مشروطة: تنجح فقط إذا لم يتغير الصف منذ قراءته.
+    // تعيد { updatedAt } عند النجاح، أو { retry } للتعارض، أو { denied } إذا رفضتها قواعد الحماية،
+    // أو { failed } عند انقطاع الاتصال أو انتهاء الجلسة (يُعاد لاحقًا)
     function writeRow(storeId, key, value, row) {
         const updated_at = nextTimestamp(row && row.updated_at);
-        if (!row) {
-            const xhr = request(
+        const xhr = row
+            ? request(
+                'PATCH',
+                API + '?' + rowFilter(storeId, key) + '&updated_at=eq.' + encodeURIComponent(row.updated_at),
+                JSON.stringify({ value, updated_at }),
+                { Prefer: 'return=representation' }
+            )
+            : request(
                 'POST',
                 API,
                 JSON.stringify({ store_id: storeId, key, value, updated_at }),
                 { Prefer: 'return=representation' }
             );
-            if (!ok(xhr)) return null; // 409: أنشأه جهاز آخر للتو، نعيد المحاولة
-            const rows = JSON.parse(xhr.responseText);
-            return rows[0] ? rows[0].updated_at : updated_at;
-        }
-        const xhr = request(
-            'PATCH',
-            API + '?' + rowFilter(storeId, key) + '&updated_at=eq.' + encodeURIComponent(row.updated_at),
-            JSON.stringify({ value, updated_at }),
-            { Prefer: 'return=representation' }
-        );
-        if (!ok(xhr)) return null;
+
+        if (!xhr || xhr.status === 0) return { failed: true };
+        if (xhr.status === 409) return { retry: true }; // أنشأه جهاز آخر للتو
+        if (xhr.status === 403) return { denied: true };
+        if (!ok(xhr)) return { failed: true };
+
         const rows = JSON.parse(xhr.responseText);
-        return rows[0] ? rows[0].updated_at : null; // لا صفوف = تغيّر الصف، نعيد المحاولة
+        if (rows[0]) return { updatedAt: rows[0].updated_at };
+        if (!row) return { updatedAt: updated_at };
+        // لا صفوف: إما أن جهازًا آخر عدّل الصف، أو أن قواعد الحماية لا تسمح بتعديله
+        return { retry: true, unchangedSince: row.updated_at };
+    }
+
+    // قواعد الحماية رفضت التعديل (مثل موظف يعدّل إعدادات المتجر):
+    // نعيد قيمة السحابة إلى الجهاز ولا نحاول مجددًا
+    function reject(storeId, key, row, versions) {
+        console.warn('لا تملك صلاحية تعديل هذه البيانات، أُعيدت قيمتها من السحابة:', key);
+        clearDirty(storeId, key);
+        if (row === undefined) return;
+
+        const old = getLocal(key);
+        const value = !row || row.value === null || row.value === DELETED ? null : String(row.value);
+        if (value === null) removeLocal(key);
+        else setLocal(key, value);
+        if (row) {
+            versions[key] = row.updated_at;
+            saveState('Versions', storeId, versions);
+        }
+        lastSeenRaw[key] = undefined;
+        if (old !== value) notifyPage(key, old, value);
     }
 
     // ===== الرفع =====
@@ -249,10 +274,17 @@
         const localArr = parseArray(localValue);
         const versions = loadState('Versions', storeId);
 
+        let unchangedSince = null;
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             // مفتاح جديد لم يعرفه الجهاز (مثل سطر في سجل العمليات): نحاول الإنشاء مباشرة دون قراءة
             const row = attempt === 0 && !(key in versions) ? null : fetchRow(storeId, key);
             if (row === undefined) break;
+
+            // التعديل السابق لم يُطبَّق مع أن الصف لم يتغير: قواعد الحماية تمنعه
+            if (unchangedSince && row && row.updated_at === unchangedSince) {
+                reject(storeId, key, row, versions);
+                return false;
+            }
 
             let value = localValue;
             if (localArr && row) {
@@ -261,8 +293,17 @@
                 if (remoteArr) value = JSON.stringify(mergeArrays(remoteArr, localArr, knownSet));
             }
 
-            const updatedAt = writeRow(storeId, key, value, row);
-            if (!updatedAt) continue;
+            const res = writeRow(storeId, key, value, row);
+            if (res.denied) {
+                reject(storeId, key, row || fetchRow(storeId, key), versions);
+                return false;
+            }
+            if (res.failed) break;
+            if (res.retry) {
+                unchangedSince = res.unchangedSince || null;
+                continue;
+            }
+            const updatedAt = res.updatedAt;
 
             versions[key] = updatedAt;
             saveState('Versions', storeId, versions);
@@ -334,33 +375,49 @@
     }
 
     // ===== 1) قبل تحميل الصفحة: عزل المتجر ثم مزامنته =====
+    // تعيد true عند النجاح. notify: إبلاغ الصفحة بما تغيّر (عند الإعادة بعد ظهورها)
+    function startupSync(storeId, notify) {
+        // البيانات المحلية لا تُستخدم إلا إذا كان مؤكدًا أنها لهذا المتجر.
+        // إن كانت لمتجر آخر أو مجهولة المصدر نمسحها ولا نرفعها، ثم نحمّل المتجر من السحابة
+        const owner = getLocal(OWNER_KEY) || getLocal(SYNCED_STORE_KEY);
+        const ownedHere = owner === storeId;
+        if (!ownedHere) {
+            wipeLocal();
+            setLocal(OWNER_KEY, storeId);
+        }
+
+        // أجهزة النسخة القديمة: نرفع مرة واحدة بيانات هذا المتجر المحلية التي ليست في السحابة
+        const firstSync = ownedHere && getLocal(stateKey('Versions', storeId)) === null;
+
+        const result = sync(storeId, notify);
+        if (!result) return false;
+
+        const dirty = loadState('Dirty', storeId);
+        Object.keys(localStorage)
+            .filter(k => isSyncKey(k) && !result.remoteKeys.has(k) && !(k in dirty))
+            .forEach(k => {
+                if (firstSync) {
+                    push(storeId, k, getLocal(k), new Set());
+                } else {
+                    // حُذف من السحابة بالطريقة القديمة
+                    const old = getLocal(k);
+                    removeLocal(k);
+                    if (notify) notifyPage(k, old, null);
+                }
+            });
+        setLocal(SYNCED_STORE_KEY, storeId);
+        return true;
+    }
+
+    // إذا فشلت مزامنة البداية (جلسة منتهية بعد غياب طويل أو انقطاع) يعيدها auth.js بعد تجديد الجلسة
+    let startupFailed = false;
+
     const storeId = currentStoreId();
     if (storeId) {
         try {
-            // البيانات المحلية لا تُستخدم إلا إذا كان مؤكدًا أنها لهذا المتجر.
-            // إن كانت لمتجر آخر أو مجهولة المصدر نمسحها ولا نرفعها، ثم نحمّل المتجر من السحابة
-            const owner = getLocal(OWNER_KEY) || getLocal(SYNCED_STORE_KEY);
-            const ownedHere = owner === storeId;
-            if (!ownedHere) {
-                wipeLocal();
-                setLocal(OWNER_KEY, storeId);
-            }
-
-            // أجهزة النسخة القديمة: نرفع مرة واحدة بيانات هذا المتجر المحلية التي ليست في السحابة
-            const firstSync = ownedHere && getLocal(stateKey('Versions', storeId)) === null;
-
-            const result = sync(storeId, false);
-            if (result) {
-                const dirty = loadState('Dirty', storeId);
-                Object.keys(localStorage)
-                    .filter(k => isSyncKey(k) && !result.remoteKeys.has(k) && !(k in dirty))
-                    .forEach(k => {
-                        if (firstSync) push(storeId, k, getLocal(k), new Set());
-                        else removeLocal(k); // حُذف من السحابة بالطريقة القديمة
-                    });
-                setLocal(SYNCED_STORE_KEY, storeId);
-            }
+            startupFailed = !startupSync(storeId, false);
         } catch (err) {
+            startupFailed = true;
             console.warn('تعذر تحميل البيانات من السحابة:', err);
         }
 
@@ -419,6 +476,17 @@
         },
         // عند تسجيل الخروج: لا تبقى بيانات المتجر على الجهاز للمستخدم التالي
         clearLocal: wipeLocal,
+        // يعيد مزامنة البداية إن كانت قد فشلت؛ يستدعيه auth.js بعد التحقق من الجلسة وتجديدها
+        retryIfFailed() {
+            const sid = currentStoreId();
+            if (!startupFailed || !sid) return false;
+            try {
+                startupFailed = !startupSync(sid, true);
+            } catch (err) {
+                console.warn('تعذر تحميل البيانات من السحابة:', err);
+            }
+            return !startupFailed;
+        },
         // حالة المزامنة لصفحة الإعدادات: عدد التغييرات التي لم تُرفع، ووقت آخر مزامنة ناجحة
         status() {
             const sid = currentStoreId();

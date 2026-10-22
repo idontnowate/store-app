@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <script>
+    (function () {
+        try {
+            var p = JSON.parse(localStorage.getItem('storePrefs') || '{}');
+            var dark = p.theme === 'dark' || (!p.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.style.background = dark ? '#0b0c0e' : '#f6f6f7';
+            document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+    })();
+</script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- صفحة المزود: غير مرتبطة بأي صفحة، ولا تظهر في محركات البحث -->
+    <meta name="robots" content="noindex, nofollow">
+    <title>لوحة المزود</title>
+    <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
+    <script src="i18n-en.js?v=202610227"></script>
+    <script src="theme.js?v=202610227"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        .pv {
+            width: min(1280px, 100%);
+            margin: 0 auto;
+            padding: 28px 24px 56px;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        /* ===== الدخول ===== */
+        .login {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px 16px;
+        }
+
+        .login-card {
+            width: min(400px, 100%);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px 28px 26px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .mark {
+            width: 46px;
+            height: 46px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+            background: var(--primary);
+            color: var(--primary-text);
+            margin-bottom: 20px;
+        }
+
+        .mark svg,
+        .icon {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .login-card h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .login-card p {
+            margin: 0 0 22px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .field {
+            display: grid;
+            gap: 7px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text-2);
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+        }
+
+        .msg {
+            min-height: 20px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--danger-text);
+        }
+
+        .msg:empty {
+            display: none;
+        }
+
+        .msg.ok {
+            color: var(--accent-text);
+        }
+
+        /* ===== الرأس ===== */
+        .head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+
+        .head h1 {
+            margin: 0;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -.01em;
+        }
+
+        .head p {
+            margin: 2px 0 0;
+            color: var(--muted);
+            font-size: 13.5px;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 18px;
+        }
+
+        .toolbar {
+            display: flex;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar .search {
+            flex: 1 1 260px;
+        }
+
+        .table-card {
+            padding: 6px 16px 10px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+        }
+
+        td small {
+            display: block;
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .empty-row td {
+            text-align: center !important;
+            padding: 40px 10px !important;
+            color: var(--muted) !important;
+        }
+
+        .status.none {
+            background: var(--surface-2) !important;
+            color: var(--muted) !important;
+        }
+
+        /* ===== نافذة المتجر ===== */
+        dialog.wide {
+            width: min(860px, calc(100vw - 32px));
+        }
+
+        dialog.narrow {
+            width: min(480px, calc(100vw - 32px));
+        }
+
+        .dlg-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .dlg-head h2 {
+            margin: 0 !important;
+        }
+
+        .dlg-head p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .x-btn {
+            flex: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-2);
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .x-btn:hover {
+            background: var(--surface-2);
+        }
+
+        .block {
+            padding: 18px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .block:first-of-type {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .block h3 {
+            margin: 0 0 14px;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px 16px;
+        }
+
+        .grid .full {
+            grid-column: 1 / -1;
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .toggle small {
+            display: block;
+            color: var(--muted);
+            font-size: 12.5px;
+            font-weight: 400;
+        }
+
+        .actions-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .member {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px 16px;
+            padding: 12px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .member:first-child {
+            border-top: 0;
+        }
+
+        .member b {
+            font-weight: 600;
+        }
+
+        .member small {
+            display: block;
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .member .btn {
+            min-height: 32px;
+            padding: 0 10px !important;
+            font-size: 12.5px !important;
+        }
+
+        .tag {
+            display: inline-block;
+            margin-inline-start: 6px;
+            padding: 1px 8px;
+            border-radius: 999px;
+            background: var(--surface-2);
+            color: var(--text-2);
+            font-size: 11.5px;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+
+        .tag.off {
+            background: var(--danger-soft);
+            color: var(--danger-text);
+        }
+
+        .facts {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .fact {
+            padding: 12px;
+            border-radius: 12px;
+            background: var(--surface-2);
+            font-size: 12.5px;
+            color: var(--muted);
+        }
+
+        .fact b {
+            display: block;
+            margin-top: 2px;
+            font-size: 14px;
+            color: var(--text);
+            word-break: break-all;
+        }
+
+        .creds {
+            padding: 14px;
+            border-radius: 12px;
+            background: var(--accent-soft);
+            color: var(--accent-text);
+            font-size: 14px;
+            line-height: 1.9;
+        }
+
+        .creds code {
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        @media (max-width: 760px) {
+            .pv {
+                padding: 18px 14px 40px;
+            }
+
+            .summary {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .grid,
+            .facts {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="design.css?v=202610227">
+</head>
+
+<body class="standalone">
+    <!-- ===== الدخول ===== -->
+    <section class="login" id="loginView" hidden>
+        <div class="login-card">
+            <div class="mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 8.4 7.5 9.5 4.3-1.1 7.5-5 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
+            <h1>لوحة المزود</h1>
+            <p>للمزود فقط. سجّل الدخول بحساب المزود.</p>
+            <form class="stack" id="loginForm" novalidate>
+                <label class="field">البريد الإلكتروني
+                    <input name="email" type="email" autocomplete="username" dir="ltr" required>
+                </label>
+                <label class="field">كلمة المرور
+                    <input name="password" type="password" autocomplete="current-password" required>
+                </label>
+                <div class="msg" id="loginMsg" role="alert"></div>
+                <button class="btn" type="submit" id="loginBtn">دخول</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ===== اللوحة ===== -->
+    <main class="pv" id="panel" hidden>
+        <header class="head">
+            <div>
+                <h1>لوحة المزود</h1>
+                <p id="whoami"></p>
+            </div>
+            <div class="row">
+                <button class="btn secondary" type="button" id="refreshBtn">تحديث</button>
+                <button class="btn" type="button" id="newStoreBtn">+ متجر جديد</button>
+                <button class="btn danger" type="button" id="signOutBtn">خروج</button>
+            </div>
+        </header>
+
+        <section class="summary" aria-label="ملخص الاشتراكات">
+            <article class="summary-card main">
+                <span class="label">المتاجر المشتركة</span>
+                <span class="value" id="sumStores">—</span>
+            </article>
+            <article class="summary-card">
+                <span class="label">فعّالة</span>
+                <span class="value" id="sumActive">—</span>
+            </article>
+            <article class="summary-card">
+                <span class="label">تنتهي قريبًا أو في المهلة</span>
+                <span class="value" id="sumSoon">—</span>
+            </article>
+            <article class="summary-card warn">
+                <span class="label">منتهية أو موقوفة</span>
+                <span class="value" id="sumStopped">—</span>
+            </article>
+        </section>
+
+        <div class="toolbar">
+            <input class="search" id="search" placeholder="ابحث باسم المتجر أو المستخدم أو الهاتف…" autocomplete="off">
+            <div class="chips" role="group" aria-label="تصفية حسب الحالة">
+                <button class="chip" type="button" data-filter="all" aria-pressed="true">الكل</button>
+                <button class="chip" type="button" data-filter="active" aria-pressed="false">فعّالة</button>
+                <button class="chip" type="button" data-filter="soon" aria-pressed="false">تنتهي قريبًا</button>
+                <button class="chip" type="button" data-filter="stopped" aria-pressed="false">منتهية أو موقوفة</button>
+            </div>
+        </div>
+
+        <section class="table-card">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>المتجر</th>
+                            <th>المدير</th>
+                            <th>الحسابات</th>
+                            <th>الخطة</th>
+                            <th>ينتهي في</th>
+                            <th>الحالة</th>
+                            <th>آخر نشاط</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rows"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div class="flash" id="flash" role="status" hidden></div>
+
+    <!-- ===== إدارة متجر ===== -->
+    <dialog class="wide" id="storeDialog">
+        <div class="dlg-head">
+            <div>
+                <h2 id="sdTitle"></h2>
+                <p id="sdSub"></p>
+            </div>
+            <button class="x-btn" type="button" data-close aria-label="إغلاق">×</button>
+        </div>
+
+        <div class="block">
+            <h3>الاشتراك</h3>
+            <form id="subForm" novalidate>
+                <div class="grid">
+                    <label class="field">اسم المتجر
+                        <input name="storeName">
+                    </label>
+                    <label class="field">هاتف صاحب المتجر
+                        <input name="ownerPhone" type="tel" dir="ltr">
+                    </label>
+                    <label class="field">الخطة
+                        <input name="plan" list="plans">
+                    </label>
+                    <label class="field">السعر
+                        <input name="price" type="number" min="0" step="1" inputmode="numeric">
+                    </label>
+                    <label class="field">تاريخ الانتهاء
+                        <input name="expiresAt" type="date">
+                    </label>
+                    <label class="field">ملاحظات
+                        <input name="notes">
+                    </label>
+                    <label class="toggle full">
+                        <span>إيقاف المتجر يدويًا<small>يتوقف التعديل في البرنامج فورًا حتى لو كان الاشتراك ساريًا.</small></span>
+                        <input type="checkbox" class="switch" name="suspended">
+                    </label>
+                </div>
+                <div class="actions-bar">
+                    <div class="row">
+                        <span class="hint">تمديد سريع:</span>
+                        <button class="btn secondary" type="button" data-extend="1">+ شهر</button>
+                        <button class="btn secondary" type="button" data-extend="3">+ 3 أشهر</button>
+                        <button class="btn secondary" type="button" data-extend="12">+ سنة</button>
+                    </div>
+                    <button class="btn" type="submit">حفظ الاشتراك</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="block">
+            <h3>الحسابات</h3>
+            <div id="members"></div>
+            <form id="addMemberForm" class="grid" novalidate style="margin-top:14px">
+                <label class="field">الاسم الظاهر
+                    <input name="name">
+                </label>
+                <label class="field">اسم المستخدم (إنجليزي)
+                    <input name="username" dir="ltr" autocomplete="off">
+                </label>
+                <label class="field">كلمة المرور
+                    <input name="password" dir="ltr" autocomplete="off">
+                </label>
+                <label class="field">الدور
+                    <select name="role">
+                        <option value="employee">موظف مبيعات</option>
+                        <option value="admin">مدير</option>
+                    </select>
+                </label>
+                <div class="full row">
+                    <button class="btn secondary" type="submit">+ إضافة حساب</button>
+                    <button class="btn secondary" type="button" data-generate="addMemberForm">توليد كلمة مرور</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="block">
+            <h3>البيانات والدعم</h3>
+            <div class="facts">
+                <div class="fact">معرّف المتجر<b id="sdId" dir="ltr"></b></div>
+                <div class="fact">آخر نشاط<b id="sdActivity"></b></div>
+                <div class="fact">عدد السجلات المحفوظة<b id="sdRows"></b></div>
+            </div>
+            <div class="row">
+                <button class="btn secondary" type="button" id="exportBtn">تنزيل نسخة احتياطية</button>
+                <span class="hint">تُستعاد من صفحة الإعدادات في المتجر.</span>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ===== متجر جديد ===== -->
+    <dialog class="wide" id="newDialog">
+        <div class="dlg-head">
+            <div>
+                <h2>متجر جديد</h2>
+                <p>ينشئ المتجر وحساب مديره واشتراكه معًا.</p>
+            </div>
+            <button class="x-btn" type="button" data-close aria-label="إغلاق">×</button>
+        </div>
+        <form id="newForm" novalidate>
+            <div class="grid">
+                <label class="field">اسم المتجر
+                    <input name="storeName" required>
+                </label>
+                <label class="field">هاتف صاحب المتجر
+                    <input name="ownerPhone" type="tel" dir="ltr">
+                </label>
+                <label class="field">الخطة
+                    <input name="plan" list="plans" value="شهري">
+                </label>
+                <label class="field">السعر
+                    <input name="price" type="number" min="0" step="1" inputmode="numeric">
+                </label>
+                <label class="field">تاريخ الانتهاء
+                    <input name="expiresAt" type="date">
+                </label>
+                <label class="field">ملاحظات
+                    <input name="notes">
+                </label>
+                <label class="field">اسم المدير الظاهر
+                    <input name="adminName" required>
+                </label>
+                <label class="field">اسم مستخدم المدير (إنجليزي)
+                    <input name="adminUsername" dir="ltr" autocomplete="off" required>
+                </label>
+                <label class="field full">كلمة مرور المدير
+                    <input name="adminPassword" dir="ltr" autocomplete="off" required>
+                </label>
+            </div>
+            <div class="msg" id="newMsg" role="alert" style="margin-top:12px"></div>
+            <div class="actions-bar">
+                <button class="btn secondary" type="button" data-generate="newForm">توليد كلمة مرور</button>
+                <button class="btn" type="submit">إنشاء المتجر</button>
+            </div>
+        </form>
+        <div class="creds" id="newCreds" hidden></div>
+    </dialog>
+
+    <!-- ===== كلمة مرور جديدة لحساب ===== -->
+    <dialog class="narrow" id="pwDialog">
+        <div class="dlg-head">
+            <div>
+                <h2>كلمة مرور جديدة</h2>
+                <p id="pwFor"></p>
+            </div>
+            <button class="x-btn" type="button" data-close aria-label="إغلاق">×</button>
+        </div>
+        <form id="pwForm" class="stack" novalidate>
+            <label class="field">كلمة المرور الجديدة
+                <input name="password" dir="ltr" autocomplete="off" minlength="8" required>
+            </label>
+            <div class="actions-bar">
+                <button class="btn secondary" type="button" data-generate="pwForm">توليد كلمة مرور</button>
+                <button class="btn" type="submit">حفظ كلمة المرور</button>
+            </div>
+        </form>
+    </dialog>
+
+    <datalist id="plans">
+        <option value="شهري"></option>
+        <option value="3 أشهر"></option>
+        <option value="سنوي"></option>
+        <option value="تجريبي"></option>
+    </datalist>
+
+    <script>
+        const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_I2L_KEOwIXjyuCOue4w_3g_MMhYImIU';
+        const SUPABASE_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+        const FUNCTION_URL = SUPABASE_URL + '/functions/v1/provider-admin';
+
+        const $ = id => document.getElementById(id);
+        let sb = null;
+        let stores = [];
+        let filter = 'all';
+        let current = null; // المتجر المفتوح في النافذة
+
+        const STATUS = {
+            active: ['فعّال', 'closed'],
+            expiring: ['ينتهي قريبًا', 'low'],
+            grace: ['في المهلة', 'out'],
+            expired: ['منتهٍ', 'out'],
+            suspended: ['موقوف', 'out'],
+            none: ['بلا اشتراك', 'none']
+        };
+
+        function esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        function num(n) {
+            return Number(n || 0).toLocaleString('en-US');
+        }
+
+        function flash(text, isError = false) {
+            const el = $('flash');
+            el.textContent = text;
+            el.className = 'flash ' + (isError ? 'err' : 'ok');
+            el.hidden = false;
+            clearTimeout(flash.timer);
+            flash.timer = setTimeout(() => { el.hidden = true; }, 4000);
+        }
+
+        function ago(iso) {
+            if (!iso) return '—';
+            const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+            if (mins < 1) return 'الآن';
+            if (mins < 60) return `منذ ${mins} دقيقة`;
+            const hours = Math.round(mins / 60);
+            if (hours < 24) return `منذ ${hours} ساعة`;
+            const days = Math.round(hours / 24);
+            if (days < 31) return `منذ ${days} يوم`;
+            return new Date(iso).toISOString().slice(0, 10);
+        }
+
+        function daysText(s) {
+            if (s.daysLeft === null || s.daysLeft === undefined) return '';
+            if (s.daysLeft > 0) return `بعد ${s.daysLeft} يوم`;
+            if (s.daysLeft === 0) return 'اليوم';
+            return `منذ ${-s.daysLeft} يوم`;
+        }
+
+        function generatePassword() {
+            const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+            const bytes = crypto.getRandomValues(new Uint8Array(10));
+            return [...bytes].map(b => chars[b % chars.length]).join('');
+        }
+
+        function addMonthsLocal(months) {
+            const d = new Date();
+            d.setMonth(d.getMonth() + months);
+            return d.toISOString().slice(0, 10);
+        }
+
+        // ===== الاتصال بالدالة =====
+        async function call(action, data = {}) {
+            const { data: s } = await sb.auth.getSession();
+            if (!s.session) {
+                showLogin();
+                throw new Error('انتهت الجلسة، سجّل الدخول من جديد');
+            }
+            let res;
+            try {
+                res = await fetch(FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        apikey: SUPABASE_KEY,
+                        Authorization: 'Bearer ' + s.session.access_token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action, ...data })
+                });
+            } catch {
+                throw new Error('تعذر الاتصال بالخادم. تأكد أن الدالة provider-admin منشورة');
+            }
+            const out = await res.json().catch(() => ({}));
+            if (res.status === 403) {
+                await sb.auth.signOut();
+                showLogin('هذا الحساب ليس حساب مزود');
+                throw new Error('غير مصرح');
+            }
+            if (!res.ok) throw new Error(out.error || 'حدث خطأ');
+            return out;
+        }
+
+        // ===== الدخول =====
+        function showLogin(message = '') {
+            $('panel').hidden = true;
+            $('loginView').hidden = false;
+            $('loginMsg').textContent = message;
+        }
+
+        async function showPanel() {
+            const { data } = await sb.auth.getSession();
+            $('whoami').textContent = data.session ? data.session.user.email : '';
+            $('loginView').hidden = true;
+            $('panel').hidden = false;
+            await load();
+        }
+
+        $('loginForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const f = e.target.elements;
+            $('loginMsg').textContent = '';
+            $('loginBtn').disabled = true;
+            try {
+                const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+                if (error) throw new Error('البريد أو كلمة المرور غير صحيحة');
+                f.password.value = '';
+                await showPanel();
+            } catch (err) {
+                if (err.message !== 'غير مصرح') $('loginMsg').textContent = err.message;
+            } finally {
+                $('loginBtn').disabled = false;
+            }
+        });
+
+        $('signOutBtn').addEventListener('click', async () => {
+            await sb.auth.signOut();
+            stores = [];
+            $('rows').innerHTML = '';
+            showLogin();
+        });
+
+        // ===== القائمة =====
+        async function load() {
+            try {
+                const out = await call('overview');
+                stores = out.stores || [];
+                render();
+                if (current) {
+                    const fresh = stores.find(s => s.store_id === current.store_id);
+                    if (fresh) fillStoreDialog(fresh);
+                }
+            } catch (err) {
+                if (err.message !== 'غير مصرح') flash(err.message, true);
+            }
+        }
+
+        function group(s) {
+            if (s.status === 'active' || s.status === 'none') return 'active';
+            if (s.status === 'expiring' || s.status === 'grace') return 'soon';
+            return 'stopped';
+        }
+
+        function render() {
+            $('sumStores').textContent = num(stores.length);
+            $('sumActive').textContent = num(stores.filter(s => group(s) === 'active').length);
+            $('sumSoon').textContent = num(stores.filter(s => group(s) === 'soon').length);
+            $('sumStopped').textContent = num(stores.filter(s => group(s) === 'stopped').length);
+
+            const q = $('search').value.trim().toLowerCase();
+            const rows = stores.filter(s => {
+                if (filter !== 'all' && group(s) !== filter) return false;
+                if (!q) return true;
+                const text = [s.name, s.phone, s.subscription && s.subscription.owner_phone, ...s.members.map(m => m.username + ' ' + m.display_name)].join(' ').toLowerCase();
+                return text.includes(q);
+            });
+
+            $('rows').innerHTML = rows.length ? rows.map(s => {
+                const sub = s.subscription || {};
+                const admins = s.members.filter(m => m.role === 'admin');
+                const [label, cls] = STATUS[s.status] || STATUS.none;
+                return `<tr>
+                    <td><b>${esc(s.name || 'بدون اسم')}</b><small dir="ltr">${esc(sub.owner_phone || s.phone || '')}</small></td>
+                    <td>${admins.map(a => esc(a.display_name)).join('، ') || '—'}<small dir="ltr">${admins.map(a => '@' + esc(a.username)).join(' ')}</small></td>
+                    <td>${num(s.members.length)}</td>
+                    <td>${esc(sub.plan || '—')}<small>${sub.price ? num(sub.price) : ''}</small></td>
+                    <td>${esc(sub.expires_at || '—')}<small>${esc(daysText(s))}</small></td>
+                    <td><span class="status ${cls}">${label}</span></td>
+                    <td>${esc(ago(s.last_activity))}</td>
+                    <td><button class="btn secondary" type="button" data-open="${esc(s.store_id)}">إدارة</button></td>
+                </tr>`;
+            }).join('') : `<tr class="empty-row"><td colspan="8">${stores.length ? 'لا توجد متاجر مطابقة' : 'لا توجد متاجر بعد. أنشئ أول متجر من زر "+ متجر جديد".'}</td></tr>`;
+        }
+
+        $('search').addEventListener('input', render);
+        document.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => {
+            filter = chip.dataset.filter;
+            document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+            render();
+        }));
+        $('refreshBtn').addEventListener('click', async e => {
+            e.currentTarget.disabled = true;
+            await load();
+            e.currentTarget.disabled = false;
+        });
+
+        // ===== نافذة المتجر =====
+        function fillStoreDialog(s) {
+            current = s;
+            const sub = s.subscription || {};
+            const [label] = STATUS[s.status] || STATUS.none;
+            $('sdTitle').textContent = s.name || 'بدون اسم';
+            $('sdSub').textContent = label + (s.subscription && sub.expires_at ? ' — ينتهي في ' + sub.expires_at : '');
+            const f = $('subForm').elements;
+            f.storeName.value = sub.store_name || s.name || '';
+            f.ownerPhone.value = sub.owner_phone || s.phone || '';
+            f.plan.value = sub.plan || 'شهري';
+            f.price.value = sub.price || '';
+            f.expiresAt.value = sub.expires_at || '';
+            f.notes.value = sub.notes || '';
+            f.suspended.checked = !!sub.suspended;
+
+            $('members').innerHTML = s.members.length ? s.members.map(m => `
+                <div class="member">
+                    <div>
+                        <b>${esc(m.display_name)}</b><span class="tag">${m.role === 'admin' ? 'مدير' : 'موظف مبيعات'}</span>${m.disabled ? '<span class="tag off">معطّل</span>' : ''}
+                        <small><span dir="ltr">@${esc(m.username)}</span> — آخر دخول: ${esc(ago(m.last_sign_in_at))}</small>
+                    </div>
+                    <div class="row">
+                        <button class="btn secondary" type="button" data-pw="${esc(m.user_id)}">كلمة مرور جديدة</button>
+                        <button class="btn secondary" type="button" data-role="${esc(m.user_id)}" data-to="${m.role === 'admin' ? 'employee' : 'admin'}">${m.role === 'admin' ? 'جعله موظفًا' : 'جعله مديرًا'}</button>
+                        <button class="btn secondary" type="button" data-disable="${esc(m.user_id)}" data-to="${m.disabled ? '0' : '1'}">${m.disabled ? 'تفعيل' : 'تعطيل'}</button>
+                        <button class="btn danger" type="button" data-delete="${esc(m.user_id)}">حذف</button>
+                    </div>
+                </div>`).join('') : '<p class="hint">لا توجد حسابات في هذا المتجر.</p>';
+
+            $('sdId').textContent = s.store_id;
+            $('sdActivity').textContent = ago(s.last_activity);
+            $('sdRows').textContent = num(s.rows_count);
+        }
+
+        $('rows').addEventListener('click', e => {
+            const b = e.target.closest('[data-open]');
+            if (!b) return;
+            const s = stores.find(x => x.store_id === b.dataset.open);
+            if (!s) return;
+            fillStoreDialog(s);
+            $('addMemberForm').reset();
+            $('storeDialog').showModal();
+        });
+
+        // تنفيذ عملية ثم تحديث القائمة
+        async function run(btn, action, data, okText) {
+            if (btn) btn.disabled = true;
+            try {
+                const out = await call(action, data);
+                flash(okText);
+                await load();
+                return out;
+            } catch (err) {
+                if (err.message !== 'غير مصرح') flash(err.message, true);
+                return null;
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        $('subForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const f = e.target.elements;
+            run(e.submitter, 'update_subscription', {
+                storeId: current.store_id,
+                storeName: f.storeName.value.trim(),
+                ownerPhone: f.ownerPhone.value.trim(),
+                plan: f.plan.value.trim(),
+                price: Number(f.price.value || 0),
+                expiresAt: f.expiresAt.value,
+                notes: f.notes.value.trim(),
+                suspended: f.suspended.checked
+            }, 'تم حفظ الاشتراك');
+        });
+
+        document.querySelectorAll('[data-extend]').forEach(b => b.addEventListener('click', () => {
+            const months = Number(b.dataset.extend);
+            run(b, 'extend', { storeId: current.store_id, months }, 'تم تمديد الاشتراك');
+        }));
+
+        $('members').addEventListener('click', e => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            const member = current.members.find(m => m.user_id === (b.dataset.pw || b.dataset.role || b.dataset.disable || b.dataset.delete));
+            if (!member) return;
+
+            if (b.dataset.pw) {
+                $('pwFor').textContent = member.display_name + ' — @' + member.username;
+                $('pwForm').dataset.user = member.user_id;
+                $('pwForm').reset();
+                $('pwDialog').showModal();
+            } else if (b.dataset.role) {
+                run(b, 'set_role', { userId: member.user_id, role: b.dataset.to }, 'تم تغيير الدور');
+            } else if (b.dataset.disable) {
+                const disable = b.dataset.to === '1';
+                if (disable && !confirm(`تعطيل حساب ${member.display_name}؟ لن يستطيع الدخول حتى تفعّله.`)) return;
+                run(b, 'set_disabled', { userId: member.user_id, disabled: disable }, disable ? 'تم تعطيل الحساب' : 'تم تفعيل الحساب');
+            } else if (b.dataset.delete) {
+                if (!confirm(`حذف حساب ${member.display_name} نهائيًا؟ بيانات المتجر لا تُحذف.`)) return;
+                run(b, 'delete_member', { userId: member.user_id }, 'تم حذف الحساب');
+            }
+        });
+
+        $('pwForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const password = e.target.elements.password.value;
+            if (password.length < 8) {
+                flash('كلمة المرور 8 أحرف على الأقل', true);
+                return;
+            }
+            const out = await run(e.submitter, 'reset_password', { userId: e.target.dataset.user, password }, 'تم تغيير كلمة المرور');
+            if (out) $('pwDialog').close();
+        });
+
+        $('addMemberForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const f = e.target.elements;
+            const out = await run(e.submitter, 'add_member', {
+                storeId: current.store_id,
+                name: f.name.value.trim(),
+                username: f.username.value.trim().toLowerCase(),
+                password: f.password.value,
+                role: f.role.value
+            }, 'تمت إضافة الحساب');
+            if (out) e.target.reset();
+        });
+
+        $('exportBtn').addEventListener('click', async e => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+                const backup = await call('export_store', { storeId: current.store_id });
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `نسخة_${(backup.storeName || 'متجر').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                flash('تم تنزيل النسخة الاحتياطية');
+            } catch (err) {
+                if (err.message !== 'غير مصرح') flash(err.message, true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // ===== متجر جديد =====
+        $('newStoreBtn').addEventListener('click', () => {
+            $('newForm').reset();
+            $('newForm').hidden = false;
+            $('newCreds').hidden = true;
+            $('newMsg').textContent = '';
+            $('newForm').elements.expiresAt.value = addMonthsLocal(1);
+            $('newForm').elements.adminPassword.value = generatePassword();
+            $('newDialog').showModal();
+        });
+
+        $('newForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const f = e.target.elements;
+            $('newMsg').textContent = '';
+            const data = {
+                storeName: f.storeName.value.trim(),
+                ownerPhone: f.ownerPhone.value.trim(),
+                plan: f.plan.value.trim(),
+                price: Number(f.price.value || 0),
+                expiresAt: f.expiresAt.value,
+                notes: f.notes.value.trim(),
+                adminName: f.adminName.value.trim(),
+                adminUsername: f.adminUsername.value.trim().toLowerCase(),
+                adminPassword: f.adminPassword.value
+            };
+            const btn = e.submitter;
+            btn.disabled = true;
+            try {
+                await call('create_store', data);
+                // بيانات الدخول لتسليمها لصاحب المتجر
+                $('newForm').hidden = true;
+                $('newCreds').hidden = false;
+                $('newCreds').innerHTML = `تم إنشاء متجر <b>${esc(data.storeName)}</b>. سلّم صاحب المتجر بيانات الدخول:<br>
+                    اسم المستخدم: <code dir="ltr">${esc(data.adminUsername)}</code><br>
+                    كلمة المرور: <code dir="ltr">${esc(data.adminPassword)}</code><br>
+                    <button class="btn secondary" type="button" id="copyCreds" style="margin-top:10px">نسخ بيانات الدخول</button>`;
+                $('copyCreds').addEventListener('click', () => {
+                    navigator.clipboard.writeText(`اسم المستخدم: ${data.adminUsername}\nكلمة المرور: ${data.adminPassword}`)
+                        .then(() => flash('تم النسخ'), () => flash('تعذر النسخ', true));
+                });
+                await load();
+            } catch (err) {
+                if (err.message !== 'غير مصرح') $('newMsg').textContent = err.message;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // ===== عناصر مشتركة =====
+        document.querySelectorAll('[data-generate]').forEach(b => b.addEventListener('click', () => {
+            const form = $(b.dataset.generate);
+            const input = form.elements.password || form.elements.adminPassword;
+            input.value = generatePassword();
+        }));
+
+        document.querySelectorAll('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+        $('storeDialog').addEventListener('close', () => { current = null; });
+
+        // ===== البدء =====
+        (function start() {
+            const s = document.createElement('script');
+            s.src = SUPABASE_LIB;
+            s.onload = async () => {
+                // جلسة منفصلة عن جلسة البرنامج، فيمكن فتح اللوحة والبرنامج معًا
+                sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+                    auth: { persistSession: true, autoRefreshToken: true, storageKey: 'sb-provider-auth' }
+                });
+                const { data } = await sb.auth.getSession();
+                if (data.session) await showPanel();
+                else showLogin();
+            };
+            s.onerror = () => showLogin('تعذر تحميل مكتبة Supabase. تحقق من الإنترنت');
+            document.head.appendChild(s);
+        })();
+    </script>
+</body>
+
+</html>

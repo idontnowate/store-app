@@ -15,6 +15,14 @@
     // خيارات البيع والمخزون على مستوى المتجر (تُزامن، يعدّلها المدير)
     const OPTIONS_KEY = 'storeOptions';
     const SESSION_TOKEN_KEY = 'sb-pxxgydllfustqkpkfiqn-auth-token';
+    // حالة اشتراك المتجر (تُحدَّث من السحابة عند كل صفحة، وتُستخدم فورًا عند الفتح التالي)
+    const SUBSCRIPTION_KEY = 'appSubscription';
+    const EXPIRED_PAGE = 'expired.html';
+    // بيانات تواصل المزود تظهر في صفحة انتهاء الاشتراك؛ اكتب رقمك هنا
+    const SUPPORT_CONTACT = '';
+    // مهلة بعد انتهاء الاشتراك (أيام) قبل الإيقاف، والتنبيه قبل الانتهاء (أيام)؛ مطابقة لـ provider.sql
+    const GRACE_DAYS = 3;
+    const WARN_DAYS = 7;
     // بيانات العضوية محليًا؛ لا تبدأ بـ store حتى لا تُزامن، ويقرأها storage.js لمعرفة المتجر
     const MEMBERSHIP_KEY = 'appMembership';
     // يحفظ معرف المتجر الذي اكتملت مزامنته محليًا (يكتبه storage.js)
@@ -200,6 +208,90 @@
 
     function currentUser() {
         return membership;
+    }
+
+    // ===== الاشتراك =====
+    function todayLocal() {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 10);
+    }
+
+    // نفس قاعدة الخادم: تنبيه قبل الانتهاء، ومهلة بعده، ثم إيقاف
+    function subscriptionStatus(sub) {
+        if (!sub) return { status: 'none', daysLeft: null };
+        const daysLeft = sub.expires_at
+            ? Math.round((Date.parse(sub.expires_at) - Date.parse(todayLocal())) / 86400000)
+            : null;
+        if (sub.suspended) return { status: 'suspended', daysLeft };
+        if (daysLeft === null || daysLeft > WARN_DAYS) return { status: 'active', daysLeft };
+        if (daysLeft >= 0) return { status: 'expiring', daysLeft };
+        if (daysLeft >= -GRACE_DAYS) return { status: 'grace', daysLeft };
+        return { status: 'expired', daysLeft };
+    }
+
+    const isBlocked = st => st.status === 'expired' || st.status === 'suspended';
+
+    // الحالة المحفوظة على الجهاز، محسوبة بتاريخ اليوم (فتنتهي في موعدها حتى دون اتصال)
+    function cachedSubscription(storeId) {
+        const c = read(SUBSCRIPTION_KEY, null);
+        if (!c || c.store_id !== storeId) return null;
+        return { ...c, ...subscriptionStatus(c.row) };
+    }
+
+    // يجلب اشتراك المتجر من السحابة؛ يعيد null إذا تعذر (أو لم يُنشأ جدول الاشتراكات بعد)
+    async function fetchSubscription() {
+        if (!membership) return null;
+        try {
+            const { data, error } = await sb
+                .from('store_subscriptions')
+                .select('expires_at, suspended')
+                .eq('store_id', membership.store_id)
+                .maybeSingle();
+            if (error) return null;
+            write(SUBSCRIPTION_KEY, { store_id: membership.store_id, row: data, checkedAt: new Date().toISOString() });
+            return { row: data, ...subscriptionStatus(data) };
+        } catch {
+            return null;
+        }
+    }
+
+    // تنبيه أعلى الصفحة: للمدير قبل الانتهاء، وللجميع خلال المهلة
+    function showSubscriptionBanner(st) {
+        document.querySelectorAll('.sub-banner').forEach(el => el.remove());
+        if (!st || !st.row) return;
+        const expires = st.row.expires_at;
+        let text = '';
+        if (st.status === 'grace') {
+            const left = GRACE_DAYS + st.daysLeft;
+            text = left > 0
+                ? `انتهى اشتراك المتجر في ${expires}. سيتوقف البرنامج بعد ${left} يوم ما لم يُجدَّد.`
+                : `انتهى اشتراك المتجر في ${expires}. سيتوقف البرنامج غدًا ما لم يُجدَّد.`;
+        } else if (st.status === 'expiring' && membership && membership.role === 'admin') {
+            text = st.daysLeft === 0
+                ? `ينتهي اشتراك المتجر اليوم (${expires}). تواصل مع المزود للتجديد.`
+                : `ينتهي اشتراك المتجر بعد ${st.daysLeft} يوم (${expires}). تواصل مع المزود للتجديد.`;
+        }
+        const main = document.querySelector('body > main');
+        if (!text || !main) return;
+        const banner = document.createElement('div');
+        banner.className = 'sub-banner' + (st.status === 'grace' ? ' urgent' : '');
+        banner.setAttribute('role', 'status');
+        banner.textContent = text;
+        main.prepend(banner);
+    }
+
+    function applySubscription(st) {
+        if (!st) return;
+        if (isBlocked(st)) {
+            if (page !== EXPIRED_PAGE) location.replace(EXPIRED_PAGE);
+            return;
+        }
+        if (page === EXPIRED_PAGE) {
+            location.replace(HOME_PAGE);
+            return;
+        }
+        showSubscriptionBanner(st);
     }
 
     // ===== الحساب والأمان =====
@@ -415,6 +507,10 @@
     if (optimistic) {
         membership = cachedAtStart;
         if (ADMIN_ONLY_PAGES.includes(page) && cachedAtStart.role !== 'admin') location.replace(HOME_PAGE);
+        // اشتراك منتهٍ أو متجر موقوف: نتحول فورًا دون انتظار السحابة
+        const sub = cachedSubscription(cachedAtStart.store_id);
+        if (sub && isBlocked(sub) && page !== EXPIRED_PAGE) location.replace(EXPIRED_PAGE);
+        else if (sub) whenDomReady().then(() => showSubscriptionBanner(sub));
         // القائمة تكتمل قبل أول رسم للصفحة فلا تقفز عناصرها
         whenDomReady().then(buildUI);
     } else if (!isLogin) {
@@ -430,6 +526,8 @@
                 if (window.StoreSync && StoreSync.retryIfFailed) StoreSync.retryIfFailed();
                 buildUI();
                 flushPendingLogin();
+                // حالة الاشتراك من السحابة (لا تؤخر ظهور الصفحة)
+                fetchSubscription().then(applySubscription);
             }
             return ok;
         })
@@ -461,6 +559,10 @@
         saveStoreOptions,
         changePassword,
         signOutOthers,
+        // لصفحة انتهاء الاشتراك
+        checkSubscription: () => fetchSubscription().then(st => { applySubscription(st); return st; }),
+        subscriptionStatus: () => membership && cachedSubscription(membership.store_id),
+        supportContact: SUPPORT_CONTACT,
         config: {
             url: SUPABASE_URL,
             key: SUPABASE_KEY,

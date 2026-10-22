@@ -44,6 +44,8 @@ as $$
 $$;
 
 -- ===== kv_store =====
+-- ملاحظة: provider.sql يعيد تعريف قواعد الإضافة والتعديل والحذف ليمنعها عند انتهاء الاشتراك.
+-- إذا أعدت تشغيل هذا الملف فأعد تشغيل provider.sql بعده.
 alter table public.kv_store enable row level security;
 
 drop policy if exists kv_select on public.kv_store;

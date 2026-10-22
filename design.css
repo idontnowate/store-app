@@ -1649,6 +1649,36 @@ html[data-theme="dark"] {
     }
 }
 
+/* تنبيه الاشتراك أعلى الصفحة */
+@media screen {
+    .sub-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        background: var(--warn-soft);
+        color: var(--warn-text);
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .sub-banner::before {
+        content: "";
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .sub-banner.urgent {
+        background: var(--danger-soft);
+        color: var(--danger-text);
+    }
+}
+
 /* سلوك القائمة الجانبية (يتحكم به layout.js) */
 @media screen {
     .nav-toggle {

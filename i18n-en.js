@@ -620,7 +620,15 @@ window.STORE_I18N_EN = {
         "سيتم إنهاء دخول حسابك على كل الأجهزة الأخرى. متابعة؟": "Your account will be signed out on all other devices. Continue?",
         "تم تسجيل الخروج من الأجهزة الأخرى": "Signed out of other devices",
         "تعذر تسجيل الخروج من الأجهزة الأخرى": "Could not sign out of other devices",
-        "الأمان": "Security"
+        "الأمان": "Security",
+        "الاشتراك متوقف": "Subscription stopped",
+        "انتهى اشتراك المتجر": "The store subscription has ended",
+        "المتجر موقوف مؤقتًا": "The store is temporarily suspended",
+        "بياناتك محفوظة ولن تُحذف. تواصل مع مزود الخدمة لتجديد الاشتراك، وسيعود البرنامج للعمل فور التجديد.": "Your data is safe and will not be deleted. Contact the service provider to renew, and the app will work again right after renewal.",
+        "تحقق مرة أخرى": "Check again",
+        "جارِ التحقق…": "Checking…",
+        "تعذر الاتصال. تحقق من الإنترنت ثم حاول مجددًا.": "Could not connect. Check your internet and try again.",
+        "الاشتراك ما زال متوقفًا.": "The subscription is still stopped."
     },
 
     // أسماء المعدودات بعد الأرقام (عرض 5 من 9 فاتورة)
@@ -636,6 +644,11 @@ window.STORE_I18N_EN = {
     },
 
     PATTERNS: [
+        [/^انتهى اشتراك المتجر في (\S+)\. سيتوقف البرنامج بعد (\S+) يوم ما لم يُجدَّد\.$/, 'The store subscription ended on {1}. The app will stop in {2} days unless renewed.'],
+        [/^انتهى اشتراك المتجر في (\S+)\. سيتوقف البرنامج غدًا ما لم يُجدَّد\.$/, 'The store subscription ended on {1}. The app will stop tomorrow unless renewed.'],
+        [/^ينتهي اشتراك المتجر اليوم \((\S+)\)\. تواصل مع المزود للتجديد\.$/, 'The store subscription ends today ({1}). Contact the provider to renew.'],
+        [/^ينتهي اشتراك المتجر بعد (\S+) يوم \((\S+)\)\. تواصل مع المزود للتجديد\.$/, 'The store subscription ends in {1} days ({2}). Contact the provider to renew.'],
+        [/^للتجديد: (.+)$/, 'To renew: {1}'],
         [/^توجد (\S+) تغييرات لم تُرفع بعد\. تحقق من الإنترنت ثم اضغط "مزامنة الآن"\.$/, '{1} changes have not been uploaded yet. Check your internet, then press "Sync now".'],
         [/^كل التغييرات محفوظة في السحابة — آخر مزامنة (.+)$/, 'All changes are saved to the cloud — last synced {1}'],
         [/^بيع فاتورة (\S+) - (.+)$/, 'Sale, invoice {1} - {2}'],

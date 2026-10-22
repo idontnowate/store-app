@@ -18,8 +18,8 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610229"></script>
-    <script src="theme.js?v=202610229"></script>
+    <script src="i18n-en.js?v=202610230"></script>
+    <script src="theme.js?v=202610230"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -400,7 +400,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610229">
+    <link rel="stylesheet" href="design.css?v=202610230">
 </head>
 
 <body class="standalone">
@@ -874,7 +874,7 @@
             $('sdTitle').textContent = s.name || 'بدون اسم';
             $('sdSub').textContent = label + (s.subscription && sub.expires_at ? ' — ينتهي في ' + sub.expires_at : '');
             const f = $('subForm').elements;
-            f.storeName.value = sub.store_name || s.name || '';
+            f.storeName.value = s.name || sub.store_name || '';
             f.ownerPhone.value = sub.owner_phone || s.phone || '';
             f.ownerEmail.value = sub.owner_email || '';
             f.plan.value = sub.plan || 'شهري';

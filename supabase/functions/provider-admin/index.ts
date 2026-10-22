@@ -133,6 +133,24 @@ async function createStoreRow(admin, storeId: string, name: string) {
     if (error) throw new UserError("تعذر تسجيل المتجر: " + (error.message || error.code), 500);
 }
 
+// يغيّر اسم المتجر في إعداداته (kv_store) فيظهر في البرنامج على كل الأجهزة بعد المزامنة
+async function renameStore(admin, storeId: string, name: string) {
+    const { data: row, error } = await admin.from("kv_store").select("value")
+        .eq("store_id", storeId).eq("key", "storeSettings").maybeSingle();
+    if (error) throw error;
+    const settings = parseSettings(row?.value);
+    if (settings.name !== name) {
+        const value = JSON.stringify({ ...settings, name });
+        const updated_at = new Date().toISOString();
+        const { error: writeErr } = row
+            ? await admin.from("kv_store").update({ value, updated_at }).eq("store_id", storeId).eq("key", "storeSettings")
+            : await admin.from("kv_store").insert({ store_id: storeId, key: "storeSettings", value, updated_at });
+        if (writeErr) throw writeErr;
+    }
+    // جدول stores قد لا يحتوي عمود name؛ لا نوقف الحفظ بسببه
+    await admin.from("stores").update({ name }).eq("id", storeId);
+}
+
 async function memberOf(admin, userId: string) {
     const { data } = await admin.from("store_members").select("store_id, role, username").eq("user_id", userId).maybeSingle();
     if (!data) throw new UserError("الحساب غير موجود", 404);
@@ -168,7 +186,8 @@ const actions = {
         subs.data.forEach(s => {
             const st = store(s.store_id);
             st.subscription = s;
-            if (s.store_name) st.name = s.store_name;
+            // اسم المتجر في إعداداته هو الأحدث (قد يغيّره مديره)، واسم الاشتراك احتياطي
+            if (!st.name && s.store_name) st.name = s.store_name;
         });
         stats.data.forEach(s => {
             const st = store(s.store_id);
@@ -252,9 +271,10 @@ const actions = {
         if (!storeId) throw new UserError("المتجر غير محدد");
         if (expiresAt && !validDate(expiresAt)) throw new UserError("تاريخ الانتهاء غير صالح");
 
+        const storeName = str(b.storeName);
         const { error } = await admin.from("store_subscriptions").upsert({
             store_id: storeId,
-            store_name: str(b.storeName),
+            store_name: storeName,
             owner_phone: str(b.ownerPhone),
             owner_email: str(b.ownerEmail).toLowerCase(),
             plan: str(b.plan) || "شهري",
@@ -265,6 +285,8 @@ const actions = {
             updated_at: new Date().toISOString(),
         });
         if (error) throw error;
+        // الاسم الظاهر في البرنامج يأتي من إعدادات المتجر، فنحدّثها أيضًا
+        if (storeName) await renameStore(admin, storeId, storeName);
         return { ok: true };
     },
 

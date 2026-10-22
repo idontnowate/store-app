@@ -895,7 +895,7 @@
             }
 
             const invoiceNumber = activeNumber;
-            payments.push({ invoiceNumber, amount, date, note });
+            payments.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), invoiceNumber, amount, date, note });
 
             if (!savePayments()) {
                 payments.pop();

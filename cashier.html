@@ -1132,6 +1132,8 @@
                 return;
             }
 
+            // نجلب أحدث الفواتير والمخزون من الأجهزة الأخرى قبل الترقيم وفحص الكميات
+            if (window.StoreSync) StoreSync.refresh();
             loadData();
 
             for (const l of draft.lines) {
@@ -1172,7 +1174,7 @@
                 number,
                 date: todayLocal(),
                 customer: cust || 'زبون نقدي',
-                employee: user ? user.name : '',
+                employee: user ? (user.display_name || user.username || '') : '',
                 payment: draft.payment,
                 discount: disc,
                 notes: 'بيع من الكاشير',

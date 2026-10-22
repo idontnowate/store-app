@@ -1159,6 +1159,7 @@
 
             const note = adjustForm.elements.note.value.trim();
             adjustments.push({
+                id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
                 productId: p.id,
                 change,
                 note,

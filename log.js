@@ -5,7 +5,7 @@
     function currentUserName() {
         try {
             const u = window.StoreAuth && StoreAuth.currentUser ? StoreAuth.currentUser() : null;
-            return u ? (u.name || u.username || '') : 'غير معروف';
+            return u ? (u.display_name || u.username || '') : 'غير معروف';
         } catch {
             return 'غير معروف';
         }

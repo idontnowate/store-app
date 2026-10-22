@@ -1,4 +1,13 @@
-/* storage.js — يزامن بيانات المتجر مع Supabase، ويعزل كل متجر ببياناته */
+/* storage.js — يزامن بيانات المتجر مع Supabase، ويعزل كل متجر ببياناته
+ *
+ * كيف تعمل المزامنة:
+ * - كل مفتاح يبدأ بـ store يُحفظ كصف في جدول kv_store.
+ * - القوائم (مثل الفواتير والمنتجات) تُدمج مع نسخة السحابة عند كل حفظ بدل الكتابة فوقها،
+ *   فلا تضيع فاتورة أضافها جهاز آخر في نفس الوقت.
+ * - الحفظ يتم بشرط ألا يكون الصف قد تغيّر منذ قراءته (updated_at)، وإلا نعيد الدمج.
+ * - الحذف يكتب علامة حذف بدل حذف الصف، حتى يعرف كل جهاز أن المفتاح حُذف ولا يعيد رفعه.
+ * - السحب يقارن updated_at لكل مفتاح مع آخر نسخة عرفها الجهاز، فلا يعتمد على ساعة الجهاز.
+ */
 (function () {
     const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
     const PROJECT_REF = 'pxxgydllfustqkpkfiqn';
@@ -8,17 +17,42 @@
     const SESSION_TOKEN_KEY = 'sb-' + PROJECT_REF + '-auth-token';
     const MEMBERSHIP_KEY = 'appMembership';
     const SYNCED_STORE_KEY = 'appSyncedStore';
-    // هامش أمان لتعويض فروق الساعة بين الأجهزة
-    const OVERLAP_MS = 2 * 60 * 1000;
+    // علامة الحذف تُكتب مكان القيمة
+    const DELETED = '__deleted__';
+    const MAX_RETRIES = 5;
 
+    const originalGet = Storage.prototype.getItem;
     const originalSet = Storage.prototype.setItem;
     const originalRemove = Storage.prototype.removeItem;
 
-    const isSyncKey = k => typeof k === 'string' && k.startsWith('store') && k !== 'storeSession';
+    // storePrefs (المظهر واللغة) خاص بكل جهاز ولا يُزامن
+    const isSyncKey = k => typeof k === 'string' && k.startsWith('store') && k !== 'storeSession' && k !== 'storePrefs';
+
+    function getLocal(key) {
+        return originalGet.call(localStorage, key);
+    }
+
+    function setLocal(key, value) {
+        originalSet.call(localStorage, key, value);
+    }
+
+    function removeLocal(key) {
+        originalRemove.call(localStorage, key);
+    }
 
     function readJSON(key) {
         try {
-            return JSON.parse(localStorage.getItem(key));
+            return JSON.parse(getLocal(key));
+        } catch {
+            return null;
+        }
+    }
+
+    function parseArray(raw) {
+        if (raw === null || raw === undefined || raw === DELETED) return null;
+        try {
+            const v = JSON.parse(raw);
+            return Array.isArray(v) ? v : null;
         } catch {
             return null;
         }
@@ -34,10 +68,72 @@
         return m && m.store_id ? m.store_id : null;
     }
 
-    function lastPullKey(storeId) {
-        return 'appLastPull_' + storeId;
+    // ===== حالة المزامنة المحفوظة على الجهاز (لا تبدأ بـ store حتى لا تُزامن) =====
+    // versions: آخر updated_at عرفه الجهاز لكل مفتاح
+    // dirty: مفاتيح فشل رفعها، مع السجلات التي كانت الصفحة تعرفها وقتها
+    function stateKey(name, storeId) {
+        return 'appSync' + name + '_' + storeId;
     }
 
+    function loadState(name, storeId) {
+        return readJSON(stateKey(name, storeId)) || {};
+    }
+
+    function saveState(name, storeId, value) {
+        try {
+            setLocal(stateKey(name, storeId), JSON.stringify(value));
+        } catch (err) {
+            console.warn('تعذر حفظ حالة المزامنة:', err);
+        }
+    }
+
+    // ===== السجلات التي رأتها هذه الصفحة لكل قائمة =====
+    // نستخدمها لمعرفة ما أضافته الصفحة وما حذفته، بدل اعتبار كل ما ينقصها محذوفًا
+    const known = {};
+    const lastSeenRaw = {};
+
+    function remember(key, raw) {
+        if (lastSeenRaw[key] === raw) return;
+        lastSeenRaw[key] = raw;
+        const arr = parseArray(raw);
+        if (!arr) return;
+        const set = known[key] || (known[key] = new Set());
+        arr.forEach(item => set.add(JSON.stringify(item)));
+    }
+
+    // دمج ثلاثي: نسخة السحابة − ما حذفته الصفحة + ما أضافته الصفحة
+    function mergeArrays(remoteArr, localArr, knownSet) {
+        const remoteStr = remoteArr.map(x => JSON.stringify(x));
+        const localStr = localArr.map(x => JSON.stringify(x));
+        const remoteSet = new Set(remoteStr);
+        const localSet = new Set(localStr);
+        const seen = knownSet || new Set();
+
+        const deleted = new Set([...seen].filter(s => !localSet.has(s)));
+        const added = new Set(localStr.filter(s => !seen.has(s)));
+
+        const out = [];
+        const used = new Set();
+        // نحافظ على ترتيب الصفحة
+        localArr.forEach((item, i) => {
+            const s = localStr[i];
+            if (used.has(s)) return;
+            if (remoteSet.has(s) || added.has(s)) {
+                out.push(item);
+                used.add(s);
+            }
+        });
+        // ثم ما أضافته الأجهزة الأخرى
+        remoteArr.forEach((item, i) => {
+            const s = remoteStr[i];
+            if (used.has(s) || deleted.has(s)) return;
+            out.push(item);
+            used.add(s);
+        });
+        return out;
+    }
+
+    // ===== الاتصال بالسحابة =====
     // طلب متزامن: يكتمل قبل أن تنتقل الصفحة إلى غيرها
     function request(method, url, body, extraHeaders) {
         const xhr = new XMLHttpRequest();
@@ -58,49 +154,173 @@
         return xhr;
     }
 
-    function pushOne(storeId, key, value) {
-        return request(
-            'POST',
-            API + '?on_conflict=store_id,key',
-            JSON.stringify({ store_id: storeId, key, value, updated_at: new Date().toISOString() }),
-            { Prefer: 'resolution=merge-duplicates' }
+    function ok(xhr) {
+        return !!xhr && xhr.status >= 200 && xhr.status < 300;
+    }
+
+    function rowFilter(storeId, key) {
+        return 'store_id=eq.' + encodeURIComponent(storeId) + '&key=eq.' + encodeURIComponent(key);
+    }
+
+    function inList(keys) {
+        return encodeURIComponent('(' + keys.map(k => '"' + k.replace(/"/g, '\\"') + '"').join(',') + ')');
+    }
+
+    // يعيد { value, updated_at } أو null إن لم يوجد الصف، أو undefined عند فشل الاتصال
+    function fetchRow(storeId, key) {
+        const xhr = request('GET', API + '?select=value,updated_at&' + rowFilter(storeId, key));
+        if (!ok(xhr)) return undefined;
+        const rows = JSON.parse(xhr.responseText);
+        return rows[0] || null;
+    }
+
+    // وقت جديد أكبر دائمًا من الوقت السابق للصف، حتى لو كانت ساعة الجهاز متأخرة
+    function nextTimestamp(prev) {
+        const now = Date.now();
+        const prevMs = prev ? Date.parse(prev) : 0;
+        return new Date(Math.max(now, (prevMs || 0) + 1)).toISOString();
+    }
+
+    // كتابة مشروطة: تنجح فقط إذا لم يتغير الصف منذ قراءته. تعيد updated_at الجديد أو null
+    function writeRow(storeId, key, value, row) {
+        const updated_at = nextTimestamp(row && row.updated_at);
+        if (!row) {
+            const xhr = request(
+                'POST',
+                API,
+                JSON.stringify({ store_id: storeId, key, value, updated_at }),
+                { Prefer: 'return=representation' }
+            );
+            if (!ok(xhr)) return null; // 409: أنشأه جهاز آخر للتو، نعيد المحاولة
+            const rows = JSON.parse(xhr.responseText);
+            return rows[0] ? rows[0].updated_at : updated_at;
+        }
+        const xhr = request(
+            'PATCH',
+            API + '?' + rowFilter(storeId, key) + '&updated_at=eq.' + encodeURIComponent(row.updated_at),
+            JSON.stringify({ value, updated_at }),
+            { Prefer: 'return=representation' }
         );
+        if (!ok(xhr)) return null;
+        const rows = JSON.parse(xhr.responseText);
+        return rows[0] ? rows[0].updated_at : null; // لا صفوف = تغيّر الصف، نعيد المحاولة
     }
 
-    function removeOne(storeId, key) {
-        return request(
-            'DELETE',
-            API + '?store_id=eq.' + encodeURIComponent(storeId) + '&key=eq.' + encodeURIComponent(key)
-        );
-    }
-
-    // يجلب أسماء المفاتيح فقط (خفيف) ليعرف ما هو غير موجود في السحابة
-    function fetchRemoteKeys(storeId) {
-        const xhr = request('GET', API + '?select=key&store_id=eq.' + encodeURIComponent(storeId));
-        if (!xhr || xhr.status !== 200) return null;
-        return new Set(JSON.parse(xhr.responseText).map(r => r.key));
-    }
-
-    // يجلب القيم التي تغيّرت منذ آخر سحب فقط، أو الكل عند أول مرة على هذا الجهاز
-    function pullChanged(storeId) {
-        const lpKey = lastPullKey(storeId);
-        const last = localStorage.getItem(lpKey);
-
-        let url = API + '?select=key,value&store_id=eq.' + encodeURIComponent(storeId);
-        if (last) url += '&updated_at=gt.' + encodeURIComponent(last);
-
-        const xhr = request('GET', url);
-        if (!xhr || xhr.status !== 200) return false;
-
-        JSON.parse(xhr.responseText).forEach(r => {
-            if (r.value !== null && r.value !== undefined) {
-                originalSet.call(localStorage, r.key, String(r.value));
+    // ===== الرفع =====
+    function notifyPage(key, oldValue, newValue) {
+        // بعد انتهاء الحفظ الحالي في الصفحة، حتى لا نقاطع عملية حفظ من عدة خطوات
+        setTimeout(() => {
+            try {
+                window.dispatchEvent(new StorageEvent('storage', {
+                    key, oldValue, newValue, storageArea: localStorage, url: location.href
+                }));
+            } catch (err) {
+                console.warn(err);
             }
-        });
+        }, 0);
+    }
 
-        const next = new Date(Date.now() - OVERLAP_MS).toISOString();
-        originalSet.call(localStorage, lpKey, next);
-        return true;
+    function markDirty(storeId, key) {
+        const dirty = loadState('Dirty', storeId);
+        const prev = new Set(dirty[key] || []);
+        (known[key] || new Set()).forEach(s => prev.add(s));
+        dirty[key] = [...prev];
+        saveState('Dirty', storeId, dirty);
+    }
+
+    function clearDirty(storeId, key) {
+        const dirty = loadState('Dirty', storeId);
+        if (!(key in dirty)) return;
+        delete dirty[key];
+        saveState('Dirty', storeId, dirty);
+    }
+
+    // يرفع قيمة مفتاح (أو علامة حذفه) مع الدمج عند الحاجة. يعيد true عند النجاح
+    function push(storeId, key, localValue, knownSet) {
+        const localArr = parseArray(localValue);
+        const versions = loadState('Versions', storeId);
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            // مفتاح جديد لم يعرفه الجهاز (مثل سطر في سجل العمليات): نحاول الإنشاء مباشرة دون قراءة
+            const row = attempt === 0 && !(key in versions) ? null : fetchRow(storeId, key);
+            if (row === undefined) break;
+
+            let value = localValue;
+            if (localArr && row) {
+                // إذا حُذف المفتاح في السحابة نعتبره قائمة فارغة: لا يبقى إلا ما أضافته الصفحة
+                const remoteArr = row.value === DELETED || row.value === null ? [] : parseArray(row.value);
+                if (remoteArr) value = JSON.stringify(mergeArrays(remoteArr, localArr, knownSet));
+            }
+
+            const updatedAt = writeRow(storeId, key, value, row);
+            if (!updatedAt) continue;
+
+            versions[key] = updatedAt;
+            saveState('Versions', storeId, versions);
+            clearDirty(storeId, key);
+
+            // الدمج أضاف ما غيّرته الأجهزة الأخرى: نحدّث الجهاز ونبلغ الصفحة لتعيد التحميل
+            if (value !== localValue && value !== DELETED) {
+                const old = getLocal(key);
+                setLocal(key, value);
+                lastSeenRaw[key] = undefined;
+                notifyPage(key, old, value);
+            }
+            return true;
+        }
+
+        console.warn('تعذر رفع التغيير إلى السحابة، سيُعاد عند الاتصال:', key);
+        markDirty(storeId, key);
+        return false;
+    }
+
+    // ===== السحب =====
+    // يجلب updated_at لكل المفاتيح، ثم قيم المفاتيح التي تغيّرت فقط. يعيد قائمة المفاتيح التي تغيّرت محليًا
+    function pull(storeId) {
+        const xhr = request('GET', API + '?select=key,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=like.store*');
+        if (!ok(xhr)) return null;
+        const remote = JSON.parse(xhr.responseText).filter(r => isSyncKey(r.key));
+
+        const versions = loadState('Versions', storeId);
+        const dirty = loadState('Dirty', storeId);
+        const changed = remote.filter(r => versions[r.key] !== r.updated_at && !(r.key in dirty)).map(r => r.key);
+
+        const applied = [];
+        for (let i = 0; i < changed.length; i += 50) {
+            const chunk = changed.slice(i, i + 50);
+            const res = request('GET', API + '?select=key,value,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=in.' + inList(chunk));
+            if (!ok(res)) return null;
+            JSON.parse(res.responseText).forEach(r => {
+                const value = r.value === null || r.value === undefined ? DELETED : String(r.value);
+                const old = getLocal(r.key);
+                if (value === DELETED) {
+                    if (old !== null) removeLocal(r.key);
+                } else if (old !== value) {
+                    setLocal(r.key, value);
+                }
+                if (old !== (value === DELETED ? null : value)) applied.push([r.key, old, value === DELETED ? null : value]);
+                versions[r.key] = r.updated_at;
+            });
+        }
+        saveState('Versions', storeId, versions);
+        return { remoteKeys: new Set(remote.map(r => r.key)), applied };
+    }
+
+    // يرفع ما فشل رفعه سابقًا (انقطاع الإنترنت مثلًا)
+    function pushDirty(storeId) {
+        const dirty = loadState('Dirty', storeId);
+        Object.keys(dirty).forEach(key => {
+            const value = getLocal(key);
+            push(storeId, key, value === null ? DELETED : value, new Set(dirty[key] || []));
+        });
+    }
+
+    function sync(storeId, notify) {
+        pushDirty(storeId);
+        const result = pull(storeId);
+        if (!result) return false;
+        if (notify) result.applied.forEach(([k, o, n]) => notifyPage(k, o, n));
+        return result;
     }
 
     // ===== 1) قبل تحميل الصفحة: عزل المتجر ثم مزامنته =====
@@ -108,38 +328,58 @@
     if (storeId) {
         try {
             // إذا كان هذا الجهاز قد عمل سابقًا على متجر آخر نمسح بياناته المحلية حتى لا تختلط
-            const previousStore = localStorage.getItem(SYNCED_STORE_KEY);
+            const previousStore = getLocal(SYNCED_STORE_KEY);
             if (previousStore && previousStore !== storeId) {
                 Object.keys(localStorage)
                     .filter(isSyncKey)
-                    .forEach(k => originalRemove.call(localStorage, k));
+                    .forEach(removeLocal);
             }
 
-            const remoteKeys = fetchRemoteKeys(storeId);
-            if (remoteKeys) {
-                // بيانات محلية غير موجودة في السحابة تُرفع إليها ولا تُحذف
-                Object.keys(localStorage)
-                    .filter(isSyncKey)
-                    .forEach(k => {
-                        if (!remoteKeys.has(k)) pushOne(storeId, k, localStorage.getItem(k));
-                    });
+            // أول مزامنة لهذا المتجر على هذا الجهاز: نرفع البيانات المحلية التي ليست في السحابة
+            const firstSync = getLocal(stateKey('Versions', storeId)) === null;
 
-                // السحب الفعلي للتغييرات فقط
-                if (pullChanged(storeId)) {
-                    originalSet.call(localStorage, SYNCED_STORE_KEY, storeId);
-                }
+            const result = sync(storeId, false);
+            if (result) {
+                const dirty = loadState('Dirty', storeId);
+                Object.keys(localStorage)
+                    .filter(k => isSyncKey(k) && !result.remoteKeys.has(k) && !(k in dirty))
+                    .forEach(k => {
+                        if (firstSync) push(storeId, k, getLocal(k), new Set());
+                        else removeLocal(k); // حُذف من السحابة بالطريقة القديمة
+                    });
+                setLocal(SYNCED_STORE_KEY, storeId);
             }
         } catch (err) {
             console.warn('تعذر تحميل البيانات من السحابة:', err);
         }
+
+        // عند الرجوع إلى الصفحة نجلب ما تغيّر من الأجهزة الأخرى قبل أن تعيد الصفحة العرض
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) return;
+            try {
+                const sid = currentStoreId();
+                if (sid) sync(sid, true);
+            } catch (err) {
+                console.warn('تعذر تحديث البيانات من السحابة:', err);
+            }
+        });
     }
 
-    // ===== 2) رفع كل تغيير فور حدوثه (فقط عند وجود متجر مسجّل) =====
+    // ===== 2) تتبّع القراءة، ورفع كل تغيير فور حدوثه =====
+    Storage.prototype.getItem = function (key) {
+        const value = originalGet.call(this, key);
+        if (this === localStorage && isSyncKey(key)) remember(key, value);
+        return value;
+    };
+
     Storage.prototype.setItem = function (key, value) {
         originalSet.call(this, key, value);
         const sid = currentStoreId();
         if (this === localStorage && isSyncKey(key) && sid) {
-            pushOne(sid, key, String(value));
+            const raw = String(value);
+            push(sid, key, raw, known[key]);
+            // نتذكر ما كتبته الصفحة فقط، لا ما أضافه الدمج، لأن الصفحة لم تره بعد
+            remember(key, raw);
         }
     };
 
@@ -147,7 +387,23 @@
         originalRemove.call(this, key);
         const sid = currentStoreId();
         if (this === localStorage && isSyncKey(key) && sid) {
-            removeOne(sid, key);
+            push(sid, key, DELETED, null);
+            delete known[key];
+            delete lastSeenRaw[key];
+        }
+    };
+
+    // تستدعيها الصفحات قبل عمليات تحتاج أحدث البيانات (مثل ترقيم الفواتير)
+    window.StoreSync = {
+        refresh() {
+            const sid = currentStoreId();
+            if (!sid) return false;
+            try {
+                return !!sync(sid, true);
+            } catch (err) {
+                console.warn('تعذر تحديث البيانات من السحابة:', err);
+                return false;
+            }
         }
     };
 })();

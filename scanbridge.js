@@ -3,7 +3,6 @@
     const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
     const KEY = 'sb_publishable_I2L_KEOwIXjyuCOue4w_3g_MMhYImIU';
     const API = SUPABASE_URL + '/rest/v1/kv_store';
-    const headers = { apikey: KEY, Authorization: 'Bearer ' + KEY };
     const SELECTOR = '#barcodeInput, #barcodeField, input[name="barcode"]';
 
     let lastTarget = null;
@@ -36,16 +35,34 @@
         target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     }
 
+    // نتصل بجلسة المستخدم (لا بالمفتاح العام) وبمتجره فقط، حتى لا يقرأ أحد مسح متجر آخر
+    async function context() {
+        if (!window.StoreAuth) return null;
+        const user = StoreAuth.currentUser();
+        const session = await StoreAuth.getSession();
+        if (!user || !user.store_id || !session) return null;
+        return {
+            store: 'store_id=eq.' + encodeURIComponent(user.store_id),
+            headers: { apikey: KEY, Authorization: 'Bearer ' + session.access_token }
+        };
+    }
+
     async function poll() {
         if (document.hidden || busy) return;
         busy = true;
         try {
-            const res = await fetch(`${API}?key=like.scan-*&select=key,value&order=updated_at.asc`, { headers });
+            const ctx = await context();
+            if (!ctx) return;
+            const res = await fetch(`${API}?${ctx.store}&key=like.scan-*&select=key,value&order=updated_at.asc`, { headers: ctx.headers });
             if (!res.ok) return;
             const rows = await res.json();
             for (const r of rows) {
-                await fetch(`${API}?key=eq.${encodeURIComponent(r.key)}`, { method: 'DELETE', headers });
-                deliver(String(r.value));
+                const del = await fetch(`${API}?${ctx.store}&key=eq.${encodeURIComponent(r.key)}`, {
+                    method: 'DELETE',
+                    headers: { ...ctx.headers, Prefer: 'return=representation' }
+                });
+                // لا نسلّم المسح إلا إذا حذفناه نحن، حتى لا يُضاف مرتين على جهازين
+                if (del.ok && (await del.json()).length) deliver(String(r.value));
             }
         } catch (err) {
             console.warn('تعذر استقبال المسح من الهاتف:', err);
@@ -54,5 +71,5 @@
         }
     }
 
-    setInterval(poll, 1000);
+    if (window.StoreAuth) StoreAuth.ready.then(ok => { if (ok) setInterval(poll, 1500); });
 })();

@@ -2,6 +2,19 @@
 <html lang="ar" dir="rtl">
 
 <head>
+    <script>
+    (function () {
+        try {
+            var p = JSON.parse(localStorage.getItem('storePrefs') || '{}');
+            var dark = p.theme === 'dark' || (!p.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.style.background = dark ? '#111827' : '#efede5';
+            document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+    })();
+</script>
+<style>
+    @view-transition { navigation: auto; }
+</style>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="utf-8">

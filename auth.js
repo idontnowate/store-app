@@ -184,14 +184,22 @@
             return false;
         }
 
-        try {
-            membership = await loadMembership(session.user.id);
-            if (membership) saveMembership(membership);
-        } catch {
-            // خطأ شبكة: لا نسجّل الخروج، نعيد المستخدم لصفحة الدخول فقط
-            membership = null;
-            if (!isLogin) location.replace(LOGIN_PAGE);
-            return false;
+        const cached = read(MEMBERSHIP_KEY, null);
+
+        if (cached && cached.store_id) {
+            // نعرض الصفحة فورًا بالبيانات المحفوظة، ونتحقق من الخادم في الخلفية
+            membership = cached;
+            revalidateMembership(session.user.id);
+        } else {
+            try {
+                membership = await loadMembership(session.user.id);
+                if (membership) saveMembership(membership);
+            } catch {
+                // خطأ شبكة: لا نسجّل الخروج، نعيد المستخدم لصفحة الدخول فقط
+                membership = null;
+                if (!isLogin) location.replace(LOGIN_PAGE);
+                return false;
+            }
         }
 
         if (!membership) {
@@ -213,6 +221,23 @@
         }
 
         return true;
+    }
+
+    // يتحقق من العضوية في الخلفية؛ إذا أُزيل الحساب من المتجر يسجّل خروجه
+    async function revalidateMembership(userId) {
+        try {
+            const m = await loadMembership(userId);
+            if (!m) {
+                await sb.auth.signOut();
+                localStorage.removeItem(MEMBERSHIP_KEY);
+                location.replace(LOGIN_PAGE);
+                return;
+            }
+            membership = m;
+            saveMembership(m);
+        } catch {
+            // خطأ شبكة: نبقى على البيانات المحفوظة
+        }
     }
 
     // ===== الواجهة المشتركة =====

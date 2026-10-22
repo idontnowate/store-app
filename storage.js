@@ -17,6 +17,8 @@
     const SESSION_TOKEN_KEY = 'sb-' + PROJECT_REF + '-auth-token';
     const MEMBERSHIP_KEY = 'appMembership';
     const SYNCED_STORE_KEY = 'appSyncedStore';
+    // المتجر الذي تعود له البيانات المحلية على هذا الجهاز؛ لا تُخلط بيانات متجرين أبدًا
+    const OWNER_KEY = 'appDataOwner';
     // علامة الحذف تُكتب مكان القيمة
     const DELETED = '__deleted__';
     const MAX_RETRIES = 5;
@@ -38,6 +40,13 @@
 
     function removeLocal(key) {
         originalRemove.call(localStorage, key);
+    }
+
+    // يمسح كل بيانات المتجر من الجهاز مع حالة مزامنتها (لا يمس السحابة)
+    function wipeLocal() {
+        Object.keys(localStorage)
+            .filter(k => isSyncKey(k) || k.startsWith('appSync') || k === SYNCED_STORE_KEY || k === OWNER_KEY)
+            .forEach(removeLocal);
     }
 
     function readJSON(key) {
@@ -327,16 +336,17 @@
     const storeId = currentStoreId();
     if (storeId) {
         try {
-            // إذا كان هذا الجهاز قد عمل سابقًا على متجر آخر نمسح بياناته المحلية حتى لا تختلط
-            const previousStore = getLocal(SYNCED_STORE_KEY);
-            if (previousStore && previousStore !== storeId) {
-                Object.keys(localStorage)
-                    .filter(isSyncKey)
-                    .forEach(removeLocal);
+            // البيانات المحلية لا تُستخدم إلا إذا كان مؤكدًا أنها لهذا المتجر.
+            // إن كانت لمتجر آخر أو مجهولة المصدر نمسحها ولا نرفعها، ثم نحمّل المتجر من السحابة
+            const owner = getLocal(OWNER_KEY) || getLocal(SYNCED_STORE_KEY);
+            const ownedHere = owner === storeId;
+            if (!ownedHere) {
+                wipeLocal();
+                setLocal(OWNER_KEY, storeId);
             }
 
-            // أول مزامنة لهذا المتجر على هذا الجهاز: نرفع البيانات المحلية التي ليست في السحابة
-            const firstSync = getLocal(stateKey('Versions', storeId)) === null;
+            // أجهزة النسخة القديمة: نرفع مرة واحدة بيانات هذا المتجر المحلية التي ليست في السحابة
+            const firstSync = ownedHere && getLocal(stateKey('Versions', storeId)) === null;
 
             const result = sync(storeId, false);
             if (result) {
@@ -395,6 +405,19 @@
 
     // تستدعيها الصفحات قبل عمليات تحتاج أحدث البيانات (مثل ترقيم الفواتير)
     window.StoreSync = {
+        // يحاول رفع ما لم يُرفع؛ يعيد عدد المفاتيح التي بقيت دون رفع
+        flush() {
+            const sid = currentStoreId();
+            if (!sid) return 0;
+            try {
+                pushDirty(sid);
+            } catch (err) {
+                console.warn(err);
+            }
+            return Object.keys(loadState('Dirty', sid)).length;
+        },
+        // عند تسجيل الخروج: لا تبقى بيانات المتجر على الجهاز للمستخدم التالي
+        clearLocal: wipeLocal,
         refresh() {
             const sid = currentStoreId();
             if (!sid) return false;

@@ -467,7 +467,8 @@
         const flashEl = $('flash');
 
         // مفاتيح البيانات التي تُزامن مع السحابة (نفس قاعدة storage.js)
-        const isSyncKey = k => k.startsWith('store') && k !== 'storeSession';
+        const isSyncKey = k => k.startsWith('store') && k !== 'storeSession' && k !== 'storePrefs';
+        const currentStoreId = () => (A.currentUser() || {}).store_id || null;
 
         function flash(text, isError = false) {
             flashEl.textContent = text;
@@ -579,7 +580,10 @@
 
             const payload = {
                 app: 'store-backup',
-                version: 2,
+                version: 3,
+                // تربط النسخة بمتجرها حتى لا تُستعاد في متجر آخر
+                storeId: currentStoreId(),
+                storeName: A.getStoreInfo().name,
                 date: new Date().toISOString(),
                 data
             };
@@ -609,6 +613,10 @@
                     if (payload.app !== 'store-backup' || !payload.data || typeof payload.data !== 'object') {
                         throw new Error('invalid');
                     }
+                    if (payload.storeId && payload.storeId !== currentStoreId()) {
+                        flash(`هذه النسخة تخص متجرًا آخر${payload.storeName ? ' (' + payload.storeName + ')' : ''} ولا يمكن استعادتها هنا`, true);
+                        return;
+                    }
                     pendingBackup = payload;
                     $('importBtn').disabled = false;
                     flash('تم قراءة النسخة. اضغط "استعادة النسخة" للتأكيد.');
@@ -623,6 +631,9 @@
         $('importBtn').addEventListener('click', () => {
             if (!pendingBackup) return;
             if (!confirm('سيتم استبدال كل بيانات هذا المتجر بالنسخة الاحتياطية. متابعة؟')) return;
+            // النسخ القديمة لا تحمل معرف المتجر: نطلب تأكيدًا أنها لهذا المتجر
+            if (!pendingBackup.storeId &&
+                !confirm('هذه نسخة قديمة لا تحدد المتجر الذي تعود له. تأكد أنها لهذا المتجر وليست لمتجر آخر. متابعة؟')) return;
 
             Object.keys(localStorage)
                 .filter(isSyncKey)

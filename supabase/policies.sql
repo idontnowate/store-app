@@ -85,3 +85,15 @@ drop policy if exists members_select on public.store_members;
 create policy members_select on public.store_members
     for select to authenticated
     using (user_id = auth.uid() or public.is_store_member(store_id));
+
+-- ===== عزل الحسابات بين المتاجر =====
+-- كل حساب (بريد) ينتمي لمتجر واحد فقط، واسم المستخدم فريد على مستوى النظام كله،
+-- لأن البريد الداخلي يُشتق منه (username@users.storeapp.io).
+-- إذا فشل أحد السطرين فهناك تكرار موجود فعلًا؛ اعرضه وأصلحه أولًا:
+--   select user_id, count(*) from store_members group by user_id having count(*) > 1;
+--   select username, count(*) from store_members group by username having count(*) > 1;
+alter table public.store_members drop constraint if exists store_members_user_id_key;
+alter table public.store_members add constraint store_members_user_id_key unique (user_id);
+
+alter table public.store_members drop constraint if exists store_members_username_key;
+alter table public.store_members add constraint store_members_username_key unique (username);

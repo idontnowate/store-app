@@ -145,6 +145,12 @@
     }
 
     async function logout() {
+        // تغييرات لم تصل إلى السحابة ستضيع، لأننا نمسح بيانات المتجر من الجهاز عند الخروج
+        if (window.StoreSync && StoreSync.flush() > 0 &&
+            !confirm('توجد تغييرات لم تُرفع إلى السحابة بعد (تحقق من الإنترنت). الخروج الآن سيحذفها من هذا الجهاز. هل تريد الخروج؟')) {
+            return;
+        }
+
         // نسجّل الخروج قبل حذف الجلسة، لأن المزامنة تحتاج رمز الدخول
         writeLog('logout', 'تسجيل خروج', 'خرج المستخدم ' + displayName(membership));
         try { sessionStorage.removeItem(PENDING_LOGIN_KEY); } catch (e) {}
@@ -153,6 +159,8 @@
         await sb.auth.signOut();
         membership = null;
         localStorage.removeItem(MEMBERSHIP_KEY);
+        // حتى لا يرى المستخدم التالي على هذا الجهاز بيانات متجر آخر
+        if (window.StoreSync) StoreSync.clearLocal();
         location.replace(LOGIN_PAGE);
     }
 

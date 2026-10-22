@@ -117,7 +117,8 @@ async function createMember(admin, storeId: string, username: string, password: 
     });
     if (memberErr) {
         await admin.auth.admin.deleteUser(created.user.id);
-        throw new UserError("تعذر ربط الحساب بالمتجر", 500);
+        // نعرض سبب قاعدة البيانات للمزود حتى يُعرف الشرط الذي رفض الإضافة
+        throw new UserError("تعذر ربط الحساب بالمتجر: " + (memberErr.message || memberErr.code || "خطأ غير معروف"), 500);
     }
     return created.user.id;
 }
@@ -220,7 +221,8 @@ const actions = {
             await admin.auth.admin.deleteUser(userId);
             await admin.from("store_subscriptions").delete().eq("store_id", storeId);
             await admin.from("kv_store").delete().eq("store_id", storeId);
-            throw new UserError("تعذر إنشاء المتجر", 500);
+            const reason = (subErr || kvErr).message || (subErr || kvErr).code || "خطأ غير معروف";
+            throw new UserError("تعذر إنشاء المتجر: " + reason, 500);
         }
         return { ok: true, store_id: storeId };
     },

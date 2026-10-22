@@ -553,7 +553,20 @@ window.STORE_I18N_EN = {
         "المنتجات": "Products",
         "لا يوجد": "None",
         "تعذر إنشاء المستخدم": "Could not create the user",
-        "تسجيل": "Record"
+        "تسجيل": "Record",
+        "أقسام الإعدادات": "Settings sections",
+        "الفاتورة المطبوعة": "Printed invoice",
+        "تظهر في أعلى القائمة وعلى الفواتير المطبوعة.": "Shown at the top of the menu and on printed invoices.",
+        "رفع شعار": "Upload logo",
+        "النصوص التي تظهر أسفل كل فاتورة وإيصال.": "Text shown at the bottom of every invoice and receipt.",
+        "يحفظ بيانات المتجر والشعار ونصوص الفاتورة معًا.": "Saves the store details, logo and invoice text together.",
+        "خاص بهذا الجهاز فقط، ويُحفظ تلقائيًا.": "For this device only, saved automatically.",
+        "تصدير نسخة": "Export a backup",
+        "ملف واحد بكل بيانات المتجر.": "A single file with all store data.",
+        "استعادة نسخة": "Restore a backup",
+        "اختيار ملف": "Choose file",
+        "اختر الملف ثم اضغط \"استعادة النسخة\". تستبدل كل بيانات المتجر الحالية.": "Choose the file, then press \"Restore backup\". It replaces all current store data.",
+        "إجراءات لا يمكن التراجع عنها.": "Actions that cannot be undone."
     },
 
     // أسماء المعدودات بعد الأرقام (عرض 5 من 9 فاتورة)

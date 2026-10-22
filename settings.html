@@ -20,12 +20,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
-    <script src="storage.js?v=202610222"></script>
-    <script src="log.js?v=202610222"></script>
-    <script src="i18n-en.js?v=202610222"></script>
-    <script src="theme.js?v=202610222"></script>
-    <script src="auth.js?v=202610222"></script>
-    <script src="layout.js?v=202610222"></script>
+    <script src="storage.js?v=202610224"></script>
+    <script src="log.js?v=202610224"></script>
+    <script src="i18n-en.js?v=202610224"></script>
+    <script src="theme.js?v=202610224"></script>
+    <script src="auth.js?v=202610224"></script>
+    <script src="layout.js?v=202610224"></script>
     <style>
         :root {
             --page: #efede5;
@@ -320,11 +320,276 @@
                 border-radius: 24px;
             }
         }
+        /* ===== ترتيب صفحة الإعدادات ===== */
+        .set-layout {
+            display: grid;
+            grid-template-columns: 200px minmax(0, 1fr);
+            gap: 28px;
+            align-items: start;
+        }
+
+        .set-nav {
+            position: sticky;
+            top: 24px;
+            display: grid;
+            gap: 2px;
+        }
+
+        .set-nav a {
+            padding: 8px 12px;
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background .15s, color .15s;
+        }
+
+        .set-nav a:hover {
+            color: var(--text);
+            background: var(--surface-2);
+        }
+
+        .set-nav a.current {
+            color: var(--text);
+            background: var(--surface);
+            box-shadow: inset 0 0 0 1px var(--border);
+            font-weight: 600;
+        }
+
+        .set-nav a.danger.current,
+        .set-nav a.danger:hover {
+            color: var(--danger-text);
+        }
+
+        .set-body,
+        .set-stack {
+            display: grid;
+            gap: 20px;
+            min-width: 0;
+        }
+
+        .set-card {
+            scroll-margin-top: 24px;
+            margin: 0 !important;
+        }
+
+        .set-head {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .set-head h2 {
+            margin: 0 0 4px !important;
+        }
+
+        .set-head p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13.5px;
+            line-height: 1.7;
+        }
+
+        .set-card .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px 18px;
+        }
+
+        .set-card .grid .full {
+            grid-column: 1 / -1;
+        }
+
+        .set-card label {
+            display: grid;
+            gap: 7px;
+        }
+
+        .set-card input,
+        .set-card select,
+        .set-card textarea {
+            width: 100%;
+        }
+
+        .set-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .set-inline {
+            display: flex;
+            align-items: end;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .set-inline label {
+            flex: 1 1 240px;
+        }
+
+        .set-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            padding: 14px 0;
+        }
+
+        .set-row + .set-row {
+            border-top: 1px solid var(--border);
+        }
+
+        .set-row:first-of-type {
+            padding-top: 0;
+        }
+
+        .set-row:last-child {
+            padding-bottom: 0;
+        }
+
+        .set-row strong {
+            display: block;
+            font-size: 14.5px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .set-row .hint,
+        .set-actions .hint,
+        .logo-info .hint {
+            display: block;
+            margin: 0;
+            font-size: 13px;
+            font-weight: 400;
+        }
+
+        .btn-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .logo-row {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+
+        .logo-frame {
+            position: relative;
+            flex: none;
+            width: 84px;
+            height: 84px;
+            border-radius: 18px;
+            border: 1px dashed var(--border-strong);
+            background: var(--surface-2);
+            overflow: hidden;
+            display: grid;
+            place-items: center;
+        }
+
+        .logo-frame img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border: 0;
+            border-radius: 0;
+            max-height: none;
+        }
+
+        .logo-frame img:not([hidden]) + .ph {
+            display: none;
+        }
+
+        .logo-frame .ph svg {
+            width: 28px;
+            height: 28px;
+            fill: none;
+            stroke: var(--faint);
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .logo-info strong {
+            display: block;
+            font-size: 14.5px;
+            font-weight: 600;
+        }
+
+        .logo-info .hint {
+            margin: 2px 0 10px;
+            font-size: 13px;
+        }
+
+        .sr-only {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .danger-card {
+            border-color: var(--danger-soft) !important;
+        }
+
+        .danger-card .set-head h2 {
+            color: var(--danger-text) !important;
+        }
+
+        @media (max-width: 900px) {
+            .set-layout {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .set-nav {
+                position: static;
+                display: flex;
+                gap: 6px;
+                overflow-x: auto;
+                padding-bottom: 4px;
+                scrollbar-width: none;
+            }
+
+            .set-nav a {
+                flex: none;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                border-radius: 999px;
+                padding: 6px 14px;
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .set-card .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .logo-row {
+                align-items: flex-start;
+            }
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610222">
+    <link rel="stylesheet" href="design.css?v=202610224">
 </head>
 
 <body>
@@ -353,117 +618,175 @@
     <main>
         <div class="flash" id="flash" hidden></div>
 
-        <!-- المظهر واللغة -->
-        <section class="card">
-            <h2>المظهر واللغة</h2>
-            <form class="grid" id="prefsForm">
-                <label>الوضع
-                    <select name="theme">
-                        <option value="light">الفاتح</option>
-                        <option value="dark">الداكن</option>
-                    </select>
-                </label>
-                <label>اللغة
-                    <select name="lang">
-                        <option value="ar">العربية</option>
-                        <option value="en">English</option>
-                    </select>
-                </label>
-            </form>
-        </section>
+        <div class="set-layout">
+            <!-- أقسام الإعدادات -->
+            <nav class="set-nav" aria-label="أقسام الإعدادات">
+                <a href="#store">بيانات المتجر</a>
+                <a href="#invoice">الفاتورة المطبوعة</a>
+                <a href="#appearance">المظهر واللغة</a>
+                <a href="#cash">الصندوق</a>
+                <a href="#users">المستخدمون</a>
+                <a href="#backup">النسخ الاحتياطي</a>
+                <a href="#danger" class="danger">منطقة الخطر</a>
+            </nav>
 
-        <!-- بيانات المتجر -->
-        <section class="card">
-            <h2>بيانات المتجر</h2>
-            <form class="grid" id="storeForm" novalidate>
-                <label>اسم المتجر
-                    <input name="name" required>
-                </label>
-                <label>الهاتف
-                    <input name="phone">
-                </label>
-                <label>العنوان
-                    <input name="address">
-                </label>
-                <label>البريد الإلكتروني
-                    <input name="email" type="email">
-                </label>
-                <label>الموقع الإلكتروني
-                    <input name="website">
-                </label>
-                <label>نص الشكر أسفل الفاتورة
-                    <input name="footer">
-                </label>
-                <label class="full">سياسة الاستبدال والاسترجاع (سطر لكل بند)
-                    <textarea name="policies" rows="4"></textarea>
-                </label>
+            <div class="set-body">
+                <form id="storeForm" class="set-stack" novalidate>
+                    <!-- بيانات المتجر -->
+                    <section class="card set-card" id="store">
+                        <header class="set-head">
+                            <h2>بيانات المتجر</h2>
+                            <p>تظهر في أعلى القائمة وعلى الفواتير المطبوعة.</p>
+                        </header>
 
-                <div class="full logo-box">
-                    <div>
-                        <strong>شعار المتجر</strong>
-                        <p class="hint">PNG أو JPG، بحجم لا يتجاوز 300 كيلوبايت</p>
+                        <div class="logo-row">
+                            <div class="logo-frame">
+                                <img id="logoPreview" alt="شعار المتجر" hidden>
+                                <span class="ph" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="9" cy="9.5" r="1.8"/><path d="m20.5 15.5-5-5-9 9"/></svg>
+                                </span>
+                            </div>
+                            <div class="logo-info">
+                                <strong>شعار المتجر</strong>
+                                <p class="hint">PNG أو JPG، بحجم لا يتجاوز 300 كيلوبايت</p>
+                                <div class="btn-row">
+                                    <label class="btn secondary" for="logoFile">رفع شعار</label>
+                                    <input type="file" id="logoFile" accept="image/*" class="sr-only">
+                                    <button class="btn danger" type="button" id="removeLogo">إزالة الشعار</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <label class="full">اسم المتجر
+                                <input name="name" required>
+                            </label>
+                            <label>الهاتف
+                                <input name="phone" type="tel" dir="ltr">
+                            </label>
+                            <label>البريد الإلكتروني
+                                <input name="email" type="email" dir="ltr">
+                            </label>
+                            <label>العنوان
+                                <input name="address">
+                            </label>
+                            <label>الموقع الإلكتروني
+                                <input name="website" dir="ltr">
+                            </label>
+                        </div>
+                    </section>
+
+                    <!-- الفاتورة المطبوعة -->
+                    <section class="card set-card" id="invoice">
+                        <header class="set-head">
+                            <h2>الفاتورة المطبوعة</h2>
+                            <p>النصوص التي تظهر أسفل كل فاتورة وإيصال.</p>
+                        </header>
+                        <div class="grid">
+                            <label class="full">نص الشكر أسفل الفاتورة
+                                <input name="footer">
+                            </label>
+                            <label class="full">سياسة الاستبدال والاسترجاع (سطر لكل بند)
+                                <textarea name="policies" rows="4"></textarea>
+                            </label>
+                        </div>
+                        <div class="set-actions">
+                            <span class="hint">يحفظ بيانات المتجر والشعار ونصوص الفاتورة معًا.</span>
+                            <button class="btn red" type="submit">حفظ بيانات المتجر</button>
+                        </div>
+                    </section>
+                </form>
+
+                <!-- المظهر واللغة -->
+                <section class="card set-card" id="appearance">
+                    <header class="set-head">
+                        <h2>المظهر واللغة</h2>
+                        <p>خاص بهذا الجهاز فقط، ويُحفظ تلقائيًا.</p>
+                    </header>
+                    <form class="grid" id="prefsForm">
+                        <label>الوضع
+                            <select name="theme">
+                                <option value="light">الفاتح</option>
+                                <option value="dark">الداكن</option>
+                            </select>
+                        </label>
+                        <label>اللغة
+                            <select name="lang">
+                                <option value="ar">العربية</option>
+                                <option value="en">English</option>
+                            </select>
+                        </label>
+                    </form>
+                </section>
+
+                <!-- الصندوق -->
+                <section class="card set-card" id="cash">
+                    <header class="set-head">
+                        <h2>الصندوق</h2>
+                        <p>المبلغ الذي كان في الصندوق عند بدء استخدام النظام. يُضاف إلى الرصيد في صفحة الصندوق.</p>
+                    </header>
+                    <form class="set-inline" id="cashForm" novalidate>
+                        <label>الرصيد الافتتاحي للصندوق (د.ع)
+                            <input name="opening" type="number" min="0" step="1" inputmode="numeric">
+                        </label>
+                        <button class="btn red" type="submit">حفظ الرصيد الافتتاحي</button>
+                    </form>
+                </section>
+
+                <!-- المستخدمون -->
+                <section class="card set-card" id="users">
+                    <header class="set-head">
+                        <h2>المستخدمون</h2>
+                        <p>المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى الإعدادات والمستخدمين وسجل العمليات.</p>
+                    </header>
+                    <div class="set-row">
+                        <span class="hint">إضافة الموظفين والمديرين وتحديد صلاحياتهم تتم من صفحة المستخدمين.</span>
+                        <a class="btn secondary" href="users.html">فتح صفحة المستخدمين</a>
+                    </div>
+                </section>
+
+                <!-- النسخ الاحتياطي -->
+                <section class="card set-card" id="backup">
+                    <header class="set-head">
+                        <h2>النسخ الاحتياطي</h2>
+                        <p>النسخة تحتوي على بيانات هذا المتجر فقط، ولا تحتوي على كلمات المرور. احفظها في مكان آمن.</p>
+                    </header>
+                    <div class="set-row">
+                        <div>
+                            <strong>تصدير نسخة</strong>
+                            <span class="hint">ملف واحد بكل بيانات المتجر.</span>
+                        </div>
+                        <button class="btn secondary" type="button" id="exportBtn">تصدير نسخة احتياطية</button>
+                    </div>
+                    <div class="set-row">
+                        <div>
+                            <strong>استعادة نسخة</strong>
+                            <span class="hint">اختر الملف ثم اضغط "استعادة النسخة". تستبدل كل بيانات المتجر الحالية.</span>
+                        </div>
                         <div class="btn-row">
-                            <input type="file" id="logoFile" accept="image/*"
-                                style="height:auto;width:auto;border:0;background:none;padding:0">
-                            <button class="btn secondary" type="button" id="removeLogo">إزالة الشعار</button>
+                            <label class="btn secondary" for="backupFile">اختيار ملف</label>
+                            <input type="file" id="backupFile" accept="application/json,.json" class="sr-only">
+                            <button class="btn red" type="button" id="importBtn" disabled>استعادة النسخة</button>
                         </div>
                     </div>
-                    <img id="logoPreview" alt="شعار المتجر" hidden>
-                </div>
+                </section>
 
-                <div class="full">
-                    <button class="btn red" type="submit">حفظ بيانات المتجر</button>
-                </div>
-            </form>
-        </section>
-
-        <!-- الصندوق -->
-        <section class="card">
-            <h2>الصندوق</h2>
-            <form class="grid" id="cashForm" novalidate>
-                <label class="full">الرصيد الافتتاحي للصندوق (د.ع)
-                    <input name="opening" type="number" min="0" step="1" inputmode="numeric">
-                </label>
-                <p class="hint full">المبلغ الذي كان في الصندوق عند بدء استخدام النظام. يُضاف إلى الرصيد في صفحة
-                    الصندوق.</p>
-                <div class="full">
-                    <button class="btn red" type="submit">حفظ الرصيد الافتتاحي</button>
-                </div>
-            </form>
-        </section>
-
-        <!-- المستخدمون -->
-        <section class="card">
-            <h2>المستخدمون</h2>
-            <p class="hint">إضافة الموظفين والمديرين وتحديد صلاحياتهم تتم من صفحة المستخدمين.</p>
-            <div class="btn-row">
-                <a class="btn olive" href="users.html">فتح صفحة المستخدمين</a>
+                <!-- منطقة الخطر -->
+                <section class="card set-card danger-card" id="danger">
+                    <header class="set-head">
+                        <h2>منطقة الخطر</h2>
+                        <p>إجراءات لا يمكن التراجع عنها.</p>
+                    </header>
+                    <div class="set-row">
+                        <div>
+                            <strong>حذف بيانات العمل</strong>
+                            <span class="hint">يحذف الفواتير والمشتريات والمنتجات والتسديدات والحركات من هذا المتجر. الحسابات والإعدادات تبقى.</span>
+                        </div>
+                        <button class="btn danger" type="button" id="resetBtn">حذف بيانات العمل</button>
+                    </div>
+                </section>
             </div>
-            <p class="hint" style="margin-top:12px">
-                المدير يصل إلى كل الصفحات. موظف المبيعات لا يصل إلى الإعدادات والمستخدمين وسجل العمليات.
-            </p>
-        </section>
-
-        <!-- النسخ الاحتياطي -->
-        <section class="card">
-            <h2>النسخ الاحتياطي</h2>
-            <p class="hint">النسخة تحتوي على بيانات هذا المتجر فقط، ولا تحتوي على كلمات المرور. احفظها في مكان آمن.</p>
-            <div class="btn-row" style="margin-bottom:16px">
-                <button class="btn olive" type="button" id="exportBtn">تصدير نسخة احتياطية</button>
-            </div>
-            <div class="btn-row">
-                <input type="file" id="backupFile" accept="application/json,.json"
-                    style="height:auto;width:auto;border:0;background:none;padding:0">
-                <button class="btn secondary" type="button" id="importBtn" disabled>استعادة النسخة</button>
-            </div>
-
-            <hr class="divider">
-
-            <h2 style="font-size:20px">منطقة الخطر</h2>
-            <p class="hint">يحذف الفواتير والمشتريات والمنتجات والتسديدات والحركات من هذا المتجر. الحسابات والإعدادات
-                تبقى.</p>
-            <button class="btn danger" type="button" id="resetBtn">حذف بيانات العمل</button>
-        </section>
+        </div>
     </main>
 
     <script>
@@ -671,6 +994,22 @@
             loadCashForm();
             flash('تم حذف بيانات العمل');
         });
+
+        // ===== قائمة الأقسام: تمييز القسم الظاهر =====
+        const navLinks = [...document.querySelectorAll('.set-nav a')];
+        const sections = navLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+        function markCurrent() {
+            let current = sections[0];
+            sections.forEach(sec => { if (sec.getBoundingClientRect().top < 140) current = sec; });
+            if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = sections[sections.length - 1];
+            navLinks.forEach(a => a.classList.toggle('current', a.getAttribute('href') === '#' + current.id));
+        }
+        window.addEventListener('scroll', markCurrent, { passive: true });
+        navLinks.forEach(a => a.addEventListener('click', e => {
+            e.preventDefault();
+            document.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }));
+        markCurrent();
 
         // ===== التهيئة =====
         loadStoreForm();

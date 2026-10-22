@@ -8,6 +8,8 @@
     const SESSION_TOKEN_KEY = 'sb-' + PROJECT_REF + '-auth-token';
     const MEMBERSHIP_KEY = 'appMembership';
     const SYNCED_STORE_KEY = 'appSyncedStore';
+    // هامش أمان لتعويض فروق الساعة بين الأجهزة
+    const OVERLAP_MS = 2 * 60 * 1000;
 
     const originalSet = Storage.prototype.setItem;
     const originalRemove = Storage.prototype.removeItem;
@@ -30,6 +32,10 @@
     function currentStoreId() {
         const m = readJSON(MEMBERSHIP_KEY);
         return m && m.store_id ? m.store_id : null;
+    }
+
+    function lastPullKey(storeId) {
+        return 'appLastPull_' + storeId;
     }
 
     // طلب متزامن: يكتمل قبل أن تنتقل الصفحة إلى غيرها
@@ -68,7 +74,36 @@
         );
     }
 
-    // ===== 1) قبل تحميل الصفحة: عزل المتجر ثم سحب بياناته =====
+    // يجلب أسماء المفاتيح فقط (خفيف) ليعرف ما هو غير موجود في السحابة
+    function fetchRemoteKeys(storeId) {
+        const xhr = request('GET', API + '?select=key&store_id=eq.' + encodeURIComponent(storeId));
+        if (!xhr || xhr.status !== 200) return null;
+        return new Set(JSON.parse(xhr.responseText).map(r => r.key));
+    }
+
+    // يجلب القيم التي تغيّرت منذ آخر سحب فقط، أو الكل عند أول مرة على هذا الجهاز
+    function pullChanged(storeId) {
+        const lpKey = lastPullKey(storeId);
+        const last = localStorage.getItem(lpKey);
+
+        let url = API + '?select=key,value&store_id=eq.' + encodeURIComponent(storeId);
+        if (last) url += '&updated_at=gt.' + encodeURIComponent(last);
+
+        const xhr = request('GET', url);
+        if (!xhr || xhr.status !== 200) return false;
+
+        JSON.parse(xhr.responseText).forEach(r => {
+            if (r.value !== null && r.value !== undefined) {
+                originalSet.call(localStorage, r.key, String(r.value));
+            }
+        });
+
+        const next = new Date(Date.now() - OVERLAP_MS).toISOString();
+        originalSet.call(localStorage, lpKey, next);
+        return true;
+    }
+
+    // ===== 1) قبل تحميل الصفحة: عزل المتجر ثم مزامنته =====
     const storeId = currentStoreId();
     if (storeId) {
         try {
@@ -80,26 +115,19 @@
                     .forEach(k => originalRemove.call(localStorage, k));
             }
 
-            const xhr = request('GET', API + '?select=key,value');
-            if (xhr && xhr.status === 200) {
-                const rows = JSON.parse(xhr.responseText);
-                const remote = new Map(rows.map(r => [r.key, r.value]));
-
+            const remoteKeys = fetchRemoteKeys(storeId);
+            if (remoteKeys) {
                 // بيانات محلية غير موجودة في السحابة تُرفع إليها ولا تُحذف
                 Object.keys(localStorage)
                     .filter(isSyncKey)
                     .forEach(k => {
-                        if (!remote.has(k)) pushOne(storeId, k, localStorage.getItem(k));
+                        if (!remoteKeys.has(k)) pushOne(storeId, k, localStorage.getItem(k));
                     });
 
-                // السحابة تحدّث البيانات المحلية
-                remote.forEach((value, key) => {
-                    if (value !== null && value !== undefined) {
-                        originalSet.call(localStorage, key, String(value));
-                    }
-                });
-
-                originalSet.call(localStorage, SYNCED_STORE_KEY, storeId);
+                // السحب الفعلي للتغييرات فقط
+                if (pullChanged(storeId)) {
+                    originalSet.call(localStorage, SYNCED_STORE_KEY, storeId);
+                }
             }
         } catch (err) {
             console.warn('تعذر تحميل البيانات من السحابة:', err);

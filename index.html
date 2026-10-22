@@ -7,7 +7,7 @@
         try {
             var p = JSON.parse(localStorage.getItem('storePrefs') || '{}');
             var dark = p.theme === 'dark' || (!p.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-            document.documentElement.style.background = dark ? '#111827' : '#efede5';
+            document.documentElement.style.background = dark ? '#0b0c0e' : '#f6f6f7';
             document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
         } catch (e) {}
     })();
@@ -24,32 +24,8 @@
     <script src="log.js"></script>
     <script src="auth.js"></script>
     <style>
-        :root {
-            --bg: #111827;
-            --card: #1e2738;
-            --card-border: #ffffff14;
-            --field: #161e2d;
-            --field-focus: #1d2739;
-            --separator: #2b3649;
-            --text: #f1f5f9;
-            --subtitle: #cfe0ff;
-            --placeholder: #6b7280;
-            --brand: #4fb88a;
-            --button: #2d3f66;
-            --button-hover: #3a5083;
-            --button-text: #f1f5f9;
-            --red: #f87171;
-            --font: -apple-system, "SF Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
-        }
-
         * {
             box-sizing: border-box;
-        }
-
-        html,
-        body {
-            background: var(--bg);
-            color-scheme: dark;
         }
 
         body {
@@ -57,143 +33,109 @@
             min-height: 100vh;
             display: grid;
             place-items: center;
-            color: var(--text);
-            font-family: var(--font);
-            padding: 24px 16px;
-            -webkit-font-smoothing: antialiased;
+            padding: 32px 16px;
+            background:
+                radial-gradient(1200px 600px at 50% -10%, var(--surface-3), transparent 60%),
+                var(--bg) !important;
         }
 
         .sheet {
-            width: min(640px, 100%);
-            min-height: 640px;
-            background: var(--card);
-            border: 1px solid var(--card-border);
-            border-radius: 48px;
-            padding: 56px 48px 40px;
-            box-shadow: 0 30px 60px #0008;
-            display: flex;
-            flex-direction: column;
+            width: min(420px, 100%);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px 32px 28px;
+            box-shadow: var(--shadow-lg);
         }
 
         .brand {
-            text-align: center;
-            margin-bottom: 36px;
+            margin-bottom: 28px;
         }
 
-        .brand strong {
-            display: block;
-            color: var(--brand);
-            font-size: 30px;
-            font-weight: 800;
-            line-height: 1.3;
+        .mark {
+            width: 46px;
+            height: 46px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+            background: var(--primary);
+            color: var(--primary-text);
+            margin-bottom: 22px;
         }
 
-        .brand span {
-            display: block;
-            margin-top: 6px;
-            color: var(--subtitle);
-            font-size: 17px;
-            font-weight: 600;
+        .mark svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         h1 {
-            margin: 0 0 22px;
-            font-size: 22px;
+            margin: 0 0 6px;
+            font-size: 24px;
             font-weight: 700;
+            letter-spacing: -.01em;
             color: var(--text);
-            padding-inline-start: 6px;
+        }
+
+        .brand p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14.5px;
         }
 
         form {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            flex: 1;
-        }
-
-        .group {
-            background: var(--field);
-            border-radius: 26px;
-            overflow: hidden;
-            box-shadow: inset 0 2px 6px #0006;
+            display: grid;
+            gap: 16px;
         }
 
         .field {
             display: grid;
-            grid-template-columns: 130px 1fr;
-            align-items: center;
-            min-height: 62px;
-            padding: 0 22px;
-            gap: 14px;
-            font-weight: 600;
-            font-size: 17px;
-            color: var(--text);
-            background: transparent;
-            transition: background .2s;
-        }
-
-        .field+.field {
-            border-top: 1px solid var(--separator);
-        }
-
-        .field:focus-within {
-            background: var(--field-focus);
-        }
-
-        .field span {
-            color: var(--text);
+            gap: 7px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text-2);
         }
 
         .field input {
-            height: 62px;
             width: 100%;
-            min-width: 0;
-            border: 0;
-            outline: none;
-            background: transparent;
-            color: var(--text);
-            -webkit-text-fill-color: var(--text);
-            caret-color: var(--brand);
-            font: 18px var(--font);
+            height: 46px;
         }
 
-        .field input::placeholder {
-            color: var(--placeholder);
+        .error {
+            min-height: 20px;
+            margin: -4px 0 -6px;
+            color: var(--danger-text);
+            font-size: 13.5px;
+            font-weight: 500;
         }
 
-        /* يمنع ظهور خلفية بيضاء عند تعبئة المتصفح تلقائيًا */
-        .field input:-webkit-autofill,
-        .field input:-webkit-autofill:focus {
-            -webkit-box-shadow: 0 0 0 1000px var(--field) inset;
-            -webkit-text-fill-color: var(--text);
-            transition: background-color 9999s;
-        }
-
-        .actions {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            margin-top: auto;
+        .error:empty {
+            display: none;
         }
 
         .submit {
-            height: 62px;
+            height: 46px;
+            margin-top: 4px;
             border: 0;
-            border-radius: 999px;
-            background: var(--button);
-            color: var(--button-text);
-            font: 700 20px var(--font);
+            border-radius: var(--radius-sm);
+            background: var(--primary);
+            color: var(--primary-text);
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            box-shadow: 0 10px 22px #0007;
-            transition: background .2s, transform .1s;
+            transition: background .15s, transform .1s;
         }
 
         .submit:hover {
-            background: var(--button-hover);
+            background: var(--primary-hover);
         }
 
         .submit:active {
-            transform: scale(.98);
+            transform: translateY(1px);
         }
 
         .submit:disabled {
@@ -202,88 +144,65 @@
             transform: none;
         }
 
-        .error {
-            min-height: 22px;
-            color: var(--red);
-            font-weight: 700;
-            font-size: 15px;
-            text-align: center;
-        }
-
         .terms {
-            margin: 14px 0 0;
+            margin: 22px 0 0;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
             text-align: center;
-            font-size: 15px;
+            font-size: 13px;
+            color: var(--muted);
         }
 
         .terms a {
-            color: var(--subtitle);
-            font-weight: 700;
+            color: var(--text-2);
+            font-weight: 500;
             text-decoration: none;
         }
 
         .terms a:hover {
+            color: var(--text);
             text-decoration: underline;
         }
 
-        @media (max-width: 560px) {
+        @media (max-width: 480px) {
             .sheet {
-                min-height: 0;
-                padding: 40px 22px 30px;
-                border-radius: 36px;
-            }
-
-            .brand strong {
-                font-size: 26px;
-            }
-
-            .field {
-                grid-template-columns: 1fr;
-                gap: 2px;
-                padding: 12px 18px;
-                min-height: 0;
-            }
-
-            .field input {
-                height: 46px;
-            }
-
-            .submit {
-                height: 56px;
-                font-size: 18px;
+                padding: 28px 22px 22px;
+                border-radius: 18px;
             }
         }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="design.css">
 </head>
 
-<body>
+<body class="standalone">
     <main class="sheet">
         <header class="brand">
-            <strong>مرحبا بك</strong>
-            <span>تسجيل الدخول إلى حسابك</span>
+            <div class="mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3.5 9.5 5 4.5h14l1.5 5"/><path d="M3.5 9.5a2.8 2.8 0 0 0 5.67 0 2.8 2.8 0 0 0 5.66 0 2.8 2.8 0 0 0 5.67 0"/><path d="M5 12.5v7h14v-7"/><path d="M10 19.5v-4h4v4"/></svg>
+            </div>
+            <h1>تسجيل الدخول</h1>
+            <p>أهلاً بعودتك، أدخل بياناتك للمتابعة</p>
         </header>
 
-        <h1>تسجيل الدخول</h1>
-
         <form id="loginForm" novalidate>
-            <div class="group">
-                <label class="field">
-                    <span>اسم المستخدم</span>
-                    <input name="username" autocomplete="username" required>
-                </label>
-                <label class="field">
-                    <span>كلمة المرور</span>
-                    <input name="password" type="password" autocomplete="current-password" required>
-                </label>
-            </div>
+            <label class="field">
+                <span>اسم المستخدم</span>
+                <input name="username" autocomplete="username" required>
+            </label>
+            <label class="field">
+                <span>كلمة المرور</span>
+                <input name="password" type="password" autocomplete="current-password" required>
+            </label>
 
             <div class="error" id="error" role="alert"></div>
 
-            <div class="actions">
-                <button type="submit" class="submit" id="submitBtn">دخول</button>
-                <p class="terms"><a href="terms.html">شروط الاستخدام</a></p>
-            </div>
+            <button type="submit" class="submit" id="submitBtn">دخول</button>
         </form>
+
+        <p class="terms">باستخدامك البرنامج فأنت توافق على <a href="terms.html">شروط الاستخدام</a></p>
     </main>
 
     <script>

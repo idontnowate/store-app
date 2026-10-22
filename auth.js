@@ -285,16 +285,26 @@
             else a.removeAttribute('aria-current');
         });
 
+        if (!sidebar.querySelector('.side-brand')) {
+            const brand = document.createElement('div');
+            brand.className = 'side-brand';
+            const initial = esc((info.name || '').trim().charAt(0) || 'م');
+            brand.innerHTML = `
+                <span class="logo">${info.logo ? `<img src="${esc(info.logo)}" alt="">` : initial}</span>
+                <span class="name">${esc(info.name)}<span class="sub">${roleLabel(membership.role)}</span></span>`;
+            sidebar.prepend(brand);
+        }
+
         if (!document.getElementById('userBox')) {
+            const name = displayName(membership);
             const box = document.createElement('div');
             box.id = 'userBox';
-            box.style.cssText =
-                'margin-top:14px;padding:12px;border-radius:20px;background:#efede5;font-size:15px;font-weight:700;color:#10110d';
             box.innerHTML = `
-                <div>${esc(displayName(membership))}</div>
-                <div style="font-size:13px;color:#5a5a52;margin-bottom:8px">${roleLabel(membership.role)}</div>
-                <button type="button" id="logoutBtn"
-                    style="width:100%;border:0;border-radius:12px;padding:8px;background:#c74845;color:#fff;font:700 15px Tahoma,Arial,sans-serif;cursor:pointer">تسجيل الخروج</button>`;
+                <span class="avatar" aria-hidden="true">${esc(name.trim().charAt(0).toUpperCase())}</span>
+                <span class="who"><b>${esc(name)}</b><small>${roleLabel(membership.role)}</small></span>
+                <button type="button" id="logoutBtn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>
+                </button>`;
             sidebar.appendChild(box);
             document.getElementById('logoutBtn').addEventListener('click', logout);
         }

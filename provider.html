@@ -18,8 +18,8 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610227"></script>
-    <script src="theme.js?v=202610227"></script>
+    <script src="i18n-en.js?v=202610228"></script>
+    <script src="theme.js?v=202610228"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -400,7 +400,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610227">
+    <link rel="stylesheet" href="design.css?v=202610228">
 </head>
 
 <body class="standalone">
@@ -511,6 +511,9 @@
                     <label class="field">هاتف صاحب المتجر
                         <input name="ownerPhone" type="tel" dir="ltr">
                     </label>
+                    <label class="field full">بريد صاحب المتجر (للتواصل)
+                        <input name="ownerEmail" type="email" dir="ltr">
+                    </label>
                     <label class="field">الخطة
                         <input name="plan" list="plans">
                     </label>
@@ -597,6 +600,9 @@
                 <label class="field">هاتف صاحب المتجر
                     <input name="ownerPhone" type="tel" dir="ltr">
                 </label>
+                <label class="field full">بريد صاحب المتجر (للتواصل، اختياري)
+                    <input name="ownerEmail" type="email" dir="ltr">
+                </label>
                 <label class="field">الخطة
                     <input name="plan" list="plans" value="شهري">
                 </label>
@@ -646,6 +652,7 @@
                 <button class="btn" type="submit">حفظ كلمة المرور</button>
             </div>
         </form>
+        <div class="creds" id="pwResult" hidden></div>
     </dialog>
 
     <datalist id="plans">
@@ -825,7 +832,8 @@
             const rows = stores.filter(s => {
                 if (filter !== 'all' && group(s) !== filter) return false;
                 if (!q) return true;
-                const text = [s.name, s.phone, s.subscription && s.subscription.owner_phone, ...s.members.map(m => m.username + ' ' + m.display_name)].join(' ').toLowerCase();
+                const sub = s.subscription || {};
+                const text = [s.name, s.phone, sub.owner_phone, sub.owner_email, ...s.members.map(m => m.username + ' ' + m.display_name + ' ' + (m.login_email || ''))].join(' ').toLowerCase();
                 return text.includes(q);
             });
 
@@ -834,7 +842,7 @@
                 const admins = s.members.filter(m => m.role === 'admin');
                 const [label, cls] = STATUS[s.status] || STATUS.none;
                 return `<tr>
-                    <td><b>${esc(s.name || 'بدون اسم')}</b><small dir="ltr">${esc(sub.owner_phone || s.phone || '')}</small></td>
+                    <td><b>${esc(s.name || 'بدون اسم')}</b><small dir="ltr">${esc(sub.owner_phone || s.phone || '')}</small><small dir="ltr">${esc(sub.owner_email || '')}</small></td>
                     <td>${admins.map(a => esc(a.display_name)).join('، ') || '—'}<small dir="ltr">${admins.map(a => '@' + esc(a.username)).join(' ')}</small></td>
                     <td>${num(s.members.length)}</td>
                     <td>${esc(sub.plan || '—')}<small>${sub.price ? num(sub.price) : ''}</small></td>
@@ -868,6 +876,7 @@
             const f = $('subForm').elements;
             f.storeName.value = sub.store_name || s.name || '';
             f.ownerPhone.value = sub.owner_phone || s.phone || '';
+            f.ownerEmail.value = sub.owner_email || '';
             f.plan.value = sub.plan || 'شهري';
             f.price.value = sub.price || '';
             f.expiresAt.value = sub.expires_at || '';
@@ -878,7 +887,8 @@
                 <div class="member">
                     <div>
                         <b>${esc(m.display_name)}</b><span class="tag">${m.role === 'admin' ? 'مدير' : 'موظف مبيعات'}</span>${m.disabled ? '<span class="tag off">معطّل</span>' : ''}
-                        <small><span dir="ltr">@${esc(m.username)}</span> — آخر دخول: ${esc(ago(m.last_sign_in_at))}</small>
+                        <small>اسم الدخول: <span dir="ltr">${esc(m.username)}</span> — آخر دخول: ${esc(ago(m.last_sign_in_at))}</small>
+                        <small>بريد الدخول: <span dir="ltr">${esc(m.login_email || '—')}</span></small>
                     </div>
                     <div class="row">
                         <button class="btn secondary" type="button" data-pw="${esc(m.user_id)}">كلمة مرور جديدة</button>
@@ -926,6 +936,7 @@
                 storeId: current.store_id,
                 storeName: f.storeName.value.trim(),
                 ownerPhone: f.ownerPhone.value.trim(),
+                ownerEmail: f.ownerEmail.value.trim(),
                 plan: f.plan.value.trim(),
                 price: Number(f.price.value || 0),
                 expiresAt: f.expiresAt.value,
@@ -949,6 +960,8 @@
                 $('pwFor').textContent = member.display_name + ' — @' + member.username;
                 $('pwForm').dataset.user = member.user_id;
                 $('pwForm').reset();
+                $('pwForm').hidden = false;
+                $('pwResult').hidden = true;
                 $('pwDialog').showModal();
             } else if (b.dataset.role) {
                 run(b, 'set_role', { userId: member.user_id, role: b.dataset.to }, 'تم تغيير الدور');
@@ -970,7 +983,19 @@
                 return;
             }
             const out = await run(e.submitter, 'reset_password', { userId: e.target.dataset.user, password }, 'تم تغيير كلمة المرور');
-            if (out) $('pwDialog').close();
+            if (!out) return;
+            // نعرض بيانات الدخول الجديدة لتسليمها للمشترك (لا يمكن عرض كلمة المرور لاحقًا)
+            const member = stores.flatMap(st => st.members).find(m => m.user_id === e.target.dataset.user);
+            $('pwForm').hidden = true;
+            $('pwResult').hidden = false;
+            $('pwResult').innerHTML = `تم تعيين كلمة المرور. سلّمها للمشترك الآن، فلا يمكن عرضها لاحقًا:<br>
+                اسم الدخول: <code dir="ltr">${esc(member ? member.username : '')}</code><br>
+                كلمة المرور: <code dir="ltr">${esc(password)}</code><br>
+                <button class="btn secondary" type="button" id="copyPw" style="margin-top:10px">نسخ بيانات الدخول</button>`;
+            $('copyPw').addEventListener('click', () => {
+                navigator.clipboard.writeText(`اسم الدخول: ${member ? member.username : ''}\nكلمة المرور: ${password}`)
+                    .then(() => flash('تم النسخ'), () => flash('تعذر النسخ', true));
+            });
         });
 
         $('addMemberForm').addEventListener('submit', async e => {
@@ -1024,6 +1049,7 @@
             const data = {
                 storeName: f.storeName.value.trim(),
                 ownerPhone: f.ownerPhone.value.trim(),
+                ownerEmail: f.ownerEmail.value.trim(),
                 plan: f.plan.value.trim(),
                 price: Number(f.price.value || 0),
                 expiresAt: f.expiresAt.value,
@@ -1040,11 +1066,11 @@
                 $('newForm').hidden = true;
                 $('newCreds').hidden = false;
                 $('newCreds').innerHTML = `تم إنشاء متجر <b>${esc(data.storeName)}</b>. سلّم صاحب المتجر بيانات الدخول:<br>
-                    اسم المستخدم: <code dir="ltr">${esc(data.adminUsername)}</code><br>
+                    اسم الدخول: <code dir="ltr">${esc(data.adminUsername)}</code><br>
                     كلمة المرور: <code dir="ltr">${esc(data.adminPassword)}</code><br>
                     <button class="btn secondary" type="button" id="copyCreds" style="margin-top:10px">نسخ بيانات الدخول</button>`;
                 $('copyCreds').addEventListener('click', () => {
-                    navigator.clipboard.writeText(`اسم المستخدم: ${data.adminUsername}\nكلمة المرور: ${data.adminPassword}`)
+                    navigator.clipboard.writeText(`اسم الدخول: ${data.adminUsername}\nكلمة المرور: ${data.adminPassword}`)
                         .then(() => flash('تم النسخ'), () => flash('تعذر النسخ', true));
                 });
                 await load();

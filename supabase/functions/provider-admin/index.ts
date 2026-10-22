@@ -172,6 +172,7 @@ const actions = {
                 username: m.username,
                 display_name: m.display_name,
                 role: m.role,
+                login_email: u?.email ?? "",
                 last_sign_in_at: u?.last_sign_in_at ?? null,
                 disabled: bannedUntil > Date.now(),
             });
@@ -201,6 +202,7 @@ const actions = {
             store_id: storeId,
             store_name: storeName,
             owner_phone: str(b.ownerPhone),
+            owner_email: str(b.ownerEmail).toLowerCase(),
             plan: str(b.plan) || "شهري",
             price: Number(b.price) || 0,
             starts_at: today(),
@@ -234,6 +236,7 @@ const actions = {
             store_id: storeId,
             store_name: str(b.storeName),
             owner_phone: str(b.ownerPhone),
+            owner_email: str(b.ownerEmail).toLowerCase(),
             plan: str(b.plan) || "شهري",
             price: Number(b.price) || 0,
             expires_at: expiresAt || null,

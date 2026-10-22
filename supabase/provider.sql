@@ -17,6 +17,7 @@ create table if not exists public.store_subscriptions (
     store_id uuid primary key,
     store_name text not null default '',
     owner_phone text not null default '',
+    owner_email text not null default '',
     plan text not null default 'شهري',
     price numeric not null default 0,
     starts_at date not null default current_date,
@@ -25,6 +26,8 @@ create table if not exists public.store_subscriptions (
     notes text not null default '',
     updated_at timestamptz not null default now()
 );
+-- للقواعد التي أُنشئت قبل إضافة بريد المشترك
+alter table public.store_subscriptions add column if not exists owner_email text not null default '';
 alter table public.store_subscriptions enable row level security;
 
 -- أعضاء المتجر يقرؤون اشتراك متجرهم فقط (ليظهر التنبيه والإيقاف في البرنامج)؛ التعديل للمزود فقط

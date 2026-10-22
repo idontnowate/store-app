@@ -19,7 +19,7 @@
     const SUBSCRIPTION_KEY = 'appSubscription';
     const EXPIRED_PAGE = 'expired.html';
     // بيانات تواصل المزود تظهر في صفحة انتهاء الاشتراك؛ اكتب رقمك هنا
-    const SUPPORT_CONTACT = '';
+    const SUPPORT_CONTACT = '07762525551';
     // مهلة بعد انتهاء الاشتراك (أيام) قبل الإيقاف، والتنبيه قبل الانتهاء (أيام)؛ مطابقة لـ provider.sql
     const GRACE_DAYS = 3;
     const WARN_DAYS = 7;

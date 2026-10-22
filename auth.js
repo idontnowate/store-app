@@ -292,10 +292,9 @@
         if (!sidebar.querySelector('.side-brand')) {
             const brand = document.createElement('div');
             brand.className = 'side-brand';
-            const initial = esc((info.name || '').trim().charAt(0) || 'م');
             brand.innerHTML = `
-                <span class="logo">${info.logo ? `<img src="${esc(info.logo)}" alt="">` : initial}</span>
-                <span class="name">${esc(info.name)}<span class="sub">${roleLabel(membership.role)}</span></span>`;
+                <span class="logo" data-store-logo></span>
+                <span class="name"><span data-store-name></span><span class="sub">${roleLabel(membership.role)}</span></span>`;
             sidebar.prepend(brand);
         }
 
@@ -304,7 +303,7 @@
             const box = document.createElement('div');
             box.id = 'userBox';
             box.innerHTML = `
-                <span class="avatar" aria-hidden="true">${esc(name.trim().charAt(0).toUpperCase())}</span>
+                <span class="avatar" data-account-logo aria-hidden="true"></span>
                 <span class="who"><b>${esc(name)}</b><small>${roleLabel(membership.role)}</small></span>
                 <button type="button" id="logoutBtn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>
@@ -312,7 +311,35 @@
             sidebar.appendChild(box);
             document.getElementById('logoutBtn').addEventListener('click', logout);
         }
+
+        refreshBrand();
     }
+
+    // شعار المتجر يظهر في أعلى القائمة وفي صندوق الحساب؛ وبدونه أول حرف من الاسم
+    function refreshBrand() {
+        if (!membership) return;
+        const info = getStoreInfo();
+        const logo = info.logo ? `<img src="${esc(info.logo)}" alt="">` : '';
+
+        document.querySelectorAll('[data-store-logo]').forEach(el => {
+            el.innerHTML = logo || esc((info.name || '').trim().charAt(0) || 'م');
+        });
+        document.querySelectorAll('[data-store-name]').forEach(el => {
+            el.textContent = info.name;
+        });
+        document.querySelectorAll('[data-account-logo]').forEach(el => {
+            el.innerHTML = logo || esc(displayName(membership).trim().charAt(0).toUpperCase());
+            el.classList.toggle('has-logo', !!logo);
+        });
+        document.querySelectorAll('.brand span').forEach(el => {
+            el.textContent = `"${info.name}"`;
+        });
+    }
+
+    // عند تغيير الشعار من جهاز أو صفحة أخرى
+    window.addEventListener('storage', e => {
+        if (e.key === SETTINGS_KEY) refreshBrand();
+    });
 
     function whenDomReady() {
         return document.readyState === 'loading'
@@ -356,6 +383,7 @@
         getStoreInfo,
         saveStoreInfo,
         roleLabel,
+        refreshBrand,
         config: {
             url: SUPABASE_URL,
             key: SUPABASE_KEY,

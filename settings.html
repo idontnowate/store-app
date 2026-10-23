@@ -20,7 +20,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
-    <script src="storage.js?v=202610233"></script>
+    <script src="storage.js?v=202610251"></script>
     <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
     <script src="i18n-en.js?v=202610244"></script>
@@ -1599,6 +1599,33 @@
         });
 
         // الاستعادة تكتب على متجر الجهاز الحالي فقط، وكل تغيير يُرفع تلقائيًا إلى السحابة
+        // نسخة من لوحة المزود فيها القوائم مقسّمة حسب التاريخ (storeInvoices@2026-10-23): نجمعها قائمة واحدة
+        function joinChunks(data) {
+            const out = {};
+            const parts = {};
+            Object.keys(data).sort().forEach(k => {
+                const i = k.indexOf('@');
+                if (i < 0) {
+                    out[k] = data[k];
+                    return;
+                }
+                let arr = [];
+                try { arr = JSON.parse(data[k]); } catch (e) { }
+                if (!Array.isArray(arr)) return;
+                const base = k.slice(0, i);
+                (parts[base] = parts[base] || []).push(...arr);
+            });
+            Object.entries(parts).forEach(([base, items]) => {
+                let whole = [];
+                try { whole = JSON.parse(out[base] || '[]'); } catch (e) { }
+                if (!Array.isArray(whole)) whole = [];
+                const seen = new Set(whole.map(x => JSON.stringify(x)));
+                items.forEach(x => { const t = JSON.stringify(x); if (!seen.has(t)) { seen.add(t); whole.push(x); } });
+                out[base] = JSON.stringify(whole);
+            });
+            return out;
+        }
+
         $('importBtn').addEventListener('click', () => {
             if (!pendingBackup) return;
             if (!confirm('سيتم استبدال كل بيانات هذا المتجر بالنسخة الاحتياطية. متابعة؟')) return;
@@ -1610,7 +1637,7 @@
                 .filter(isSyncKey)
                 .forEach(k => localStorage.removeItem(k));
 
-            Object.entries(pendingBackup.data).forEach(([k, v]) => {
+            Object.entries(joinChunks(pendingBackup.data)).forEach(([k, v]) => {
                 if (isSyncKey(k) && v !== null) localStorage.setItem(k, v);
             });
 

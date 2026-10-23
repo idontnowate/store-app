@@ -2,7 +2,10 @@
  *
  * كيف تعمل المزامنة:
  * - كل مفتاح يبدأ بـ store يُحفظ كصف في جدول kv_store.
- * - القوائم (مثل الفواتير والمنتجات) تُدمج مع نسخة السحابة عند كل حفظ بدل الكتابة فوقها،
+ * - القوائم الكبيرة (الفواتير، التسديدات، المشتريات، تعديلات المخزون، حركات الصندوق) تُقسَّم في السحابة
+ *   إلى صفوف حسب التاريخ: الفواتير صف لكل يوم (storeInvoices@2026-10-23) والباقي صف لكل شهر.
+ *   الصفحات تبقى ترى قائمة واحدة كما هي، وكل بيعة ترفع صف يومها فقط بدل كل الفواتير.
+ * - القوائم تُدمج مع نسخة السحابة عند كل حفظ بدل الكتابة فوقها،
  *   فلا تضيع فاتورة أضافها جهاز آخر في نفس الوقت.
  * - الحفظ يتم بشرط ألا يكون الصف قد تغيّر منذ قراءته (updated_at)، وإلا نعيد الدمج.
  * - الحذف يكتب علامة حذف بدل حذف الصف، حتى يعرف كل جهاز أن المفتاح حُذف ولا يعيد رفعه.
@@ -23,12 +26,29 @@
     const DELETED = '__deleted__';
     const MAX_RETRIES = 5;
 
+    // القوائم المقسّمة في السحابة حسب تاريخ السجل (date): day أو month
+    const CHUNKED = {
+        storeInvoices: 'day',
+        storeDebtPayments: 'month',
+        storePurchases: 'month',
+        storeStockAdjustments: 'month',
+        storeCashManual: 'month'
+    };
+    const SEP = '@';
+
     const originalGet = Storage.prototype.getItem;
     const originalSet = Storage.prototype.setItem;
     const originalRemove = Storage.prototype.removeItem;
 
     // storePrefs (المظهر واللغة) خاص بكل جهاز ولا يُزامن
     const isSyncKey = k => typeof k === 'string' && k.startsWith('store') && k !== 'storeSession' && k !== 'storePrefs';
+    const isChunked = k => Object.prototype.hasOwnProperty.call(CHUNKED, k);
+    const chunkBase = k => {
+        if (typeof k !== 'string') return null;
+        const i = k.indexOf(SEP);
+        return i > 0 && isChunked(k.slice(0, i)) ? k.slice(0, i) : null;
+    };
+    const chunkKey = (base, bucket) => base + SEP + bucket;
 
     function getLocal(key) {
         return originalGet.call(localStorage, key);
@@ -75,6 +95,56 @@
     function currentStoreId() {
         const m = readJSON(MEMBERSHIP_KEY);
         return m && m.store_id ? m.store_id : null;
+    }
+
+    // ===== التقسيم حسب التاريخ =====
+    // الصف الذي ينتمي له السجل: 2026-10-23 للفواتير، 2026-10 للباقي، و 0000 لسجل بلا تاريخ
+    function bucketOf(base, item) {
+        const d = item && typeof item.date === 'string' ? item.date : '';
+        if (CHUNKED[base] === 'day' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+        if (/^\d{4}-\d{2}/.test(d)) return d.slice(0, 7);
+        return '0000';
+    }
+
+    // نفس الحساب لسجل محفوظ كنص، مع ذاكرة حتى لا نحلل النص نفسه مرارًا
+    const bucketCache = new Map();
+    function bucketOfString(base, s) {
+        const k = base + '|' + s;
+        let b = bucketCache.get(k);
+        if (b === undefined) {
+            try {
+                b = bucketOf(base, JSON.parse(s));
+            } catch {
+                b = '0000';
+            }
+            if (bucketCache.size > 50000) bucketCache.clear();
+            bucketCache.set(k, b);
+        }
+        return b;
+    }
+
+    // سجلات صف واحد من القائمة المحلية
+    function localChunk(base, bucket) {
+        const arr = parseArray(getLocal(base)) || [];
+        return arr.filter(item => bucketOf(base, item) === bucket);
+    }
+
+    // يستبدل سجلات صفوف في القائمة المحلية بمكانها، دون تغيير ترتيب باقي القائمة
+    function replaceChunks(base, arr, chunks) {
+        const out = [];
+        const inserted = new Set();
+        arr.forEach(item => {
+            const b = bucketOf(base, item);
+            if (!chunks.has(b)) return out.push(item);
+            if (!inserted.has(b)) {
+                inserted.add(b);
+                chunks.get(b).forEach(x => out.push(x));
+            }
+        });
+        chunks.forEach((items, b) => {
+            if (!inserted.has(b)) items.forEach(x => out.push(x));
+        });
+        return out;
     }
 
     // ===== حالة المزامنة المحفوظة على الجهاز (لا تبدأ بـ store حتى لا تُزامن) =====
@@ -227,26 +297,7 @@
         return { retry: true, unchangedSince: row.updated_at };
     }
 
-    // قواعد الحماية رفضت التعديل (مثل موظف يعدّل إعدادات المتجر):
-    // نعيد قيمة السحابة إلى الجهاز ولا نحاول مجددًا
-    function reject(storeId, key, row, versions) {
-        console.warn('لا تملك صلاحية تعديل هذه البيانات، أُعيدت قيمتها من السحابة:', key);
-        clearDirty(storeId, key);
-        if (row === undefined) return;
-
-        const old = getLocal(key);
-        const value = !row || row.value === null || row.value === DELETED ? null : String(row.value);
-        if (value === null) removeLocal(key);
-        else setLocal(key, value);
-        if (row) {
-            versions[key] = row.updated_at;
-            saveState('Versions', storeId, versions);
-        }
-        lastSeenRaw[key] = undefined;
-        if (old !== value) notifyPage(key, old, value);
-    }
-
-    // ===== الرفع =====
+    // ===== تطبيق قيمة من السحابة على الجهاز =====
     function notifyPage(key, oldValue, newValue) {
         // بعد انتهاء الحفظ الحالي في الصفحة، حتى لا نقاطع عملية حفظ من عدة خطوات
         setTimeout(() => {
@@ -260,12 +311,36 @@
         }, 0);
     }
 
-    // نحفظ السجلات التي كانت الصفحة تعرفها من السحابة عند أول فشل فقط.
-    // لو أضفنا ما عرفته بعد ذلك لاعتُبرت فاتورة جديدة لم تُرفع بعد "معروفة" فتُحذف عند الدمج
-    function markDirty(storeId, key) {
+    // يكتب قيمة صف من السحابة في الجهاز: المفتاح نفسه، أو جزء القائمة إن كان صفًا مقسّمًا
+    function applyRemote(key, value, notify) {
+        const base = chunkBase(key);
+        const target = base || key;
+        const old = getLocal(target);
+        let next;
+        if (base) {
+            const items = parseArray(value) || [];
+            const arr = parseArray(old) || [];
+            const out = replaceChunks(base, arr, new Map([[key.slice(base.length + 1), items]]));
+            // قائمة فرغت كلها (تصفير من جهاز آخر) تُحذف كما كانت قبل التقسيم
+            next = out.length ? JSON.stringify(out) : null;
+        } else {
+            next = value === null || value === undefined || value === DELETED ? null : String(value);
+        }
+        if (next === null) {
+            if (old !== null) removeLocal(target);
+        } else if (old !== next) {
+            setLocal(target, next);
+        }
+        lastSeenRaw[target] = undefined;
+        if (notify && old !== next) notifyPage(target, old, next);
+    }
+
+    function markDirty(storeId, key, knownSet) {
         const dirty = loadState('Dirty', storeId);
+        // نحفظ السجلات التي كانت الصفحة تعرفها من السحابة عند أول فشل فقط.
+        // لو أضفنا ما عرفته بعد ذلك لاعتُبرت فاتورة جديدة لم تُرفع بعد "معروفة" فتُحذف عند الدمج
         if (key in dirty) return;
-        dirty[key] = [...(known[key] || new Set())];
+        dirty[key] = [...(knownSet || new Set())];
         saveState('Dirty', storeId, dirty);
     }
 
@@ -276,33 +351,61 @@
         saveState('Dirty', storeId, dirty);
     }
 
-    // يرفع قيمة مفتاح (أو علامة حذفه) مع الدمج عند الحاجة. يعيد true عند النجاح
-    function push(storeId, key, localValue, knownSet) {
+    // قواعد الحماية رفضت التعديل (مثل موظف يعدّل إعدادات المتجر):
+    // نعيد قيمة السحابة إلى الجهاز ولا نحاول مجددًا
+    function reject(storeId, key, row, versions) {
+        console.warn('لا تملك صلاحية تعديل هذه البيانات، أُعيدت قيمتها من السحابة:', key);
+        clearDirty(storeId, key);
+        if (row === undefined) return;
+        applyRemote(key, row ? row.value : null, true);
+        if (row) {
+            versions[key] = row.updated_at;
+            saveState('Versions', storeId, versions);
+        }
+    }
+
+    // ===== الرفع =====
+    /* يرفع قيمة صف واحد (أو علامة حذفه) مع الدمج عند الحاجة. يعيد true عند النجاح.
+     * synced: قيمة الصف كما كانت على الجهاز قبل هذا الحفظ، وهي نسخة السحابة الأخيرة التي عرفها الجهاز.
+     * معها نكتب مباشرة دون قراءة الصف أولًا (ندمج عليها، فلا يُحذف ما لم تره الصفحة)،
+     * وإن تغيّر الصف في السحابة منذها ترجع الكتابة بلا صفوف فنقرأ وندمج */
+    function pushKey(storeId, key, localValue, knownSet, synced) {
         const localArr = parseArray(localValue);
         const versions = loadState('Versions', storeId);
+        const canSkipRead = key in versions && (localValue === DELETED || synced !== undefined) &&
+            !(key in loadState('Dirty', storeId));
 
         let unchangedSince = null;
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            // مفتاح جديد لم يعرفه الجهاز (مثل سطر في سجل العمليات): نحاول الإنشاء مباشرة دون قراءة
-            const row = attempt === 0 && !(key in versions) ? null : fetchRow(storeId, key);
-            if (row === undefined) break;
-
-            // التعديل السابق لم يُطبَّق مع أن الصف لم يتغير: قواعد الحماية تمنعه
-            if (unchangedSince && row && row.updated_at === unchangedSince) {
-                reject(storeId, key, row, versions);
-                return false;
-            }
-
+            let row;
             let value = localValue;
-            if (localArr && row) {
-                // إذا حُذف المفتاح في السحابة نعتبره قائمة فارغة: لا يبقى إلا ما أضافته الصفحة
-                const remoteArr = row.value === DELETED || row.value === null ? [] : parseArray(row.value);
-                if (remoteArr) value = JSON.stringify(mergeArrays(remoteArr, localArr, knownSet));
+            if (attempt === 0 && (canSkipRead || !(key in versions))) {
+                // مفتاح جديد: نحاول الإنشاء مباشرة. مفتاح نعرف نسخته: نكتب عليها مباشرة
+                row = key in versions ? { updated_at: versions[key] } : null;
+                if (row && localArr) {
+                    const base = parseArray(synced);
+                    if (base) value = JSON.stringify(mergeArrays(base, localArr, knownSet));
+                }
+            } else {
+                row = fetchRow(storeId, key);
+                if (row === undefined) break;
+
+                // التعديل السابق لم يُطبَّق مع أن الصف لم يتغير: قواعد الحماية تمنعه
+                if (unchangedSince && row && row.updated_at === unchangedSince) {
+                    reject(storeId, key, row, versions);
+                    return false;
+                }
+
+                if (localArr && row) {
+                    // إذا حُذف المفتاح في السحابة نعتبره قائمة فارغة: لا يبقى إلا ما أضافته الصفحة
+                    const remoteArr = row.value === DELETED || row.value === null ? [] : parseArray(row.value);
+                    if (remoteArr) value = JSON.stringify(mergeArrays(remoteArr, localArr, knownSet));
+                }
             }
 
             const res = writeRow(storeId, key, value, row);
             if (res.denied) {
-                reject(storeId, key, row || fetchRow(storeId, key), versions);
+                reject(storeId, key, fetchRow(storeId, key), versions);
                 return false;
             }
             if (res.failed) break;
@@ -310,25 +413,81 @@
                 unchangedSince = res.unchangedSince || null;
                 continue;
             }
-            const updatedAt = res.updatedAt;
 
-            versions[key] = updatedAt;
+            versions[key] = res.updatedAt;
             saveState('Versions', storeId, versions);
             clearDirty(storeId, key);
 
             // الدمج أضاف ما غيّرته الأجهزة الأخرى: نحدّث الجهاز ونبلغ الصفحة لتعيد التحميل
-            if (value !== localValue && value !== DELETED) {
-                const old = getLocal(key);
-                setLocal(key, value);
-                lastSeenRaw[key] = undefined;
-                notifyPage(key, old, value);
-            }
+            if (value !== localValue && value !== DELETED) applyRemote(key, value, true);
             return true;
         }
 
         console.warn('تعذر رفع التغيير إلى السحابة، سيُعاد عند الاتصال:', key);
-        markDirty(storeId, key);
+        markDirty(storeId, key, knownSet);
         return false;
+    }
+
+    /* يرفع مفتاحًا كما تراه الصفحة. القوائم المقسّمة: نرفع فقط الصفوف التي تغيّر فيها شيء.
+     * previous: قيمة المفتاح على الجهاز قبل هذا الحفظ (إن عُرفت) */
+    function push(storeId, key, localValue, knownSet, previous) {
+        if (!isChunked(key)) return pushKey(storeId, key, localValue, knownSet, previous === undefined ? undefined : (previous === null ? '[]' : previous));
+
+        if (localValue === DELETED) {
+            // تصفير القائمة: علامة حذف لكل صفوفها، وللصف القديم غير المقسّم إن وُجد
+            const versions = loadState('Versions', storeId);
+            let all = true;
+            Object.keys(versions)
+                .filter(k => chunkBase(k) === key)
+                .forEach(k => { all = pushKey(storeId, k, DELETED, null) && all; });
+            if (key in versions) all = pushKey(storeId, key, DELETED, null) && all;
+            return all;
+        }
+
+        const localArr = parseArray(localValue);
+        if (!localArr) return pushKey(storeId, key, localValue, knownSet);
+
+        // نجمع سجلات الصفحة وما كانت تعرفه حسب الصف، ونحدد الصفوف التي أُضيف إليها أو حُذف منها شيء
+        const local = new Map();
+        const localStrings = new Set();
+        const changed = new Set();
+        localArr.forEach(item => {
+            const s = JSON.stringify(item);
+            const b = bucketOf(key, item);
+            localStrings.add(s);
+            if (!local.has(b)) local.set(b, []);
+            local.get(b).push(item);
+            if (!knownSet || !knownSet.has(s)) changed.add(b);
+        });
+        const knownBy = new Map();
+        (knownSet || new Set()).forEach(s => {
+            const b = bucketOfString(key, s);
+            if (!knownBy.has(b)) knownBy.set(b, new Set());
+            knownBy.get(b).add(s);
+            if (!localStrings.has(s)) changed.add(b);
+        });
+
+        // ما كان في كل صف على الجهاز قبل هذا الحفظ
+        let prevBy = null;
+        if (previous !== undefined) {
+            prevBy = new Map();
+            (parseArray(previous) || []).forEach(item => {
+                const b = bucketOf(key, item);
+                if (!prevBy.has(b)) prevBy.set(b, []);
+                prevBy.get(b).push(item);
+            });
+        }
+
+        let all = true;
+        changed.forEach(b => {
+            const items = local.get(b) || [];
+            const synced = prevBy ? JSON.stringify(prevBy.get(b) || []) : undefined;
+            const ok = pushKey(storeId, chunkKey(key, b), JSON.stringify(items), knownBy.get(b) || new Set(), synced);
+            // بعد رفع الحذف لا داعي لتذكّر السجلات المحذوفة، وإلا يُعاد رفع صفها مع كل حفظ
+            if (ok && knownSet && knownBy.has(b)) knownBy.get(b).forEach(s => { if (!localStrings.has(s)) knownSet.delete(s); });
+            all = ok && all;
+        });
+        return all;
     }
 
     // ===== السحب =====
@@ -342,33 +501,92 @@
         const dirty = loadState('Dirty', storeId);
         const changed = remote.filter(r => versions[r.key] !== r.updated_at && !(r.key in dirty)).map(r => r.key);
 
-        const applied = [];
+        const before = {};
+        const chunks = new Map(); // القائمة -> (الصف -> سجلاته)
+        const legacy = []; // صفوف كاملة قديمة لقوائم صارت مقسّمة
+        const snapshot = key => { if (!(key in before)) before[key] = getLocal(key); };
+
         for (let i = 0; i < changed.length; i += 50) {
-            const chunk = changed.slice(i, i + 50);
-            const res = request('GET', API + '?select=key,value,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=in.' + inList(chunk));
+            const part = changed.slice(i, i + 50);
+            const res = request('GET', API + '?select=key,value,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=in.' + inList(part));
             if (!ok(res)) return null;
             JSON.parse(res.responseText).forEach(r => {
                 const value = r.value === null || r.value === undefined ? DELETED : String(r.value);
-                const old = getLocal(r.key);
-                if (value === DELETED) {
-                    if (old !== null) removeLocal(r.key);
-                } else if (old !== value) {
-                    setLocal(r.key, value);
+                const base = chunkBase(r.key);
+                if (base) {
+                    snapshot(base);
+                    if (!chunks.has(base)) chunks.set(base, new Map());
+                    chunks.get(base).set(r.key.slice(base.length + 1), parseArray(value) || []);
+                } else if (isChunked(r.key)) {
+                    // جهاز بنسخة قديمة كتب القائمة كاملة: ندمجها في الصفوف المقسّمة بعد السحب
+                    if (parseArray(value)) legacy.push({ key: r.key, row: { value, updated_at: r.updated_at } });
+                } else {
+                    snapshot(r.key);
+                    const old = getLocal(r.key);
+                    if (value === DELETED) {
+                        if (old !== null) removeLocal(r.key);
+                    } else if (old !== value) {
+                        setLocal(r.key, value);
+                    }
                 }
-                if (old !== (value === DELETED ? null : value)) applied.push([r.key, old, value === DELETED ? null : value]);
                 versions[r.key] = r.updated_at;
             });
         }
         saveState('Versions', storeId, versions);
+
+        chunks.forEach((map, base) => {
+            const arr = parseArray(getLocal(base)) || [];
+            const out = replaceChunks(base, arr, map);
+            if (out.length) setLocal(base, JSON.stringify(out));
+            else removeLocal(base);
+            lastSeenRaw[base] = undefined;
+        });
+
+        legacy.forEach(({ key, row }) => absorbLegacy(storeId, key, row, snapshot));
+
+        const applied = [];
+        Object.keys(before).forEach(k => {
+            const now = getLocal(k);
+            if (before[k] !== now) applied.push([k, before[k], now]);
+        });
         return { remoteKeys: new Set(remote.map(r => r.key)), applied };
+    }
+
+    // نقل قائمة من صفها القديم الكامل إلى الصفوف المقسّمة، ثم وضع علامة حذف مكانه.
+    // يحدث مرة عند الترقية، وكلما كتب جهاز ما زالت عليه النسخة القديمة. لا يحذف شيئًا: يضيف فقط
+    function absorbLegacy(storeId, key, row, snapshot) {
+        const legacyArr = parseArray(row.value) || [];
+        snapshot(key);
+        const localArr = parseArray(getLocal(key)) || [];
+        const have = new Set(localArr.map(x => JSON.stringify(x)));
+        const merged = localArr.concat(legacyArr.filter(x => !have.has(JSON.stringify(x))));
+        const raw = JSON.stringify(merged);
+        setLocal(key, raw);
+        lastSeenRaw[key] = undefined;
+        // نرفع كل صفوف القائمة دون حذف شيء منها، ثم نعلّم الصف القديم محذوفًا
+        if (!push(storeId, key, raw, new Set())) return;
+        const res = writeRow(storeId, key, DELETED, row);
+        if (res.updatedAt) {
+            const versions = loadState('Versions', storeId);
+            versions[key] = res.updatedAt;
+            saveState('Versions', storeId, versions);
+        }
     }
 
     // يرفع ما فشل رفعه سابقًا (انقطاع الإنترنت مثلًا)
     function pushDirty(storeId) {
         const dirty = loadState('Dirty', storeId);
         Object.keys(dirty).forEach(key => {
+            const knownSet = new Set(dirty[key] || []);
+            const base = chunkBase(key);
+            if (base) {
+                pushKey(storeId, key, JSON.stringify(localChunk(base, key.slice(base.length + 1))), knownSet);
+                return;
+            }
             const value = getLocal(key);
-            push(storeId, key, value === null ? DELETED : value, new Set(dirty[key] || []));
+            // قائمة مقسّمة فشل رفعها بالنسخة السابقة: تُرفع الآن مقسّمة
+            if (isChunked(key)) clearDirty(storeId, key);
+            push(storeId, key, value === null ? DELETED : value, knownSet);
         });
     }
 
@@ -399,9 +617,14 @@
         const result = sync(storeId, notify);
         if (!result) return false;
 
+        // القائمة المقسّمة موجودة في السحابة إن وُجد أي صف من صفوفها
+        const remoteBases = new Set(result.remoteKeys);
+        result.remoteKeys.forEach(k => { const b = chunkBase(k); if (b) remoteBases.add(b); });
+
         const dirty = loadState('Dirty', storeId);
+        const dirtyBases = new Set(Object.keys(dirty).map(k => chunkBase(k) || k));
         Object.keys(localStorage)
-            .filter(k => isSyncKey(k) && !result.remoteKeys.has(k) && !(k in dirty))
+            .filter(k => isSyncKey(k) && !chunkBase(k) && !remoteBases.has(k) && !dirtyBases.has(k))
             .forEach(k => {
                 if (firstSync) {
                     push(storeId, k, getLocal(k), new Set());
@@ -448,11 +671,13 @@
     };
 
     Storage.prototype.setItem = function (key, value) {
+        const tracked = this === localStorage && isSyncKey(key) && !chunkBase(key);
+        const previous = tracked ? originalGet.call(this, key) : null;
         originalSet.call(this, key, value);
         const sid = currentStoreId();
-        if (this === localStorage && isSyncKey(key) && sid) {
+        if (tracked && sid) {
             const raw = String(value);
-            push(sid, key, raw, known[key]);
+            push(sid, key, raw, known[key], previous);
             // نتذكر ما كتبته الصفحة فقط، لا ما أضافه الدمج، لأن الصفحة لم تره بعد
             remember(key, raw);
         }
@@ -461,7 +686,7 @@
     Storage.prototype.removeItem = function (key) {
         originalRemove.call(this, key);
         const sid = currentStoreId();
-        if (this === localStorage && isSyncKey(key) && sid) {
+        if (this === localStorage && isSyncKey(key) && !chunkBase(key) && sid) {
             push(sid, key, DELETED, null);
             delete known[key];
             delete lastSeenRaw[key];

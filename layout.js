@@ -45,6 +45,7 @@
         'home.html': '<path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-5.5h4V20"/>',
         'cashier.html': '<circle cx="9" cy="19.5" r="1.4"/><circle cx="17.5" cy="19.5" r="1.4"/><path d="M2.5 3.5h2.4l2.4 11a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L20.5 7H5.6"/>',
         'sales-new_1.html': '<path d="M5.5 3h13v18l-2.6-1.7L13.3 21l-2.6-1.7L8.1 21l-2.6-1.7z"/><path d="M9 8h6M9 12h6"/>',
+        'orders.html': '<path d="M5.5 8h13l-1 12.5h-11z"/><path d="M9 10.5V6.5a3 3 0 0 1 6 0v4"/>',
         'inventory.html': '<path d="M20.5 7.5 12 3 3.5 7.5v9L12 21l8.5-4.5z"/><path d="m3.5 7.5 8.5 4.5 8.5-4.5M12 12v9"/>',
         'purchases.html': '<path d="M2.5 6h11.5v10H2.5z"/><path d="M14 9.5h4l3.5 3.5v3H14"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
         'debts.html': '<path d="M19 7V5.5A1.5 1.5 0 0 0 17.5 4h-12A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20h14a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 19.5 7H5.5"/><circle cx="16.5" cy="13.5" r="1.1"/>',

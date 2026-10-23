@@ -23,11 +23,12 @@
     <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610243"></script>
+    <script src="i18n-en.js?v=202610244"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
-    <script src="layout.js?v=202610241"></script>
+    <script src="layout.js?v=202610242"></script>
+    <script src="storefront.js?v=202610241"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610241"></script>
     <style>
@@ -415,6 +416,7 @@
             <a href="home.html" class="active" aria-current="page">الصفحة الرئيسية</a>
             <a href="cashier.html">الكاشير</a>
             <a href="sales-new_1.html">المبيعات</a>
+            <a href="orders.html">الطلبات</a>
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
             <a href="debts.html">الديون</a>
@@ -728,14 +730,38 @@
             if (phone && phone !== localStorage.getItem(REPORT_PHONE_KEY)) localStorage.setItem(REPORT_PHONE_KEY, phone);
         });
 
-        window.addEventListener('storage', render);
-        document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+        window.addEventListener('storage', () => { render(); drawOrders(); });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); drawOrders(); } });
 
         try {
             render();
         } catch (err) {
             console.error('فشل تحميل الصفحة الرئيسية:', err);
         }
+
+        // طلبات المتجر الإلكتروني الجديدة (من الخادم، لا تؤخر ظهور الصفحة)
+        let ordersCount = 0;
+
+        async function showNewOrders() {
+            if (!window.StoreShop) return;
+            ordersCount = await StoreShop.newOrdersCount();
+            drawOrders();
+        }
+
+        function drawOrders() {
+            const n = ordersCount;
+            document.querySelectorAll('.alert.orders').forEach(el => el.remove());
+            if (!n) return;
+            const list = document.getElementById('alerts');
+            list.querySelector('.alert.ok')?.remove();
+            const a = document.createElement('a');
+            a.className = 'alert orders';
+            a.href = 'orders.html';
+            a.innerHTML = `<span class="count">${num(n)}</span><span>طلبات جديدة من المتجر الإلكتروني</span>`;
+            list.prepend(a);
+        }
+        if (window.StoreAuth) StoreAuth.ready.then(showNewOrders);
+        setInterval(() => { if (!document.hidden) showNewOrders(); }, 60000);
     </script>
 </body>
 

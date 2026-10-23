@@ -23,11 +23,12 @@
     <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610243"></script>
+    <script src="i18n-en.js?v=202610244"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
-    <script src="layout.js?v=202610241"></script>
+    <script src="layout.js?v=202610242"></script>
+    <script src="storefront.js?v=202610241"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
@@ -686,6 +687,7 @@
             <a href="home.html">الصفحة الرئيسية</a>
             <a href="cashier.html" class="active" aria-current="page">الكاشير</a>
             <a href="sales-new_1.html">المبيعات</a>
+            <a href="orders.html">الطلبات</a>
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
             <a href="debts.html">الديون</a>
@@ -1360,11 +1362,14 @@
 
             if (phone) inv.phone = phone;
             if (usdRateUsed) inv.usdRate = usdRateUsed;
+            if (draft.orderId) inv.orderId = draft.orderId;
 
             invoices.push(inv);
             write('invoices', invoices);
             if (phone && cust) StoreWA.savePhone(cust, phone);
             showLastSale(inv);
+            // فاتورة من طلب أونلاين: يصبح الطلب مكتملًا
+            if (inv.orderId && window.StoreShop) StoreShop.setStatus(inv.orderId, 'done').catch(() => { });
 
             StoreLog.add(
                 'sale',

@@ -23,11 +23,12 @@
     <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610231"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610233"></script>
+    <script src="i18n-en.js?v=202610241"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610231"></script>
+    <script src="whatsapp.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -401,6 +402,7 @@
     <header class="topbar">
         <h1>الصفحة الرئيسية</h1>
         <div class="brand" id="storeBrand">مرحبا بك<span>“اسم المتجر”</span></div>
+        <button class="wa-btn small" type="button" id="dailyWa" title="أرسل ملخص اليوم لرقم المالك" style="margin-inline-end: auto"></button>
     </header>
 
     <aside class="sidebar" aria-label="القائمة الرئيسية">
@@ -657,6 +659,68 @@
                     </a>`).join('')
                 : `<div class="alert ok">لا توجد تنبيهات حالياً</div>`;
         }
+
+        // ===== ملخص اليوم للمالك =====
+        const REPORT_PHONE_KEY = 'storeReportPhone';
+
+        function dailySummary() {
+            const invoices = safeParse(localStorage.getItem(INVOICES_KEY));
+            const payments = safeParse(localStorage.getItem(PAYMENTS_KEY));
+            const products = safeParse(localStorage.getItem(PRODUCTS_KEY));
+            const adjustments = safeParse(localStorage.getItem(ADJUSTMENTS_KEY));
+            const manual = safeParse(localStorage.getItem(CASH_MANUAL_KEY));
+            const today = todayLocal();
+
+            const todays = invoices.filter(inv => inv.date === today);
+            const byPay = kind => todays.filter(inv => inv.payment === kind).reduce((s, inv) => s + invoiceTotal(inv), 0);
+            // فاتورة دين سُددت بالكامل تتحول إلى نقدي؛ نحسبها دينًا في يومها
+            const debtToday = todays.filter(inv => inv.payment === 'دين' || inv.debtSettled).reduce((s, inv) => s + invoiceTotal(inv), 0);
+            const cashToday = todays.filter(inv => inv.payment === 'نقدي' && !inv.debtSettled).reduce((s, inv) => s + invoiceTotal(inv), 0);
+
+            let cogs = 0;
+            todays.forEach(inv => (inv.items || []).forEach(it => {
+                const prod = StoreProducts.productOf(it, products);
+                cogs += Number(it.qty || 0) * Number(prod?.cost || 0);
+            }));
+            const salesTotal = todays.reduce((s, inv) => s + invoiceTotal(inv), 0);
+
+            const lowStock = products.filter(p => {
+                const adjusted = adjustments.filter(a => a.productId === p.id).reduce((s, a) => s + Number(a.change || 0), 0);
+                const qty = Number(p.openingQty || 0) + adjusted - StoreProducts.soldQty(p, invoices);
+                return qty <= Number(p.minQty || 0);
+            }).map(p => p.name);
+
+            const data = computeData();
+            const statValue = title => (data.stats.find(x => x.title === title) || {}).value || '';
+            const toNum = v => Number(String(v).replace(/[^\d.-]/g, '')) || 0;
+
+            return {
+                date: today,
+                salesTotal,
+                invoiceCount: todays.length,
+                cash: cashToday,
+                card: byPay('بطاقة'),
+                debt: debtToday,
+                collected: payments.filter(p => p.date === today).reduce((s, p) => s + Number(p.amount || 0), 0),
+                profit: salesTotal - cogs,
+                expenses: manual.filter(m => m.kind !== 'in' && m.date === today).reduce((s, m) => s + Number(m.amount || 0), 0),
+                cashBalance: toNum(statValue('رصيد الصندوق')),
+                debtTotal: toNum(statValue('ديون الزبائن')),
+                lowStock
+            };
+        }
+
+        const dailyBtn = document.getElementById('dailyWa');
+        dailyBtn.innerHTML = StoreWA.ICON + '<span>ملخص اليوم</span>';
+        dailyBtn.addEventListener('click', async () => {
+            const phone = await StoreWA.compose({
+                title: 'ملخص اليوم',
+                intro: 'يُرسل لرقم المالك، ويُحفظ الرقم للمرة القادمة.',
+                phone: localStorage.getItem(REPORT_PHONE_KEY) || '',
+                text: StoreWA.dailyText(dailySummary())
+            });
+            if (phone && phone !== localStorage.getItem(REPORT_PHONE_KEY)) localStorage.setItem(REPORT_PHONE_KEY, phone);
+        });
 
         window.addEventListener('storage', render);
         document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });

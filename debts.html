@@ -22,11 +22,12 @@
     <title>الديون</title>
     <script src="storage.js?v=202610233"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610233"></script>
+    <script src="i18n-en.js?v=202610241"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610231"></script>
+    <script src="whatsapp.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -806,6 +807,7 @@
                     <td>
                         <span class="actions">
                             ${closed ? '' : `<button class="btn pay" type="button" data-pay="${escapeHtml(d.inv.number)}">تسديد</button>`}
+                            ${closed ? '' : `<button class="wa-btn small" type="button" data-remind="${escapeHtml(d.inv.number)}" title="تذكير الزبون بكل ديونه">${StoreWA.ICON}<span>تذكير</span></button>`}
                             <button class="btn view" type="button" data-history="${escapeHtml(d.inv.number)}">السجل</button>
                             <a class="btn view" href="add-invoice.html?invoice=${d.index}">الفاتورة</a>
                         </span>
@@ -890,7 +892,31 @@
 
             const histBtn = event.target.closest('[data-history]');
             if (histBtn) openDialog(histBtn.dataset.history);
+
+            const remindBtn = event.target.closest('[data-remind]');
+            if (remindBtn) remind(remindBtn.dataset.remind);
         });
+
+        // تذكير بالواتساب بكل الديون المفتوحة لنفس الزبون، مع رقمه من آخر فاتورة أو المحفوظ
+        function remind(number) {
+            const d = findDebt(number);
+            if (!d) return;
+            const name = (d.inv.customer || '').trim();
+            const same = buildDebts()
+                .filter(x => x.remaining > 0 && (x.inv.customer || '').trim() === name)
+                .sort((a, b) => (a.inv.date || '').localeCompare(b.inv.date || ''));
+            const withPhone = [...same].reverse().find(x => x.inv.phone);
+            const total = same.reduce((t, x) => t + x.remaining, 0);
+            StoreWA.compose({
+                title: 'تذكير ' + (name || 'الزبون'),
+                intro: `${same.length} فاتورة مستحقة بمجموع ${money(total)}`,
+                name,
+                phone: (withPhone && withPhone.inv.phone) || StoreWA.getPhone(name) || '',
+                text: StoreWA.debtText(name || 'زبوننا العزيز', same.map(x => ({
+                    number: x.inv.number, date: x.inv.date, amount: x.amount, remaining: x.remaining
+                })))
+            });
+        }
 
         payForm.addEventListener('submit', event => {
             event.preventDefault();

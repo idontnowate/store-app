@@ -23,11 +23,12 @@
     <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610231"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610233"></script>
+    <script src="i18n-en.js?v=202610241"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610231"></script>
+    <script src="whatsapp.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -727,6 +728,7 @@
                     <button class="button more" type="submit" name="action" value="addMore">إضافة وبدء المزيد</button>
                     <a class="button cancel" href="sales-new_1.html">إلغاء</a>
                     <button class="button print" type="button" id="printBtn" hidden>طباعة</button>
+                    <button class="wa-btn" type="button" id="waBtn" hidden></button>
                     <button class="button delete" type="button" id="deleteBtn" hidden>حذف</button>
                     <span id="notice" role="status" aria-live="polite"></span>
                 </div>
@@ -750,6 +752,8 @@
         const notice = document.getElementById('notice');
         const deleteBtn = document.getElementById('deleteBtn');
         const printBtn = document.getElementById('printBtn');
+        const waBtn = document.getElementById('waBtn');
+        waBtn.innerHTML = StoreWA.ICON + '<span>إرسال بالواتساب</span>';
         const addItemBtn = document.getElementById('addItemBtn');
         const printSheet = document.getElementById('printSheet');
         const productList = document.getElementById('productList');
@@ -946,6 +950,7 @@
             history.replaceState(null, '', 'add-invoice.html');
             deleteBtn.hidden = true;
             printBtn.hidden = true;
+            waBtn.hidden = true;
         }
 
         // ===== تهيئة الصفحة =====
@@ -953,6 +958,7 @@
             fillForm(savedInvoices[editingIndex]);
             deleteBtn.hidden = false;
             printBtn.hidden = false;
+            waBtn.hidden = false;
         } else {
             setItems([]);
         }
@@ -1217,6 +1223,11 @@
 
         printBtn.addEventListener('click', () => {
             if (editingIndex !== -1) printInvoice(savedInvoices[editingIndex]);
+        });
+
+        // يرسل الفاتورة كما هي محفوظة (التعديلات غير المحفوظة لا تُرسل)
+        waBtn.addEventListener('click', () => {
+            if (editingIndex !== -1) StoreWA.sendInvoice(savedInvoices[editingIndex]);
         });
 
         if (new URLSearchParams(location.search).get('print') === '1' && editingIndex !== -1) {

@@ -22,11 +22,12 @@
     <title>المبيعات</title>
     <script src="storage.js?v=202610233"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610233"></script>
+    <script src="i18n-en.js?v=202610241"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610231"></script>
+    <script src="whatsapp.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -608,6 +609,7 @@
                         <span class="actions">
                             <a class="view-link" href="add-invoice.html?invoice=${index}">عرض</a>
                             <a class="view-link" href="add-invoice.html?invoice=${index}&print=1">طباعة</a>
+                            <button class="wa-btn small icon" type="button" data-wa="${index}" title="إرسال بالواتساب" aria-label="إرسال بالواتساب">${StoreWA.ICON}</button>
                             <button class="danger-link" type="button" data-del="${index}">حذف</button>
                         </span>
                     </td>
@@ -628,6 +630,13 @@
 
         // ===== الحذف =====
         body.addEventListener('click', event => {
+            const wa = event.target.closest('[data-wa]');
+            if (wa) {
+                const inv = invoices[Number(wa.dataset.wa)];
+                if (inv) StoreWA.sendInvoice(inv);
+                return;
+            }
+
             const btn = event.target.closest('[data-del]');
             if (!btn) return;
 

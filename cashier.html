@@ -23,11 +23,12 @@
     <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610231"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610233"></script>
+    <script src="i18n-en.js?v=202610241"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610231"></script>
+    <script src="whatsapp.js?v=202610241"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
     <style>
@@ -317,6 +318,37 @@
         .cart {
             position: sticky;
             top: 10px;
+        }
+
+        .last-sale {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: var(--radius-sm, 10px);
+            background: var(--surface-2, #f3f4f6);
+        }
+
+        .last-sale[hidden] {
+            display: none;
+        }
+
+        .last-sale .ls-info {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 13.5px;
+            color: var(--text-2, #3a404a);
+        }
+
+        .last-sale .ls-info strong {
+            color: var(--text, #0e1116);
+        }
+
+        .last-sale .ls-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .cart h2 {
@@ -696,6 +728,9 @@
                 <label class="field">اسم الزبون
                     <input id="customer" class="input" placeholder="زبون نقدي" autocomplete="off">
                 </label>
+                <label class="field">رقم واتساب الزبون (اختياري)
+                    <input id="custPhone" class="input" type="tel" inputmode="tel" dir="ltr" placeholder="07xx xxx xxxx" autocomplete="off">
+                </label>
                 <label class="field">نوع الدفع
                     <select id="payment" class="input">
                         <option value="نقدي">نقدي</option>
@@ -717,6 +752,15 @@
                 <button class="btn pay" id="checkoutBtn" type="button" disabled>إتمام البيع</button>
                 <button class="btn more" id="checkoutMoreBtn" type="button" disabled>إتمام وبدء فاتورة جديدة</button>
                 <div class="notice" id="cartNotice" role="status" aria-live="polite"></div>
+            </div>
+
+            <!-- آخر فاتورة: إرسالها للزبون بالواتساب أو إعادة طباعتها -->
+            <div class="last-sale" id="lastSale" hidden>
+                <div class="ls-info"><span>آخر فاتورة</span><strong id="lsText"></strong></div>
+                <div class="ls-actions">
+                    <button class="wa-btn small" type="button" id="lsWa"></button>
+                    <button class="btn secondary small" type="button" id="lsPrint">طباعة</button>
+                </div>
             </div>
         </aside>
     </main>
@@ -744,6 +788,7 @@
             lines: $('lines'),
             linesEmpty: $('linesEmpty'),
             customer: $('customer'),
+            custPhone: $('custPhone'),
             payment: $('payment'),
             discount: $('discount'),
             subtotal: $('subtotal'),
@@ -877,6 +922,7 @@
                 number: nextNumber(invoices),
                 date: todayLocal(),
                 customer: '',
+                phone: '',
                 payment: options().defaultPayment || 'نقدي',
                 discount: 0,
                 lines: []
@@ -1018,6 +1064,7 @@
             el.invNo.textContent = draft.number;
             el.payment.value = draft.payment;
             if (document.activeElement !== el.customer) el.customer.value = draft.customer || '';
+            if (document.activeElement !== el.custPhone) el.custPhone.value = draft.phone || '';
             if (document.activeElement !== el.discount) el.discount.value = draft.discount || '';
 
             el.lines.innerHTML = draft.lines.map((l, i) => `
@@ -1128,6 +1175,23 @@
             saveDraft();
         });
 
+        // زبون معروف: نملأ رقمه المحفوظ إن لم يُكتب رقم
+        el.customer.addEventListener('change', () => {
+            if (!draft || draft.phone || !window.StoreWA) return;
+            const saved = StoreWA.getPhone(draft.customer);
+            if (saved) {
+                draft.phone = StoreWA.displayPhone(saved);
+                el.custPhone.value = draft.phone;
+                saveDraft();
+            }
+        });
+
+        el.custPhone.addEventListener('input', () => {
+            if (!draft) return;
+            draft.phone = el.custPhone.value;
+            saveDraft();
+        });
+
         el.payment.addEventListener('change', () => {
             if (!draft) return;
             draft.payment = el.payment.value;
@@ -1225,6 +1289,13 @@
             const offlineNoTag = navigator.onLine === false && /^C\d+$/.test(number || '');
             if (offlineNoTag || invoices.some(inv => inv.number === number)) number = nextNumber(invoices);
 
+            const phone = window.StoreWA ? StoreWA.normalizePhone(draft.phone) : null;
+            if (draft.phone && draft.phone.trim() && !phone) {
+                note(el.cartNote, 'رقم واتساب الزبون غير صحيح، صحّحه أو امسحه', true);
+                el.custPhone.focus();
+                return;
+            }
+
             const inv = {
                 number,
                 date: todayLocal(),
@@ -1238,8 +1309,12 @@
                 amount: subtotal - disc
             };
 
+            if (phone) inv.phone = phone;
+
             invoices.push(inv);
             write('invoices', invoices);
+            if (phone && cust) StoreWA.savePhone(cust, phone);
+            showLastSale(inv);
 
             StoreLog.add(
                 'sale',
@@ -1260,6 +1335,24 @@
             if (el.autoPrint.checked) printReceipt(inv);
             if (startNext) el.barcode.focus();
         }
+
+        // ===== آخر فاتورة =====
+        let lastSale = null;
+
+        function showLastSale(inv) {
+            lastSale = inv;
+            $('lsText').textContent = `${inv.number} · ${money(inv.amount)}`;
+            $('lastSale').hidden = false;
+        }
+
+        $('lsWa').innerHTML = (window.StoreWA ? StoreWA.ICON : '') + '<span>إرسال بالواتساب</span>';
+        $('lsWa').addEventListener('click', () => {
+            if (!lastSale || !window.StoreWA) return;
+            StoreWA.sendInvoice(lastSale);
+        });
+        $('lsPrint').addEventListener('click', () => {
+            if (lastSale) printReceipt(lastSale);
+        });
 
         // خيار الطباعة التلقائية يُحفظ لهذا الجهاز (ويظهر في الإعدادات أيضًا)
         if (window.StoreTheme) {

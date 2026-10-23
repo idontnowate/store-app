@@ -223,8 +223,8 @@
         return compact(lines);
     }
 
-    // debts: [{ number, date, amount, remaining }]
-    function debtText(customer, debts) {
+    // debts: [{ number, date, amount, remaining }]، notes: أسطر إضافية (مثل الأقساط)
+    function debtText(customer, debts, notes) {
         const info = storeInfo();
         const total = debts.reduce((s, d) => s + Number(d.remaining || 0), 0);
         const lines = [
@@ -238,6 +238,7 @@
         } else {
             lines.push(`فاتورة ${debts[0].number} بتاريخ ${debts[0].date || ''}`, '');
         }
+        if (notes && notes.length) lines.push(...notes, '');
         lines.push('شكرًا لتعاملك معنا.', ...footerLines(info));
         return lines.join('\n').trim();
     }

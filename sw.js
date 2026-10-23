@@ -8,7 +8,7 @@
 const CACHE = 'store-app-v1';
 const PAGES = [
     'index.html', 'home.html', 'cashier.html', 'sales-new_1.html', 'add-invoice.html',
-    'inventory.html', 'purchases.html', 'debts.html', 'cashbox.html', 'reports.html',
+    'inventory.html', 'purchases.html', 'debts.html', 'customers.html', 'cashbox.html', 'reports.html',
     'users.html', 'log.html', 'settings.html', 'exchange-rate.html', 'scanner.html',
     'expired.html', 'terms.html'
 ];

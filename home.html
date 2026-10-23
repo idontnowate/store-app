@@ -23,12 +23,13 @@
     <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610231"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610241"></script>
+    <script src="i18n-en.js?v=202610242"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
-    <script src="layout.js?v=202610231"></script>
-    <script src="whatsapp.js?v=202610241"></script>
+    <script src="layout.js?v=202610241"></script>
+    <script src="whatsapp.js?v=202610242"></script>
+    <script src="credit.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -417,6 +418,7 @@
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
             <a href="debts.html">الديون</a>
+            <a href="customers.html">الزبائن</a>
             <a href="cashbox.html">الصندوق</a>
             <a href="reports.html">التقارير</a>
             <a href="users.html" data-admin-only>المستخدمين</a>
@@ -608,6 +610,10 @@
             }
             if (openDebts.length) {
                 alerts.push({ count: openDebts.length, text: `فواتير دين غير مسددة - ${money(debtTotal)}`, href: 'debts.html' });
+            }
+            const late = StoreCredit.overdueInstallments();
+            if (late.length) {
+                alerts.push({ count: late.length, text: `أقساط متأخرة - ${money(late.reduce((s, x) => s + x.overdueAmount, 0))}`, href: 'customers.html' });
             }
             if (unpaidPurchases.length) {
                 alerts.push({ count: unpaidPurchases.length, text: `فواتير مورد غير مسددة - ${money(unpaidPurchasesTotal)}`, href: 'purchases.html' });

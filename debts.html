@@ -22,12 +22,13 @@
     <title>الديون</title>
     <script src="storage.js?v=202610233"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610241"></script>
+    <script src="i18n-en.js?v=202610242"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
-    <script src="layout.js?v=202610231"></script>
-    <script src="whatsapp.js?v=202610241"></script>
+    <script src="layout.js?v=202610241"></script>
+    <script src="whatsapp.js?v=202610242"></script>
+    <script src="credit.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -450,6 +451,43 @@
             font-weight: 600;
         }
 
+        .plan-form .row-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .plan-preview {
+            font-size: 13.5px;
+            color: var(--text-3, #6b717b);
+        }
+
+        .plan-list li.paid {
+            opacity: .6;
+        }
+
+        .plan-list li.overdue {
+            background: var(--danger-soft, #fdecea) !important;
+            color: var(--danger-text, #a3241c) !important;
+        }
+
+        .plan-list li.due {
+            background: var(--warn-soft, #fdf3e1) !important;
+            color: var(--warn-text, #93570a) !important;
+        }
+
+        .plan-tag {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-3, #6b717b);
+        }
+
+        .plan-tag.late {
+            color: var(--danger, #d4342a);
+        }
+
         .history .none {
             color: var(--muted);
             font-size: 14px;
@@ -548,6 +586,7 @@
             <a href="inventory.html">المخزن</a>
             <a href="purchases.html">المشتريات</a>
             <a href="debts.html" class="active" aria-current="page">الديون</a>
+            <a href="customers.html">الزبائن</a>
             <a href="cashbox.html">الصندوق</a>
             <a href="reports.html">التقارير</a>
             <a href="users.html" data-admin-only>المستخدمين</a>
@@ -654,6 +693,38 @@
         <div class="history">
             <h3>سجل التسديدات</h3>
             <ul id="historyList"></ul>
+        </div>
+
+        <!-- التقسيط: جدول الأقساط أو نموذج إنشائه -->
+        <div class="history plan-box" id="planBox">
+            <h3>التقسيط</h3>
+            <ul class="plan-list" id="planList"></ul>
+            <div class="row" id="planActions" hidden>
+                <button class="btn secondary" type="button" id="replanBtn">إعادة التقسيط</button>
+                <button class="btn secondary" type="button" id="unplanBtn">إلغاء التقسيط</button>
+            </div>
+            <form class="pay-form plan-form" id="planForm" novalidate>
+                <div class="row-3">
+                    <label>عدد الأقساط
+                        <input name="count" type="number" min="2" max="60" step="1" value="3" inputmode="numeric">
+                    </label>
+                    <label>قسط كل
+                        <select name="every">
+                            <option value="1">شهر</option>
+                            <option value="2">شهرين</option>
+                            <option value="3">3 أشهر</option>
+                        </select>
+                    </label>
+                    <label>أول قسط
+                        <input name="start" type="date">
+                    </label>
+                </div>
+                <div class="plan-preview" id="planPreview"></div>
+                <div class="error" id="planError" role="alert"></div>
+                <div class="row">
+                    <button class="btn secondary" type="submit">تقسيط المتبقي</button>
+                </div>
+            </form>
         </div>
     </dialog>
 
@@ -803,13 +874,14 @@
                     <td>${money(d.amount)}</td>
                     <td class="paid-full">${money(d.paid)}</td>
                     <td class="remaining">${money(d.remaining)}</td>
-                    <td><span class="status ${closed ? 'closed' : ''}">${closed ? 'مسددة' : 'مستحقة'}</span></td>
+                    <td><span class="status ${closed ? 'closed' : ''}">${closed ? 'مسددة' : 'مستحقة'}</span>${planTag(d)}</td>
                     <td>
                         <span class="actions">
                             ${closed ? '' : `<button class="btn pay" type="button" data-pay="${escapeHtml(d.inv.number)}">تسديد</button>`}
                             ${closed ? '' : `<button class="wa-btn small" type="button" data-remind="${escapeHtml(d.inv.number)}" title="تذكير الزبون بكل ديونه">${StoreWA.ICON}<span>تذكير</span></button>`}
                             <button class="btn view" type="button" data-history="${escapeHtml(d.inv.number)}">السجل</button>
                             <a class="btn view" href="add-invoice.html?invoice=${d.index}">الفاتورة</a>
+                            ${d.inv.customer && d.inv.customer !== 'زبون نقدي' ? `<a class="btn view" href="customers.html?name=${encodeURIComponent(d.inv.customer.trim())}">كشف الحساب</a>` : ''}
                         </span>
                     </td>
                 </tr>`;
@@ -828,6 +900,100 @@
             document.getElementById('totalPaid').textContent = money(totalPaid);
             document.getElementById('resultText').textContent = `عرض ${rows.length} من ${all.length} فاتورة دين`;
         }
+
+        // حالة التقسيط تحت حالة الفاتورة
+        function planTag(d) {
+            if (d.remaining <= 0) return '';
+            const plan = StoreCredit.planFor(d.inv.number);
+            if (!plan) return '';
+            const st = StoreCredit.planState(plan);
+            if (st.overdueCount) return `<span class="plan-tag late">قسط متأخر: ${money(st.overdueAmount)}</span>`;
+            return st.next ? `<span class="plan-tag">مقسّطة · القادم ${escapeHtml(st.next.due)}</span>` : '';
+        }
+
+        // ===== التقسيط =====
+        const planForm = document.getElementById('planForm');
+        const STATUS_TEXT = { paid: 'مدفوع', partial: 'مدفوع جزئيًا', overdue: 'متأخر', due: 'مستحق اليوم', upcoming: 'قادم' };
+
+        function nextMonth() {
+            return StoreCredit.addMonths(todayLocal(), 1);
+        }
+
+        function renderPlanPreview() {
+            const d = findDebt(activeNumber);
+            const count = Math.floor(Number(planForm.elements.count.value));
+            const el = document.getElementById('planPreview');
+            if (!d || !(count >= 2 && count <= 60)) {
+                el.textContent = '';
+                return;
+            }
+            const amounts = StoreCredit.splitAmounts(d.remaining, count);
+            const first = amounts[0], last = amounts[amounts.length - 1];
+            el.textContent = first === last
+                ? `${amounts.length} أقساط × ${money(first)}`
+                : `${amounts.length - 1} أقساط × ${money(first)} والأخير ${money(last)}`;
+        }
+
+        function renderPlan(d) {
+            const box = document.getElementById('planBox');
+            const plan = StoreCredit.planFor(d.inv.number);
+            const list = document.getElementById('planList');
+            const showForm = !plan || planForm.dataset.replan === '1';
+            box.hidden = d.remaining <= 0 && !plan;
+            document.getElementById('planError').textContent = '';
+
+            if (plan) {
+                list.innerHTML = StoreCredit.schedule(plan).map(r => `
+                    <li class="${r.status}">
+                        <span>القسط ${r.n} — ${escapeHtml(r.due)} — <strong>${money(r.amount)}</strong>${r.paid > 0 && r.left > 0 ? ` (دُفع ${money(r.paid)})` : ''}</span>
+                        <span>${STATUS_TEXT[r.status]}</span>
+                    </li>`).join('');
+            } else {
+                list.innerHTML = '';
+            }
+            list.hidden = !plan;
+            document.getElementById('planActions').hidden = !plan || showForm;
+            planForm.hidden = !showForm || d.remaining <= 0;
+            if (!planForm.hidden && !planForm.elements.start.value) planForm.elements.start.value = nextMonth();
+            renderPlanPreview();
+        }
+
+        planForm.addEventListener('input', renderPlanPreview);
+
+        planForm.addEventListener('submit', event => {
+            event.preventDefault();
+            const d = findDebt(activeNumber);
+            if (!d) return;
+            try {
+                const plan = StoreCredit.createPlan({
+                    invoiceNumber: d.inv.number,
+                    count: planForm.elements.count.value,
+                    every: planForm.elements.every.value,
+                    start: planForm.elements.start.value
+                });
+                delete planForm.dataset.replan;
+                safeLog('pay', 'تقسيط فاتورة ' + d.inv.number,
+                    `الزبون: ${d.inv.customer || '—'} — المبلغ: ${money(plan.total)} — ${plan.count} أقساط، أولها ${plan.start}`);
+                refreshDialog();
+                render();
+            } catch (err) {
+                document.getElementById('planError').textContent = err.message;
+            }
+        });
+
+        document.getElementById('replanBtn').addEventListener('click', () => {
+            planForm.dataset.replan = '1';
+            planForm.elements.start.value = nextMonth();
+            refreshDialog();
+        });
+
+        document.getElementById('unplanBtn').addEventListener('click', () => {
+            if (!activeNumber || !confirm('هل تريد إلغاء تقسيط هذه الفاتورة؟ يبقى الدين والتسديدات كما هي.')) return;
+            StoreCredit.removePlan(activeNumber);
+            safeLog('delete', 'تقسيط فاتورة ' + activeNumber, 'أُلغي التقسيط');
+            refreshDialog();
+            render();
+        });
 
         function findDebt(number) {
             return buildDebts().find(d => d.inv.number === number) || null;
@@ -863,15 +1029,21 @@
             document.getElementById('dlgRemaining').textContent = money(d.remaining);
 
             payForm.hidden = d.remaining <= 0;
-            payAmount.value = d.remaining;
+            // مع التقسيط نقترح مبلغ القسط المستحق بدل كل المتبقي
+            const plan = StoreCredit.planFor(d.inv.number);
+            const next = plan ? StoreCredit.planState(plan).next : null;
+            payAmount.value = next ? Math.min(next.left, d.remaining) : d.remaining;
             payAmount.max = d.remaining;
             renderHistory(activeNumber);
+            renderPlan(d);
         }
 
         function openDialog(number) {
             const d = findDebt(number);
             if (!d) return;
             activeNumber = number;
+            delete planForm.dataset.replan;
+            planForm.elements.start.value = '';
 
             payDate.value = todayLocal();
             payForm.elements.note.value = '';
@@ -897,6 +1069,19 @@
             if (remindBtn) remind(remindBtn.dataset.remind);
         });
 
+        // سطر لكل فاتورة مقسطة: المتأخر أو القسط القادم
+        function installmentNotes(debts) {
+            const out = [];
+            debts.forEach(x => {
+                const plan = StoreCredit.planFor(x.inv.number);
+                if (!plan) return;
+                const st = StoreCredit.planState(plan);
+                if (st.overdueCount) out.push(`قسط متأخر على الفاتورة ${x.inv.number} — ${money(st.overdueAmount)}`);
+                else if (st.next) out.push(`القسط القادم للفاتورة ${x.inv.number} — ${money(st.next.left)} بتاريخ ${st.next.due}`);
+            });
+            return out;
+        }
+
         // تذكير بالواتساب بكل الديون المفتوحة لنفس الزبون، مع رقمه من آخر فاتورة أو المحفوظ
         function remind(number) {
             const d = findDebt(number);
@@ -914,7 +1099,7 @@
                 phone: (withPhone && withPhone.inv.phone) || StoreWA.getPhone(name) || '',
                 text: StoreWA.debtText(name || 'زبوننا العزيز', same.map(x => ({
                     number: x.inv.number, date: x.inv.date, amount: x.amount, remaining: x.remaining
-                })))
+                })), installmentNotes(same))
             });
         }
 
@@ -1014,7 +1199,7 @@
 
         // تحديث الصفحة عند تغيير البيانات من تبويب آخر
         window.addEventListener('storage', event => {
-            if (event.key === INVOICES_KEY || event.key === PAYMENTS_KEY) {
+            if (event.key === INVOICES_KEY || event.key === PAYMENTS_KEY || event.key === StoreCredit.PLANS_KEY) {
                 loadData();
                 syncInvoicePayments();
                 render();

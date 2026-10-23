@@ -1785,3 +1785,73 @@ html[data-motion="off"] ::backdrop {
         scroll-behavior: auto !important;
     }
 }
+
+/* مؤشر الاتصال: بدون إنترنت / تغييرات تنتظر الرفع (يتحكم به pwa.js) */
+@media screen {
+    .net-pill {
+        position: fixed;
+        z-index: 90;
+        bottom: 16px;
+        inset-inline-start: 50%;
+        translate: 50% 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: calc(100vw - 32px);
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        font-size: 13.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out);
+    }
+
+    [dir="ltr"] .net-pill {
+        translate: -50% 12px;
+    }
+
+    .net-pill.show {
+        opacity: 1;
+        translate: 50% 0;
+    }
+
+    [dir="ltr"] .net-pill.show {
+        translate: -50% 0;
+    }
+
+    .net-pill i {
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--warn);
+    }
+
+    .net-pill[data-mode="offline"] i {
+        background: var(--danger);
+    }
+
+    .net-pill[data-mode="ok"] i {
+        background: var(--accent);
+    }
+
+    .net-pill[data-mode="pending"] i {
+        animation: net-blink 1s var(--ease) infinite alternate;
+    }
+
+    @keyframes net-blink {
+        to { opacity: .3; }
+    }
+}
+
+@media print {
+    .net-pill {
+        display: none !important;
+    }
+}

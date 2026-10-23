@@ -3,7 +3,7 @@
     const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_I2L_KEOwIXjyuCOue4w_3g_MMhYImIU';
     const FUNCTION_URL = SUPABASE_URL + '/functions/v1/create-employee';
-    const SUPABASE_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+    const SUPABASE_LIB = 'vendor/supabase-js-2.45.4.js';
     const INTERNAL_EMAIL_DOMAIN = 'users.storeapp.io';
     const LOGIN_PAGE = 'index.html';
     const HOME_PAGE = 'home.html';
@@ -118,16 +118,28 @@
             const s = document.createElement('script');
             s.src = SUPABASE_LIB;
             s.onload = resolve;
-            s.onerror = () => reject(new Error('تعذر تحميل مكتبة Supabase'));
+            s.onerror = () => {
+                s.remove();
+                reject(new Error('تعذر تحميل مكتبة Supabase'));
+            };
             document.head.appendChild(s);
         });
     }
 
-    const clientReady = loadLibrary().then(() => {
-        sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-            auth: { persistSession: true, autoRefreshToken: true }
+    function makeClient() {
+        return loadLibrary().then(() => {
+            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+                auth: { persistSession: true, autoRefreshToken: true }
+            });
         });
-    });
+    }
+
+    let clientReady = makeClient();
+
+    // إذا فشل تحميل المكتبة (بدون إنترنت) نعيد المحاولة عند الحاجة
+    function ensureClient() {
+        return clientReady.catch(() => (clientReady = makeClient()));
+    }
 
     // اسم المستخدم يتحول إلى البريد الداخلي، والبريد الكامل يُستخدم كما هو
     function usernameToEmail(input) {
@@ -146,13 +158,14 @@
     }
 
     async function getSession() {
-        await clientReady;
+        await ensureClient();
         const { data } = await sb.auth.getSession();
         return data.session;
     }
 
     async function login(username, password) {
-        await clientReady;
+        if (navigator.onLine === false) throw new Error('لا يوجد اتصال بالإنترنت. أول تسجيل دخول على الجهاز يحتاج إنترنت');
+        await ensureClient();
         const { data, error } = await sb.auth.signInWithPassword({
             email: usernameToEmail(username),
             password
@@ -183,7 +196,7 @@
         writeLog('logout', 'تسجيل خروج', 'خرج المستخدم ' + displayName(membership));
         try { sessionStorage.removeItem(PENDING_LOGIN_KEY); } catch (e) {}
 
-        await clientReady;
+        await ensureClient();
         await sb.auth.signOut();
         membership = null;
         localStorage.removeItem(MEMBERSHIP_KEY);
@@ -297,7 +310,7 @@
     // ===== الحساب والأمان =====
     // نتحقق من كلمة المرور الحالية أولًا، ثم نغيّرها لحساب المستخدم الحالي فقط
     async function changePassword(current, next) {
-        await clientReady;
+        await ensureClient();
         const { data } = await sb.auth.getSession();
         const email = data.session && data.session.user && data.session.user.email;
         if (!email) throw new Error('انتهت الجلسة، سجّل الدخول من جديد');
@@ -316,15 +329,29 @@
 
     // يلغي جلسات هذا الحساب على كل الأجهزة الأخرى، ويبقى هذا الجهاز مسجّلًا
     async function signOutOthers() {
-        await clientReady;
+        await ensureClient();
         const { error } = await sb.auth.signOut({ scope: 'others' });
         if (error) throw new Error('تعذر تسجيل الخروج من الأجهزة الأخرى');
         writeLog('settings', 'الأمان', 'سجّل المستخدم ' + displayName(membership) + ' الخروج من الأجهزة الأخرى');
     }
 
     // ===== الحماية =====
+    // لا إنترنت (أو تعذر تجديد الجلسة بسبب الشبكة) ومعنا دخول محفوظ: نكمل بالبيانات المحفوظة
+    function offlineFallback() {
+        const cached = read(MEMBERSHIP_KEY, null);
+        if (!optimistic || !cached || !cached.store_id) return false;
+        membership = cached;
+        return !(ADMIN_ONLY_PAGES.includes(page) && membership.role !== 'admin');
+    }
+
     async function guard() {
-        const session = await getSession();
+        await ensureClient();
+        const { data, error } = await sb.auth.getSession();
+        const session = data && data.session;
+
+        // فقط عند خطأ شبكة؛ جلسة ملغاة أو منتهية فعلًا تعيد إلى صفحة الدخول
+        const networkError = navigator.onLine === false || (error && /retryable|fetch|network/i.test((error.name || '') + ' ' + (error.message || '')));
+        if (!session && networkError && offlineFallback()) return true;
 
         if (!session) {
             localStorage.removeItem(MEMBERSHIP_KEY);
@@ -344,6 +371,7 @@
                 if (membership) saveMembership(membership);
             } catch {
                 // خطأ شبكة: لا نسجّل الخروج، نعيد المستخدم لصفحة الدخول فقط
+                if (offlineFallback()) return true;
                 membership = null;
                 if (!isLogin) location.replace(LOGIN_PAGE);
                 return false;
@@ -533,6 +561,11 @@
         })
         .catch(err => {
             console.error('خطأ في تهيئة تسجيل الدخول:', err);
+            // بدون إنترنت قد لا تُحمَّل مكتبة الدخول؛ نبقى في الصفحة بالدخول المحفوظ
+            if (offlineFallback()) {
+                whenDomReady().then(buildUI);
+                return true;
+            }
             if (!isLogin) location.replace(LOGIN_PAGE);
             return false;
         })
@@ -540,11 +573,37 @@
             document.documentElement.style.visibility = '';
         });
 
+    // ===== عودة الاتصال: نجدد الجلسة ثم نرفع ما حُفظ على الجهاز ونجلب الجديد =====
+    let syncing = false;
+    async function syncNow() {
+        if (syncing || isLogin || !window.StoreSync || navigator.onLine === false) return;
+        syncing = true;
+        try {
+            try {
+                await ensureClient();
+                await sb.auth.getSession(); // يجدد رمز الدخول إن كان منتهيًا
+            } catch (err) {
+                // نرفع بالرمز المحفوظ؛ إن كان منتهيًا تبقى التغييرات وتُعاد المحاولة لاحقًا
+            }
+            if (!StoreSync.retryIfFailed()) StoreSync.refresh();
+            window.dispatchEvent(new CustomEvent('storesync', { detail: { synced: true } }));
+        } catch (err) {
+            console.warn('تعذرت المزامنة بعد عودة الاتصال:', err);
+        } finally {
+            syncing = false;
+        }
+    }
+    window.addEventListener('online', () => setTimeout(syncNow, 800));
+    // إذا بقيت تغييرات لم تُرفع (اتصال ضعيف) نعيد المحاولة كل 30 ثانية
+    setInterval(() => {
+        if (window.StoreSync && StoreSync.status().pending > 0) syncNow();
+    }, 30000);
+
     window.StoreAuth = {
         ready,
         client: null, // يُملأ بعد التهيئة، انظر getClient()
         getClient: async () => {
-            await clientReady;
+            await ensureClient();
             return sb;
         },
         currentUser,
@@ -559,6 +618,7 @@
         saveStoreOptions,
         changePassword,
         signOutOthers,
+        syncNow,
         // لصفحة انتهاء الاشتراك
         checkSubscription: () => fetchSubscription().then(st => { applySubscription(st); return st; }),
         subscriptionStatus: () => membership && cachedSubscription(membership.store_id),
@@ -572,5 +632,5 @@
     };
     window.getStoreInfo = getStoreInfo;
 
-    clientReady.then(() => { window.StoreAuth.client = sb; });
+    clientReady.then(() => { window.StoreAuth.client = sb; }).catch(() => { });
 })();

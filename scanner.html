@@ -18,9 +18,10 @@
     <meta name="theme-color" content="#111318">
     <title>ماسح الهاتف</title>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610232"></script>
+    <script src="i18n-en.js?v=202610233"></script>
     <script src="theme.js?v=202610231"></script>
-    <script src="auth.js?v=202610231"></script>
+    <script src="pwa.js?v=202610232"></script>
+    <script src="auth.js?v=202610234"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -283,7 +284,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610231">
+    <link rel="stylesheet" href="design.css?v=202610232">
 </head>
 
 <body class="standalone">
@@ -323,7 +324,7 @@
     </main>
 
     <script>
-        const LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+        const LIB_URL = 'vendor/html5-qrcode-2.3.8.min.js';
         // لا نرسل نفس الباركود مرتين متتاليتين خلال هذه المدة (الكاميرا تقرؤه عدة مرات)
         const REPEAT_MS = 2500;
 

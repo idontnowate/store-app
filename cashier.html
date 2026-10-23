@@ -20,14 +20,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الكاشير</title>
-    <script src="storage.js?v=202610231"></script>
+    <script src="storage.js?v=202610233"></script>
     <script src="products.js?v=202610231"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610232"></script>
+    <script src="i18n-en.js?v=202610233"></script>
     <script src="theme.js?v=202610231"></script>
-    <script src="auth.js?v=202610231"></script>
+    <script src="pwa.js?v=202610232"></script>
+    <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610231"></script>
-    <script src="barcode-camera.js?v=202610232"></script>
+    <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
     <style>
         :root {
@@ -619,7 +620,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610231">
+    <link rel="stylesheet" href="design.css?v=202610232">
 </head>
 
 <body>
@@ -804,13 +805,27 @@
             return Number(p.openingQty || 0) + adjusted - sold;
         }
 
+        // رمز قصير لهذا الجهاز (لا يُزامن)
+        function deviceTag() {
+            let tag = localStorage.getItem('appDeviceTag');
+            if (!tag) {
+                const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                tag = abc[Math.floor(Math.random() * abc.length)] + abc[Math.floor(Math.random() * abc.length)];
+                localStorage.setItem('appDeviceTag', tag);
+            }
+            return tag;
+        }
+
+        // بدون إنترنت قد يبيع جهازان في نفس الوقت فيأخذان نفس الرقم،
+        // لذلك تأخذ فاتورة الجهاز غير المتصل رمزه: C00008-K3
         function nextNumber(list) {
             let max = 0;
             (list || []).forEach(inv => {
-                const m = String(inv.number || '').match(/^C(\d+)$/);
+                const m = String(inv.number || '').match(/^C(\d+)(?:-[A-Z0-9]+)?$/);
                 if (m) max = Math.max(max, Number(m[1]));
             });
-            return 'C' + String(max + 1).padStart(5, '0');
+            const n = 'C' + String(max + 1).padStart(5, '0');
+            return navigator.onLine === false ? n + '-' + deviceTag() : n;
         }
 
         // باركود داخلي (EAN-13 يبدأ بـ 200) للمنتجات التي لا تملك باركودًا
@@ -1206,7 +1221,9 @@
             const cats = [...new Set(items.map(it => it.category).filter(Boolean))];
 
             let number = draft.number;
-            if (invoices.some(inv => inv.number === number)) number = nextNumber(invoices);
+            // رقم بدأته الفاتورة وهي متصلة، ثم انقطع الإنترنت قبل الحفظ: نعطيها رمز الجهاز
+            const offlineNoTag = navigator.onLine === false && /^C\d+$/.test(number || '');
+            if (offlineNoTag || invoices.some(inv => inv.number === number)) number = nextNumber(invoices);
 
             const inv = {
                 number,

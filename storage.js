@@ -94,6 +94,10 @@
         } catch (err) {
             console.warn('تعذر حفظ حالة المزامنة:', err);
         }
+        // مؤشر الاتصال (pwa.js) يعرض عدد التغييرات التي تنتظر الرفع
+        if (name === 'Dirty') {
+            try { window.dispatchEvent(new CustomEvent('storesync')); } catch (e) { }
+        }
     }
 
     // ===== السجلات التي رأتها هذه الصفحة لكل قائمة =====
@@ -145,6 +149,8 @@
     // ===== الاتصال بالسحابة =====
     // طلب متزامن: يكتمل قبل أن تنتقل الصفحة إلى غيرها
     function request(method, url, body, extraHeaders) {
+        // بدون إنترنت: لا ننتظر الشبكة، والتغيير يُحفظ على الجهاز ويُرفع عند عودة الاتصال
+        if (navigator.onLine === false) return null;
         const xhr = new XMLHttpRequest();
         xhr.open(method, url, false);
         xhr.setRequestHeader('apikey', KEY);
@@ -254,11 +260,12 @@
         }, 0);
     }
 
+    // نحفظ السجلات التي كانت الصفحة تعرفها من السحابة عند أول فشل فقط.
+    // لو أضفنا ما عرفته بعد ذلك لاعتُبرت فاتورة جديدة لم تُرفع بعد "معروفة" فتُحذف عند الدمج
     function markDirty(storeId, key) {
         const dirty = loadState('Dirty', storeId);
-        const prev = new Set(dirty[key] || []);
-        (known[key] || new Set()).forEach(s => prev.add(s));
-        dirty[key] = [...prev];
+        if (key in dirty) return;
+        dirty[key] = [...(known[key] || new Set())];
         saveState('Dirty', storeId, dirty);
     }
 
@@ -490,10 +497,12 @@
         // حالة المزامنة لصفحة الإعدادات: عدد التغييرات التي لم تُرفع، ووقت آخر مزامنة ناجحة
         status() {
             const sid = currentStoreId();
-            if (!sid) return { pending: 0, lastSync: null };
+            const offline = navigator.onLine === false;
+            if (!sid) return { pending: 0, lastSync: null, offline };
             return {
                 pending: Object.keys(loadState('Dirty', sid)).length,
-                lastSync: getLocal(stateKey('Last', sid))
+                lastSync: getLocal(stateKey('Last', sid)),
+                offline
             };
         },
         refresh() {

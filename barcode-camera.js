@@ -24,14 +24,16 @@
     function injectCss() {
         const css = `
             dialog#baOverlay { padding: 0; border: 0; background: transparent; max-width: none; max-height: none; width: 100%; height: 100%; }
-            dialog#baOverlay::backdrop { background: #000d; }
+            dialog#baOverlay::backdrop { background: rgba(8, 9, 11, .78); backdrop-filter: blur(4px); }
             .ba-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
-            .ba-box { background: #efede5; border-radius: 20px; padding: 14px; width: min(480px, 100%); display: grid; gap: 10px; font-family: Tahoma, Arial, sans-serif; color: #10110d; }
+            .ba-box { background: var(--surface, #fff); color: var(--text, #0e1116); border: 1px solid var(--border, #e7e8eb); border-radius: 20px; padding: 14px; width: min(480px, 100%); display: grid; gap: 12px; font-family: inherit; box-shadow: 0 30px 80px -20px rgba(0,0,0,.6); }
             #ba-reader { width: 100%; border-radius: 14px; overflow: hidden; background: #000; min-height: 240px; }
-            .ba-msg { font-weight: 700; text-align: center; color: #40570d; min-height: 22px; }
-            .ba-msg.err { color: #c74845; }
-            .ba-close { border: 0; border-radius: 14px; padding: 13px; background: #40570d; color: #fff; font: 700 17px Tahoma, Arial, sans-serif; cursor: pointer; }
-            .ba-cam-btn { border: 0; border-radius: 12px; padding: 0 14px; min-height: 44px; background: #40570d; color: #fff; font: 700 15px Tahoma, Arial, sans-serif; cursor: pointer; white-space: nowrap; margin-inline-start: 6px; }
+            .ba-msg { font-weight: 600; text-align: center; color: var(--text-2, #4a505a); min-height: 22px; }
+            .ba-msg.err { color: var(--danger, #c4372f); }
+            .ba-close { border: 0; border-radius: var(--radius-sm, 10px); padding: 13px; background: var(--primary, #111318); color: var(--primary-text, #fff); font: inherit; font-weight: 600; cursor: pointer; }
+            .ba-cam-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; border: 1px solid var(--border, #e7e8eb); border-radius: var(--radius-sm, 10px); padding: 0 16px; min-height: 44px; background: var(--surface, #fff); color: var(--text, #0e1116); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background var(--dur-1, .15s), border-color var(--dur-1, .15s); }
+            .ba-cam-btn:hover { background: var(--surface-2, #f3f4f6); border-color: var(--border-strong, #d5d8dd); }
+            .ba-cam-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         `;
         const style = document.createElement('style');
         style.textContent = css;
@@ -112,8 +114,9 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'ba-cam-btn';
-            btn.textContent = '📷 مسح';
+            btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg><span>كاميرا</span>';
             btn.title = 'مسح الباركود بالكاميرا';
+            btn.setAttribute('aria-label', 'مسح الباركود بالكاميرا');
             btn.addEventListener('click', () => {
                 if (input.disabled) {
                     alert('افتح فاتورة أو صفحة الإدخال أولا ثم امسح');

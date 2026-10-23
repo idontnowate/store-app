@@ -263,6 +263,8 @@ window.STORE_I18N_EN = {
         "📷 التقاط صورة": "📷 Take photo",
         "🖼 من المعرض": "🖼 From gallery",
         "📷 مسح": "📷 Scan",
+        "كاميرا": "Camera",
+        "إغلاق الكاميرا": "Close camera",
         "حذف الصورة": "Remove image",
         "اسم المنتج يجب أن يطابق \"وصف السلعة\" في الفواتير ليُخصم منه تلقائيًا.": "The product name must match the \"item description\" on invoices to be deducted automatically.",
         "لا توجد منتجات مطابقة. أضف منتجًا جديدًا بمسح باركوده.": "No matching products. Add a new product by scanning its barcode.",

@@ -22,9 +22,10 @@
     <title>المشتريات</title>
     <script src="storage.js?v=202610233"></script>
     <script src="log.js?v=202610231"></script>
+    <script src="products.js?v=202610242"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610242"></script>
+    <script src="i18n-en.js?v=202610243"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -1031,8 +1032,13 @@
                     products.push(product);
                 }
 
-                // آخر سعر شراء يصبح سعر التكلفة
-                product.cost = Number(it.cost || 0);
+                // آخر سعر شراء يصبح سعر التكلفة (فاتورة الشراء بالدينار؛ منتج بالدولار تُحوَّل تكلفته)
+                if (StoreProducts.isUSD(product)) {
+                    const rate = StoreProducts.usdRate();
+                    if (rate) product.cost = Math.round(Number(it.cost || 0) / rate.rate * 100) / 100;
+                } else {
+                    product.cost = Number(it.cost || 0);
+                }
 
                 adjustments.push({
                     productId: product.id,
@@ -1309,7 +1315,7 @@
             if (known) {
                 tr.querySelector('[name=name]').value = known.name;
                 const costField = tr.querySelector('[name=cost]');
-                if (!costField.value) costField.value = known.cost || '';
+                if (!costField.value) costField.value = Math.round(StoreProducts.costIQD(known)) || '';
                 tr.querySelector('[name=qty]').focus();
             } else {
                 tr.querySelector('[name=name]').focus();

@@ -215,6 +215,7 @@
             Number(inv.discount || 0) > 0 ? `المجموع: ${money(sub)}\nالخصم: ${money(inv.discount)}` : null,
             `*الإجمالي: ${money(inv.amount)}*`,
             `الدفع: ${inv.payment || ''}`,
+            inv.usdRate ? `سعر الصرف: ${Number(inv.usdRate).toLocaleString('en-US')} د.ع للدولار` : null,
             inv.payment === 'دين' && inv.remaining !== undefined ? `المتبقي: ${money(inv.remaining)}` : null,
             '',
             info.footer || 'شكرًا لتسوقكم',

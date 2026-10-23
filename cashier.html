@@ -21,14 +21,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الكاشير</title>
     <script src="storage.js?v=202610233"></script>
-    <script src="products.js?v=202610231"></script>
+    <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610242"></script>
+    <script src="i18n-en.js?v=202610243"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610241"></script>
-    <script src="whatsapp.js?v=202610242"></script>
+    <script src="whatsapp.js?v=202610243"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
     <style>
@@ -318,6 +318,22 @@
         .cart {
             position: sticky;
             top: 10px;
+        }
+
+        .usd-total {
+            margin-top: -4px;
+            text-align: left;
+            font-size: 13px;
+            color: var(--text-3, #6b717b);
+        }
+
+        .usd-total[hidden] {
+            display: none;
+        }
+
+        .prod .meta.usd {
+            color: var(--accent-text, #0a6d4f);
+            font-weight: 600;
         }
 
         .last-sale {
@@ -745,6 +761,7 @@
 
                 <div class="sum"><span>المجموع</span><span id="subtotal">0 د.ع</span></div>
                 <div class="sum total"><span>الإجمالي</span><span id="grand">0 د.ع</span></div>
+                <div class="usd-total" id="grandUsd" hidden></div>
 
                 <label class="check">
                     <input type="checkbox" id="autoPrint" checked> طباعة الإيصال بعد البيع
@@ -794,6 +811,7 @@
             discount: $('discount'),
             subtotal: $('subtotal'),
             grand: $('grand'),
+            grandUsd: $('grandUsd'),
             autoPrint: $('autoPrint'),
             checkout: $('checkoutBtn'),
             checkoutMore: $('checkoutMoreBtn'),
@@ -974,6 +992,13 @@
                 note(el.scan, `"${p.name}" بدون سعر بيع. حدّد السعر من صفحة المخزن أولًا`, true);
                 return;
             }
+            // منتج بالدولار: يُحوَّل بسعر الصرف المعتمد الآن، ويبقى سعره ثابتًا في هذه الفاتورة
+            const rate = StoreProducts.isUSD(p) ? StoreProducts.usdRate() : null;
+            const price = StoreProducts.priceIQD(p, rate);
+            if (price === null) {
+                note(el.scan, `"${p.name}" مسعّر بالدولار ولا يوجد سعر صرف مسجل. سجّله من صفحة سعر الصرف`, true);
+                return;
+            }
             if (!canSellBeyondStock() && remaining(p) < 1) {
                 note(el.scan, `"${p.name}" غير متوفر في المخزن`, true);
                 return;
@@ -981,7 +1006,11 @@
 
             const line = draft.lines.find(x => x.id === p.id);
             if (line) line.qty++;
-            else draft.lines.push({ id: p.id, name: p.name, category: catLabel(p), price: Number(p.price), qty: 1 });
+            else {
+                const newLine = { id: p.id, name: p.name, category: catLabel(p), price, qty: 1 };
+                if (rate) Object.assign(newLine, { usd: Number(p.price), rate: rate.rate });
+                draft.lines.push(newLine);
+            }
 
             saveDraft();
             note(el.scan, `تمت إضافة ${p.name}`);
@@ -991,6 +1020,7 @@
 
         // ===== العرض =====
         function render() {
+            usdNow = StoreProducts.usdRate();
             renderStatus();
             renderChips();
             renderProducts();
@@ -1043,15 +1073,19 @@
             el.empty.hidden = labels.length > 0;
         }
 
+        let usdNow = null;
+
         function prodHtml(p) {
             const stock = draft ? remaining(p) : stockOf(p, invoices);
             const noPrice = !(Number(p.price) > 0);
-            const out = (!canSellBeyondStock() && stock <= 0) || noPrice;
+            const iqd = noPrice ? null : StoreProducts.priceIQD(p, usdNow);
+            const out = (!canSellBeyondStock() && stock <= 0) || noPrice || iqd === null;
             const locked = !draft;
             return `<button class="prod ${out ? 'out' : ''} ${locked ? 'locked' : ''}" type="button" data-id="${esc(p.id)}">
                 <span class="prod-img">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}">` : '📦'}</span>
                 <span class="name">${esc(p.name)}</span>
-                <span class="price">${noPrice ? 'بدون سعر' : money(p.price)}</span>
+                <span class="price">${noPrice ? 'بدون سعر' : iqd === null ? 'لا يوجد سعر صرف' : money(iqd)}</span>
+                ${StoreProducts.isUSD(p) && !noPrice ? `<span class="meta usd" dir="ltr">${StoreProducts.fmtUSD(p.price)}</span>` : ''}
                 <span class="meta">المتوفر: ${num(canSellBeyondStock() ? stock : Math.max(0, stock))}</span>
                 <span class="meta">${esc(p.barcode || '')}</span>
             </button>`;
@@ -1076,7 +1110,7 @@
                         <button class="qbtn" type="button" data-act="dec" data-i="${i}" aria-label="تقليل">−</button>
                         <span>${num(l.qty)}</span>
                         <button class="qbtn" type="button" data-act="inc" data-i="${i}" aria-label="زيادة">+</button>
-                        <span class="meta">× ${money(l.price)}</span>
+                        <span class="meta">× ${money(l.price)}${l.usd ? ` <span dir="ltr">(${StoreProducts.fmtUSD(l.usd)})</span>` : ''}</span>
                         <button class="rm" type="button" data-act="rm" data-i="${i}">حذف</button>
                     </div>
                 </div>`).join('');
@@ -1095,6 +1129,10 @@
             const disc = Math.min(Number(draft.discount || 0), subtotal);
             el.subtotal.textContent = money(subtotal);
             el.grand.textContent = money(Math.max(0, subtotal - disc));
+            // ما يعادل الإجمالي بالدولار، لمن يدفع بالدولار
+            const r = StoreProducts.usdRate();
+            el.grandUsd.hidden = !r || !subtotal;
+            if (r) el.grandUsd.textContent = `≈ ${StoreProducts.fmtUSD(Math.round((subtotal - disc) / r.rate * 100) / 100)} بسعر ${num(r.rate)}`;
         }
 
         // ===== الأحداث =====
@@ -1237,6 +1275,7 @@
                     <tr><td>الخصم</td><td style="text-align:left">${money(inv.discount)}</td></tr>
                     <tr><td><strong>الإجمالي</strong></td><td style="text-align:left"><strong>${money(inv.amount)}</strong></td></tr>
                 </table>
+                ${inv.usdRate ? `<div>سعر الصرف: ${num(inv.usdRate)} د.ع للدولار</div>` : ''}
                 <div style="text-align:center;margin-top:6px">${esc(info.footer || 'شكرًا لتسوقكم')}</div>`;
             window.print();
         }
@@ -1275,14 +1314,23 @@
             const disc = Math.min(Number(draft.discount || 0), subtotal);
             const user = window.StoreAuth && StoreAuth.currentUser ? StoreAuth.currentUser() : null;
 
-            const items = draft.lines.map(l => ({
-                category: l.category === 'بدون فئة' ? '' : l.category,
-                description: l.name,
-                productId: l.id,
-                qty: l.qty,
-                price: l.price,
-                total: l.qty * l.price
-            }));
+            const rateNow = StoreProducts.usdRate();
+            const items = draft.lines.map(l => {
+                const prod = products.find(x => x.id === l.id);
+                const it = {
+                    category: l.category === 'بدون فئة' ? '' : l.category,
+                    description: l.name,
+                    productId: l.id,
+                    qty: l.qty,
+                    price: l.price,
+                    total: l.qty * l.price,
+                    // تكلفة القطعة بالدينار وقت البيع، حتى لا يتغير ربح الفاتورة مع تغير الأسعار
+                    cost: Math.round(StoreProducts.costIQD(prod, l.rate ? { rate: l.rate } : rateNow))
+                };
+                if (l.usd) Object.assign(it, { usd: l.usd, rate: l.rate });
+                return it;
+            });
+            const usdRateUsed = (draft.lines.find(l => l.rate) || {}).rate;
             const cats = [...new Set(items.map(it => it.category).filter(Boolean))];
 
             let number = draft.number;
@@ -1311,6 +1359,7 @@
             };
 
             if (phone) inv.phone = phone;
+            if (usdRateUsed) inv.usdRate = usdRateUsed;
 
             invoices.push(inv);
             write('invoices', invoices);

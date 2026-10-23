@@ -21,14 +21,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الصفحة الرئيسية</title>
     <script src="storage.js?v=202610233"></script>
-    <script src="products.js?v=202610231"></script>
+    <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610242"></script>
+    <script src="i18n-en.js?v=202610243"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610241"></script>
-    <script src="whatsapp.js?v=202610242"></script>
+    <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610241"></script>
     <style>
         :root {
@@ -531,6 +531,7 @@
             const manual = safeParse(localStorage.getItem(CASH_MANUAL_KEY));
             const opening = Number(localStorage.getItem(CASH_OPENING_KEY) || 0);
             const today = todayLocal();
+            const rate = StoreProducts.usdRate();
 
             const paidFor = number => payments
                 .filter(p => p.invoiceNumber === number)
@@ -576,7 +577,7 @@
                     .reduce((s, a) => s + Number(a.change || 0), 0);
                 const sold = StoreProducts.soldQty(p, rows.map(r => r.inv));
                 const qty = Number(p.openingQty || 0) + adjusted - sold;
-                return { p, qty, value: Math.max(0, qty) * Number(p.cost || 0) };
+                return { p, qty, value: Math.max(0, qty) * StoreProducts.costIQD(p, rate) };
             });
             const stockValue = stockRows.reduce((s, r) => s + r.value, 0);
             const productCount = products.length;
@@ -586,8 +587,7 @@
             rows.forEach(r => {
                 if (!Array.isArray(r.inv.items)) return;
                 r.inv.items.forEach(it => {
-                    const prod = StoreProducts.productOf(it, products);
-                    cogs += Number(it.qty || 0) * Number(prod?.cost || 0);
+                    cogs += StoreProducts.itemCost(it, products, rate);
                 });
             });
             const rawSales = rows.reduce((s, r) => s + r.amount, 0);
@@ -684,9 +684,9 @@
             const cashToday = todays.filter(inv => inv.payment === 'نقدي' && !inv.debtSettled).reduce((s, inv) => s + invoiceTotal(inv), 0);
 
             let cogs = 0;
+            const rate = StoreProducts.usdRate();
             todays.forEach(inv => (inv.items || []).forEach(it => {
-                const prod = StoreProducts.productOf(it, products);
-                cogs += Number(it.qty || 0) * Number(prod?.cost || 0);
+                cogs += StoreProducts.itemCost(it, products, rate);
             }));
             const salesTotal = todays.reduce((s, inv) => s + invoiceTotal(inv), 0);
 

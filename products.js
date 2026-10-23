@@ -70,11 +70,76 @@
         if (changed) localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
     }
 
+    // ===== الدولار =====
+    // منتج سعره بالدولار: currency = 'USD' وسعر البيع والتكلفة بالدولار.
+    // يُحوَّل للدينار عند البيع بسعر الصرف المعتمد، وتُحفظ الفاتورة بالدينار مع سعر الصرف.
+    const RATES_KEY = 'storeExchangeRates';
+    const OPTIONS_KEY = 'storeOptions';
+    // سعر البيع بالدينار يُقرَّب للأعلى لأقرب 250
+    const ROUND_IQD = 250;
+
+    function options() {
+        try {
+            return JSON.parse(localStorage.getItem(OPTIONS_KEY) || '{}') || {};
+        } catch {
+            return {};
+        }
+    }
+
+    // سعر الدولار المعتمد: الثابت من الإعدادات، أو آخر سعر بيع مسجل في السوق المختار
+    function usdRate() {
+        const o = options();
+        const fixed = Number(o.usdFixed || 0);
+        if (fixed > 0) return { rate: fixed, date: '', source: 'fixed' };
+        const market = o.usdMarket || 'baghdad';
+        const entries = read(RATES_KEY).sort((a, b) =>
+            (b.date || '').localeCompare(a.date || '') ||
+            (b.time || '').localeCompare(a.time || '') ||
+            (b.created || 0) - (a.created || 0));
+        for (const e of entries) {
+            const r = e.rates && e.rates[market];
+            const v = r ? (r.sell ?? r.buy) : null;
+            if (v > 0) return { rate: Number(v), date: e.date || '', source: market };
+            // النسخة الأقدم من صفحة سعر الصرف: { rate }
+            if (!e.rates && Number(e.rate) > 0 && market === 'baghdad') return { rate: Number(e.rate), date: e.date || '', source: market };
+        }
+        return null;
+    }
+
+    const isUSD = p => !!p && p.currency === 'USD';
+
+    // سعر البيع بالدينار، أو null إذا كان بالدولار ولا يوجد سعر صرف
+    function priceIQD(p, rateInfo) {
+        if (!isUSD(p)) return Number(p.price || 0);
+        const r = rateInfo === undefined ? usdRate() : rateInfo;
+        if (!r) return null;
+        return Math.ceil(Number(p.price || 0) * r.rate / ROUND_IQD) * ROUND_IQD;
+    }
+
+    // التكلفة بالدينار (بدون تقريب)؛ منتج بالدولار بلا سعر صرف تُحسب تكلفته صفرًا
+    function costIQD(p, rateInfo) {
+        if (!p) return 0;
+        if (!isUSD(p)) return Number(p.cost || 0);
+        const r = rateInfo === undefined ? usdRate() : rateInfo;
+        return r ? Number(p.cost || 0) * r.rate : 0;
+    }
+
+    // تكلفة سطر فاتورة: المحفوظة وقت البيع، وإلا تكلفة المنتج الحالية
+    function itemCost(item, products, rateInfo) {
+        if (item && item.cost !== undefined && item.cost !== null && item.cost !== '') return Number(item.cost) * Number(item.qty || 0);
+        return costIQD(productOf(item, products), rateInfo) * Number(item && item.qty || 0);
+    }
+
+    function fmtUSD(n) {
+        const v = Number(n || 0);
+        return '$' + v.toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
+    }
+
     try {
         backfill();
     } catch (err) {
         console.warn('تعذر ربط الفواتير القديمة بالمنتجات:', err);
     }
 
-    window.StoreProducts = { matches, productOf, soldQty, itemName };
+    window.StoreProducts = { matches, productOf, soldQty, itemName, usdRate, isUSD, priceIQD, costIQD, itemCost, fmtUSD };
 })();

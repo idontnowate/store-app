@@ -21,9 +21,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>التقارير</title>
 <script src="storage.js?v=202610233"></script>
-    <script src="products.js?v=202610231"></script>
+    <script src="products.js?v=202610242"></script>
 <script src="log.js?v=202610231"></script>
-<script src="i18n-en.js?v=202610242"></script>
+<script src="i18n-en.js?v=202610243"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
 <script src="auth.js?v=202610234"></script>
@@ -665,6 +665,7 @@
         // ===== بناء البيانات =====
         function build() {
             const r = currentRange();
+            const usdRate = StoreProducts.usdRate();
 
             const salesInv = invoices.filter(inv => inRange(inv.date, r));
             const salesTotal = salesInv.reduce((s, inv) => s + invoiceTotal(inv), 0);
@@ -697,7 +698,7 @@
                         const row = byProduct[name] || { qty: 0, value: 0, cost: 0 };
                         row.qty += Number(it.qty || 0);
                         row.value += Number(it.total || 0);
-                        row.cost += Number(it.qty || 0) * Number(prod?.cost || 0);
+                        row.cost += StoreProducts.itemCost(it, products, usdRate);
                         byProduct[name] = row;
                     });
                 } else {

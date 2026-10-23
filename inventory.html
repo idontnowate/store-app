@@ -21,11 +21,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المخزن</title>
     <script src="storage.js?v=202610233"></script>
-    <script src="products.js?v=202610231"></script>
+    <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610242"></script>
+    <script src="i18n-en.js?v=202610243"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -622,6 +622,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <style>
+        .usd-eq {
+            display: block;
+            font-size: 12px;
+            color: var(--text-3, #6b717b);
+            font-weight: 500;
+        }
+    </style>
     <link rel="stylesheet" href="design.css?v=202610232">
 </head>
 
@@ -753,14 +761,21 @@
             <label>الفئة
                 <input name="category" autocomplete="off">
             </label>
+            <label>عملة السعر
+                <select name="currency">
+                    <option value="IQD">دينار عراقي</option>
+                    <option value="USD">دولار (يُحوَّل للدينار عند البيع بسعر الصرف)</option>
+                </select>
+            </label>
             <div class="two">
-                <label>سعر التكلفة (د.ع)
+                <label><span id="costLabel">سعر التكلفة (د.ع)</span>
                     <input name="cost" type="number" min="0" step="1" inputmode="numeric">
                 </label>
-                <label>سعر البيع (د.ع)
+                <label><span id="priceLabel">سعر البيع (د.ع)</span>
                     <input name="price" type="number" min="0" step="1" inputmode="numeric">
                 </label>
             </div>
+            <p class="hint" id="usdHint" hidden></p>
             <div class="two">
                 <label>الكمية الافتتاحية
                     <input name="openingQty" type="number" min="0" step="1" inputmode="numeric" value="0">
@@ -979,11 +994,20 @@
             return products.find(p => p.barcode === code && p.id !== exceptId) || null;
         }
 
+        // سعر بالدولار: نعرضه مع ما يعادله بالدينار الآن
+        function priceCell(p, field, rate) {
+            if (!StoreProducts.isUSD(p)) return money(p[field]);
+            const usd = StoreProducts.fmtUSD(p[field]);
+            const iqd = field === 'price' ? StoreProducts.priceIQD(p, rate) : (rate ? Math.round(StoreProducts.costIQD(p, rate)) : null);
+            return `<span dir="ltr">${usd}</span>${iqd !== null ? `<small class="usd-eq">≈ ${money(iqd)}</small>` : ''}`;
+        }
+
         function render() {
+            const rate = StoreProducts.usdRate();
             const all = products.map(p => {
                 const qty = currentQty(p);
                 const status = statusOf(p, qty);
-                return { p, qty, status, value: Math.max(0, qty) * Number(p.cost || 0) };
+                return { p, qty, status, value: Math.max(0, qty) * StoreProducts.costIQD(p, rate) };
             });
 
             const q = searchInput.value.trim().toLowerCase();
@@ -1006,8 +1030,8 @@
                     <td class="barcode">${esc(p.barcode)}</td>
                     <td class="qty ${status === 'low' ? 'low' : ''} ${status === 'out' ? 'out' : ''}">${num(qty)}</td>
                     <td>${num(p.minQty)}</td>
-                    <td>${money(p.cost)}</td>
-                    <td>${money(p.price)}</td>
+                    <td>${priceCell(p, 'cost', rate)}</td>
+                    <td>${priceCell(p, 'price', rate)}</td>
                     <td class="value">${money(value)}</td>
                     <td><span class="status ${status === 'ok' ? '' : status}">${STATUS_LABEL[status]}</span></td>
                     <td>
@@ -1042,8 +1066,10 @@
             f.barcode.value = p?.barcode || '';
             f.name.value = p?.name || '';
             f.category.value = p?.category || '';
+            f.currency.value = p?.currency === 'USD' ? 'USD' : 'IQD';
             f.cost.value = p?.cost ?? '';
             f.price.value = p?.price ?? '';
+            renderCurrency();
             f.openingQty.value = p?.openingQty ?? 0;
             // منتج جديد يبدأ بالحد الأدنى الافتراضي من الإعدادات
             const defaults = window.StoreAuth && StoreAuth.getStoreOptions ? StoreAuth.getStoreOptions() : {};
@@ -1054,6 +1080,25 @@
             // للمنتج الجديد يبدأ المؤشر في خانة الباركود لمسحه مباشرة
             setTimeout(() => (p ? f.name : barcodeField).focus(), 50);
         }
+
+        // تسميات الأسعار حسب العملة، مع ما يعادل سعر البيع بالدينار
+        function renderCurrency() {
+            const f = productForm.elements;
+            const usd = f.currency.value === 'USD';
+            $('costLabel').textContent = usd ? 'سعر التكلفة ($)' : 'سعر التكلفة (د.ع)';
+            $('priceLabel').textContent = usd ? 'سعر البيع ($)' : 'سعر البيع (د.ع)';
+            [f.cost, f.price].forEach(i => { i.step = usd ? '0.01' : '1'; i.inputMode = usd ? 'decimal' : 'numeric'; });
+            const hint = $('usdHint');
+            hint.hidden = !usd;
+            if (!usd) return;
+            const r = StoreProducts.usdRate();
+            const iqd = r ? StoreProducts.priceIQD({ currency: 'USD', price: Number(f.price.value || 0) }, r) : null;
+            hint.textContent = r
+                ? `بسعر الصرف المعتمد ${num(r.rate)}: يُباع الآن بـ ${money(iqd)}`
+                : 'لا يوجد سعر صرف مسجل. سجّله من صفحة سعر الصرف قبل البيع.';
+        }
+        productForm.elements.currency.addEventListener('change', renderCurrency);
+        productForm.elements.price.addEventListener('input', renderCurrency);
 
         // Enter من القارئ: نمنع إرسال النموذج وننتقل إلى الاسم
         barcodeField.addEventListener('keydown', e => {
@@ -1105,6 +1150,7 @@
                 name,
                 barcode,
                 category: f.category.value.trim(),
+                currency: f.currency.value === 'USD' ? 'USD' : 'IQD',
                 cost: Math.max(0, Number(f.cost.value || 0)),
                 price: Math.max(0, Number(f.price.value || 0)),
                 openingQty: Math.max(0, Number(f.openingQty.value || 0)),
@@ -1135,7 +1181,7 @@
             safeLog(
                 isEdit ? 'edit' : 'create',
                 'منتج ' + productSnapshot.name,
-                `الباركود: ${barcode} — الفئة: ${data.category || '—'} — سعر التكلفة: ${money(data.cost)} — سعر البيع: ${money(data.price)} — الكمية الافتتاحية: ${num(data.openingQty)}` +
+                `الباركود: ${barcode} — الفئة: ${data.category || '—'} — سعر التكلفة: ${data.currency === 'USD' ? StoreProducts.fmtUSD(data.cost) : money(data.cost)} — سعر البيع: ${data.currency === 'USD' ? StoreProducts.fmtUSD(data.price) : money(data.price)} — الكمية الافتتاحية: ${num(data.openingQty)}` +
                 (isEdit && previous && previous.name !== name ? ` — الاسم السابق: ${previous.name}` : '')
             );
 

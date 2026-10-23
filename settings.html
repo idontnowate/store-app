@@ -21,8 +21,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
     <script src="storage.js?v=202610233"></script>
+    <script src="products.js?v=202610242"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610242"></script>
+    <script src="i18n-en.js?v=202610243"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -921,7 +922,20 @@
                             <label>الحد الأدنى الافتراضي للمنتجات الجديدة
                                 <input name="defaultMinQty" type="number" min="0" step="1" inputmode="numeric">
                             </label>
+                            <label>سعر الدولار للمنتجات المسعّرة بالدولار
+                                <select name="usdMarket">
+                                    <option value="baghdad">آخر سعر بيع في سوق بغداد</option>
+                                    <option value="erbil">آخر سعر بيع في سوق أربيل</option>
+                                    <option value="basra">آخر سعر بيع في سوق البصرة</option>
+                                    <option value="official">السعر الرسمي</option>
+                                    <option value="fixed">سعر ثابت أحدده</option>
+                                </select>
+                            </label>
+                            <label id="usdFixedField">السعر الثابت (دينار لكل دولار)
+                                <input name="usdFixed" type="number" min="1" step="any" inputmode="decimal" placeholder="1480">
+                            </label>
                         </div>
+                        <p class="hint" id="usdNow"></p>
                         <div class="set-actions">
                             <span class="hint">الحد الأدنى يظهر تنبيه "منخفض" عند الوصول إليه.</span>
                             <button class="btn red" type="submit">حفظ إعدادات البيع</button>
@@ -1182,7 +1196,21 @@
             optionsForm.elements.allowNegativeStock.checked = !!o.allowNegativeStock;
             optionsForm.elements.defaultPayment.value = o.defaultPayment === 'بطاقة' ? 'بطاقة' : 'نقدي';
             optionsForm.elements.defaultMinQty.value = Number(o.defaultMinQty || 0);
+            optionsForm.elements.usdMarket.value = Number(o.usdFixed) > 0 ? 'fixed' : (o.usdMarket || 'baghdad');
+            optionsForm.elements.usdFixed.value = Number(o.usdFixed) > 0 ? o.usdFixed : '';
+            renderUsd();
         }
+
+        // السعر المعتمد الآن، كما سيستخدمه الكاشير
+        function renderUsd() {
+            const f = optionsForm.elements;
+            $('usdFixedField').style.display = f.usdMarket.value === 'fixed' ? '' : 'none';
+            const r = StoreProducts.usdRate();
+            $('usdNow').textContent = r
+                ? `السعر المعتمد الآن: ${Number(r.rate).toLocaleString('en-US')} دينار لكل دولار` + (r.date ? ` (مسجل في ${r.date})` : '')
+                : 'لا يوجد سعر صرف مسجل لهذا السوق. سجّله من صفحة سعر الصرف، وإلا لا يمكن بيع المنتجات المسعّرة بالدولار.';
+        }
+        optionsForm.elements.usdMarket.addEventListener('change', renderUsd);
 
         optionsForm.addEventListener('submit', event => {
             event.preventDefault();
@@ -1191,8 +1219,15 @@
             const options = {
                 allowNegativeStock: f.allowNegativeStock.checked,
                 defaultPayment: f.defaultPayment.value,
-                defaultMinQty: Math.max(0, Math.floor(Number(f.defaultMinQty.value || 0)))
+                defaultMinQty: Math.max(0, Math.floor(Number(f.defaultMinQty.value || 0))),
+                usdMarket: f.usdMarket.value === 'fixed' ? 'baghdad' : f.usdMarket.value,
+                usdFixed: f.usdMarket.value === 'fixed' ? Math.max(0, Number(f.usdFixed.value || 0)) : 0
             };
+            if (f.usdMarket.value === 'fixed' && !(options.usdFixed > 0)) {
+                flash('اكتب السعر الثابت للدولار', true);
+                f.usdFixed.focus();
+                return;
+            }
             A.saveStoreOptions(options);
             loadOptionsForm();
             log('إعدادات البيع', `البيع عند النفاد: ${options.allowNegativeStock ? 'مسموح' : 'ممنوع'} — الدفع الافتراضي: ${options.defaultPayment} — الحد الأدنى الافتراضي: ${options.defaultMinQty}`);

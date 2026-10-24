@@ -24,9 +24,10 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="barcode-camera.js?v=202610233"></script>
+    <script src="barcode-engine.js?v=202610242"></script>
+    <script src="barcode-camera.js?v=202610242"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610247"></script>
+    <script src="i18n-en.js?v=202610248"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -739,7 +740,7 @@
     <dialog id="productDialog" aria-labelledby="productTitle">
         <h2 id="productTitle">إضافة منتج</h2>
         <form class="dlg-form" id="productForm" novalidate>
-            <label class="barcode-field">الباركود (امسحه بالقارئ ثم Enter)
+            <label class="barcode-field">الباركود (اختياري: امسحه بالقارئ أو الكاميرا)
                 <input name="barcode" id="barcodeField" autocomplete="off" inputmode="none" placeholder="امسح الباركود">
             </label>
 
@@ -997,8 +998,7 @@
                 if (!barcodeField.value.trim() && /^\d{8,14}$/.test(r.barcode || '')) barcodeField.value = r.barcode;
                 pendingImage = image;
                 setPreview(image);
-                productError.textContent = (!barcodeField.value.trim() ? 'امسح باركود المنتج ثم احفظ. ' : '') +
-                    `راجع الاسم والسعر قبل الحفظ. متبقي ${out.remaining} من ${out.limit} هذا الشهر.`;
+                productError.textContent = `راجع الاسم والسعر قبل الحفظ. متبقي ${out.remaining} من ${out.limit} هذا الشهر.`;
                 aiProductBtn.title = `متبقي ${out.remaining} من ${out.limit} هذا الشهر`;
             } catch (err) {
                 productError.textContent = err.message;
@@ -1172,12 +1172,8 @@
             const name = f.name.value.trim();
             const barcode = f.barcode.value.trim();
 
-            if (!barcode) {
-                productError.textContent = 'امسح باركود المنتج أو اكتبه قبل الحفظ';
-                barcodeField.focus();
-                return;
-            }
-            const owner = barcodeOwner(barcode, editingId);
+            // الباركود اختياري: المنتج بدونه يُباع من الكاشير بالضغط عليه أو البحث باسمه
+            const owner = barcode ? barcodeOwner(barcode, editingId) : null;
             if (owner) {
                 productError.textContent = `هذا الباركود مستخدم للمنتج "${owner.name}"`;
                 barcodeField.focus();

@@ -24,9 +24,10 @@
     <script src="rates.js?v=202610241"></script>
     <script src="log.js?v=202610231"></script>
     <script src="products.js?v=202610243"></script>
-    <script src="barcode-camera.js?v=202610233"></script>
+    <script src="barcode-engine.js?v=202610242"></script>
+    <script src="barcode-camera.js?v=202610242"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610247"></script>
+    <script src="i18n-en.js?v=202610248"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -866,8 +867,7 @@
                     <tbody id="itemsBody"></tbody>
                 </table>
             </div>
-            <p class="hint">امسح باركود المنتج. إذا كان موجودًا في المخزن تُملأ بياناته وتُضاف الكمية إليه، وإذا لم يكن
-                موجودًا اكتب اسمه ليُنشأ تلقائيًا بالباركود الممسوح.</p>
+            <p class="hint">امسح باركود المنتج أو اكتب اسمه كما في المخزن (الباركود اختياري). المنتج الموجود تُضاف الكمية إليه، وغير الموجود يُنشأ تلقائيًا.</p>
 
             <label>الخصم (د.ع)
                 <input name="discount" type="number" min="0" step="1" inputmode="numeric">
@@ -1064,7 +1064,11 @@
             adjustments = adjustments.filter(a => a.purchaseId !== pur.id);
 
             pur.items.forEach(it => {
-                let product = findByBarcode(it.barcode);
+                // بالباركود أولًا، وإلا بالاسم (منتج بلا باركود)
+                let product = (it.barcode && findByBarcode(it.barcode)) ||
+                    products.find(p => String(p.name).trim() === String(it.name).trim()) || null;
+                // منتج بلا باركود صار له باركود في هذه الفاتورة
+                if (product && it.barcode && !product.barcode) product.barcode = it.barcode;
 
                 if (!product) {
                     product = {
@@ -1453,11 +1457,11 @@
                 const row = { barcode: p ? (p.barcode || '') : (it.barcode || ''), name: p ? p.name : it.name, qty, cost: toIQD(unit) };
                 addRow(row);
                 const tr = itemsBody.lastElementChild;
-                if (!row.barcode) {
+                if (p) {
+                    known++;
+                } else {
                     tr.classList.add('needs-barcode');
                     fresh++;
-                } else {
-                    known++;
                 }
                 if (it.confidence !== 'high') {
                     tr.classList.add('check');
@@ -1468,7 +1472,7 @@
             recalc();
 
             const parts = [`قُرئ ${known + fresh} صنف: ${known} موجود في المخزن`];
-            if (fresh) parts.push(`${fresh} جديد يحتاج مسح باركوده (معلَّم)`);
+            if (fresh) parts.push(`${fresh} منتج جديد سيُضاف للمخزن (معلَّم، امسح باركوده إن وُجد)`);
             if (unsure) parts.push(`${unsure} سطر غير واضح تمامًا (مظلَّل)، راجع كميته وسعره`);
             const subtotal = readItems().reduce((s, it) => s + it.total, 0);
             const invTotal = toIQD(r.total);
@@ -1536,12 +1540,9 @@
                 errorEl.textContent = 'أضف صنفًا واحدًا على الأقل';
                 return;
             }
-            if (items.some(it => !it.barcode)) {
-                errorEl.textContent = 'امسح باركود كل منتج قبل الحفظ';
-                return;
-            }
+            // الباركود اختياري: السطر بدونه يُربط بالمنتج باسمه، أو يُنشأ منتج جديد بلا باركود
             if (items.some(it => !it.name)) {
-                errorEl.textContent = 'اكتب اسم المنتج الجديد في كل سطر بدون مخزن';
+                errorEl.textContent = 'اكتب اسم المنتج في كل سطر';
                 return;
             }
             if (items.some(it => it.qty <= 0 || it.cost <= 0)) {
@@ -1552,8 +1553,8 @@
             // الاسم مرتبط بباركود آخر؟ نمنع الالتباس
             for (const it of items) {
                 const byName = products.find(p => p.name.trim() === it.name.trim());
-                const byCode = findByBarcode(it.barcode);
-                if (byName && !byCode && byName.barcode !== it.barcode) {
+                const byCode = it.barcode ? findByBarcode(it.barcode) : null;
+                if (it.barcode && byName && !byCode && byName.barcode && byName.barcode !== it.barcode) {
                     errorEl.textContent = `الاسم "${it.name}" مرتبط بباركود آخر في المخزن`;
                     return;
                 }

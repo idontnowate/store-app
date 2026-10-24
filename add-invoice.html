@@ -24,11 +24,13 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610247"></script>
+    <script src="i18n-en.js?v=202610248"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610242"></script>
+    <script src="barcode-engine.js?v=202610242"></script>
+    <script src="barcode-camera.js?v=202610242"></script>
     <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <style>
@@ -195,6 +197,35 @@
 
         .items-section {
             grid-column: 1 / -1
+        }
+
+        .scan-add-wrap {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .scan-add {
+            width: min(260px, 60vw);
+            height: 40px;
+            padding: 0 12px;
+            border-radius: var(--radius-sm, 10px);
+            border: 1px solid var(--border-strong, #d5d8dd);
+            background: var(--surface, #fff);
+            color: var(--text, #0e1116);
+            font: inherit;
+        }
+
+        .scan-msg {
+            min-height: 18px;
+            margin: 6px 0;
+            font-size: 13.5px;
+            color: var(--accent-text, #0a6d4f);
+        }
+
+        .scan-msg.err {
+            color: var(--danger-text, #a3241c);
         }
 
         .items-toolbar {
@@ -700,8 +731,13 @@
                 <section class="items-section">
                     <div class="items-toolbar">
                         <span>الأصناف</span>
-                        <button class="add-row" type="button" id="addItemBtn">+ إضافة سطر</button>
+                        <span class="scan-add-wrap">
+                            <input id="scanAdd" name="barcode" class="scan-add" autocomplete="off" inputmode="none"
+                                placeholder="امسح باركود منتج لإضافته (اختياري)">
+                            <button class="add-row" type="button" id="addItemBtn">+ إضافة سطر</button>
+                        </span>
                     </div>
+                    <div class="scan-msg" id="scanMsg" role="status" aria-live="polite"></div>
                     <div class="items-wrap">
                         <table class="items">
                             <thead>
@@ -973,6 +1009,51 @@
             renumber();
             recalc();
             itemsBody.lastElementChild.querySelector('[name=category]').focus();
+        });
+
+        // ===== إضافة منتج بالباركود (القارئ أو الكاميرا) =====
+        // سطر المنتج نفسه تزيد كميته، وإلا يُملأ أول سطر فارغ أو يُضاف سطر جديد
+        const scanAdd = document.getElementById('scanAdd');
+        const scanMsg = document.getElementById('scanMsg');
+
+        function addByBarcode(code) {
+            const product = products.find(p => p.barcode && p.barcode === code);
+            if (!product) {
+                scanMsg.textContent = `الباركود ${code} غير مسجّل في المخزن. اكتب اسم المنتج يدويًا`;
+                scanMsg.className = 'scan-msg err';
+                return;
+            }
+            const rows = Array.from(itemsBody.rows);
+            const same = rows.find(tr => tr.dataset.productId === product.id ||
+                tr.querySelector('[name=description]').value.trim() === String(product.name).trim());
+            if (same) {
+                const qty = same.querySelector('[name=qty]');
+                qty.value = Number(qty.value || 0) + 1;
+            } else {
+                let tr = rows.find(r => !r.querySelector('[name=description]').value.trim() && !r.querySelector('[name=category]').value.trim());
+                if (!tr) {
+                    addRow();
+                    tr = itemsBody.lastElementChild;
+                }
+                tr.querySelector('[name=description]').value = product.name;
+                tr.querySelector('[name=category]').value = product.category || '';
+                const iqd = StoreProducts.priceIQD(product);
+                if (iqd !== null) tr.querySelector('[name=price]').value = iqd;
+                tr.querySelector('[name=qty]').value = 1;
+                tr.dataset.productId = product.id;
+            }
+            renumber();
+            recalc();
+            scanMsg.textContent = `تمت إضافة ${product.name}`;
+            scanMsg.className = 'scan-msg';
+        }
+
+        scanAdd.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const code = scanAdd.value.trim();
+            scanAdd.value = '';
+            if (code) addByBarcode(code);
         });
 
         // عند اختيار منتج من المخزن تُملأ الفئة والسعر إذا كانا فارغين

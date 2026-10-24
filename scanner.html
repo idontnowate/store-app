@@ -18,10 +18,11 @@
     <meta name="theme-color" content="#111318">
     <title>ماسح الهاتف</title>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610247"></script>
+    <script src="i18n-en.js?v=202610248"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
+    <script src="barcode-engine.js?v=202610242"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -324,7 +325,6 @@
     </main>
 
     <script>
-        const LIB_URL = 'vendor/html5-qrcode-2.3.8.min.js';
         // لا نرسل نفس الباركود مرتين متتاليتين خلال هذه المدة (الكاميرا تقرؤه عدة مرات)
         const REPEAT_MS = 2500;
 
@@ -358,16 +358,6 @@
                 : '<li class="none">لا توجد مسحات بعد</li>';
         }
 
-        function loadLib() {
-            if (window.Html5Qrcode) return Promise.resolve();
-            return new Promise((resolve, reject) => {
-                const s = document.createElement('script');
-                s.src = LIB_URL;
-                s.onload = resolve;
-                s.onerror = () => reject(new Error('تعذر تحميل مكتبة القراءة. تحقق من الإنترنت'));
-                document.head.appendChild(s);
-            });
-        }
 
         // يرسل الباركود إلى متجر المستخدم فقط؛ يستقبله scanbridge.js على الكمبيوتر
         async function send(code) {
@@ -402,7 +392,7 @@
                         updated_at: new Date(now).toISOString()
                     })
                 });
-                if (!res.ok) throw new Error('HTTP ' + res.scan-status);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
 
                 sent.unshift({ code, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) });
                 renderHistory();
@@ -421,14 +411,7 @@
             el.toggle.disabled = true;
             setStatus('جارِ تشغيل الكاميرا…');
             try {
-                await loadLib();
-                scanner = new Html5Qrcode('reader');
-                await scanner.start(
-                    { facingMode: 'environment' },
-                    { fps: 12, qrbox: (w, h) => ({ width: Math.round(w * .8), height: Math.round(Math.min(h * .35, w * .5)) }) },
-                    text => send(text),
-                    () => { }
-                );
+                scanner = await StoreBarcode.start(document.getElementById('reader'), code => send(code));
                 el.idle.hidden = true;
                 el.toggle.textContent = 'إيقاف الكاميرا';
                 el.toggle.classList.add('stop');
@@ -447,7 +430,6 @@
             scanner = null;
             if (s) {
                 try { await s.stop(); } catch { }
-                try { s.clear(); } catch { }
             }
             el.idle.hidden = false;
             el.toggle.textContent = 'تشغيل الكاميرا';

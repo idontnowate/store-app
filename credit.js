@@ -148,6 +148,34 @@
         return out;
     }
 
+    // أقساط غير مسددة تستحق خلال الأيام القادمة (0 = اليوم، 1 = اليوم وغدًا)؛ للتنبيه قبل موعد التسديد
+    function upcomingInstallments(days = 1) {
+        const d = load();
+        const today = todayLocal();
+        const until = addDays(today, days);
+        const out = [];
+        d.plans.forEach(plan => {
+            const inv = d.invoices.find(x => x.number === plan.invoiceNumber);
+            if (!inv) return;
+            schedule(plan, d).forEach(row => {
+                if (row.left > 0 && row.due >= today && row.due <= until) {
+                    out.push({ plan, inv, ...row, customer: nameKey(inv.customer || plan.customer), inDays: daysFrom(today, row.due) });
+                }
+            });
+        });
+        return out.sort((a, b) => a.due.localeCompare(b.due) || b.left - a.left);
+    }
+
+    function addDays(iso, n) {
+        const t = new Date(iso + 'T00:00:00Z');
+        t.setUTCDate(t.getUTCDate() + n);
+        return t.toISOString().slice(0, 10);
+    }
+
+    function daysFrom(a, b) {
+        return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+    }
+
     // ===== الزبائن وكشف الحساب =====
     function customers() {
         const d = load();
@@ -239,6 +267,7 @@
         createPlan,
         removePlan,
         overdueInstallments,
+        upcomingInstallments,
         customers,
         statement
     };

@@ -884,6 +884,8 @@ window.STORE_I18N_EN = {
     },
 
     PATTERNS: [
+        [/^أقساط تستحق اليوم — (.+)$/, 'Installments due today — {1}'],
+        [/^أقساط تستحق غدًا — (.+)$/, 'Installments due tomorrow — {1}'],
         [/^وصل المتجر للحد الأعلى من الأجهزة \((\S+)\)\. اطلب من المدير إيقاف جهاز لا يُستخدم من صفحة المستخدمين، أو تواصل مع المزود لزيادة الحد$/, 'The store reached its device limit ({1}). Ask the manager to block an unused device from the Users page, or contact the provider to raise the limit'],
         [/^(\S+) من (\S+) أجهزة مسموحة — تجاوزت الحد: أوقف جهازًا لا يُستخدم$/, '{1} of {2} allowed devices — over the limit: block an unused device'],
         [/^(\S+) من (\S+) أجهزة مسموحة$/, '{1} of {2} allowed devices'],

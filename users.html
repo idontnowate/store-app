@@ -21,11 +21,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المستخدمين</title>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610252"></script>
+    <script src="i18n-en.js?v=202610253"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610250"></script>
-    <script src="layout.js?v=202610242"></script>
+    <script src="layout.js?v=202610253"></script>
     <style>
         :root {
             --page: #efede5;
@@ -128,6 +128,10 @@
             grid-template-columns: 1fr 1.4fr;
             gap: 18px;
             align-items: start;
+        }
+
+        .grid > * {
+            min-width: 0;
         }
 
         .card {
@@ -402,7 +406,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610233">
+    <link rel="stylesheet" href="design.css?v=202610253">
 </head>
 
 <body>
@@ -474,6 +478,7 @@
 
             <article class="card">
                 <h2>المستخدمون في المتجر</h2>
+                <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
@@ -485,6 +490,7 @@
                     </thead>
                     <tbody id="memberRows"></tbody>
                 </table>
+                </div>
             </article>
         </section>
 
@@ -542,7 +548,7 @@
                     <td>${esc(m.display_name)}</td>
                     <td>${esc(m.username)}</td>
                     <td><span class="role ${m.role === 'admin' ? 'admin' : ''}">${StoreAuth.roleLabel(m.role)}</span></td>
-                    <td>${new Date(m.created_at).toLocaleDateString('ar')}</td>
+                    <td>${m.created_at && !Number.isNaN(Date.parse(m.created_at)) ? new Date(m.created_at).toLocaleDateString('en-GB') : '—'}</td>
                 </tr>`).join('');
         }
 

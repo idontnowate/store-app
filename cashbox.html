@@ -23,11 +23,11 @@
 <script src="storage.js?v=202610251"></script>
 <script src="rates.js?v=202610241"></script>
 <script src="log.js?v=202610231"></script>
-<script src="i18n-en.js?v=202610252"></script>
+<script src="i18n-en.js?v=202610253"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
 <script src="auth.js?v=202610250"></script>
-<script src="layout.js?v=202610242"></script>
+<script src="layout.js?v=202610253"></script>
 <script src="storefront.js?v=202610242"></script>
     <style>
         :root {
@@ -495,7 +495,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610233">
+    <link rel="stylesheet" href="design.css?v=202610253">
 </head>
 
 <body>
@@ -735,16 +735,37 @@
                 });
             });
 
-            // المشتريات المدفوعة نقدًا أو بالبطاقة، والمسددة من الدين
+            // المشتريات المدفوعة نقدًا أو بالبطاقة، ودفعات فواتير الدين للموردين (كل دفعة بتاريخها، حتى الجزئية)
             purchases.forEach(p => {
-                const paidNow = p.payment === 'نقدي' || p.payment === 'بطاقة' || (p.payment === 'دين' && p.settled);
-                if (paidNow) {
+                if (p.payment === 'نقدي' || p.payment === 'بطاقة') {
                     list.push({
                         id: 'pur-' + p.id,
                         date: p.date || '',
                         kind: 'out',
                         source: 'purchase',
                         label: `شراء فاتورة ${p.number} - ${p.supplier || ''}`,
+                        amount: purchaseTotal(p)
+                    });
+                } else if (p.payment === 'دين' && Array.isArray(p.payments)) {
+                    p.payments.forEach((x, i) => {
+                        if (!(Number(x.amount) > 0)) return;
+                        list.push({
+                            id: 'pur-' + p.id + '-' + (x.id || i),
+                            date: x.date || p.date || '',
+                            kind: 'out',
+                            source: 'purchase',
+                            label: `دفعة لمورد: فاتورة ${p.number} - ${p.supplier || ''}${x.note ? ' (' + x.note + ')' : ''}`,
+                            amount: Number(x.amount)
+                        });
+                    });
+                } else if (p.payment === 'دين' && p.settled) {
+                    // فواتير قديمة سُددت قبل تفعيل الدفعات
+                    list.push({
+                        id: 'pur-' + p.id,
+                        date: p.date || '',
+                        kind: 'out',
+                        source: 'purchase',
+                        label: `تسديد فاتورة مورد ${p.number} - ${p.supplier || ''}`,
                         amount: purchaseTotal(p)
                     });
                 }

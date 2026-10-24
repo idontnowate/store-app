@@ -128,6 +128,55 @@
         else if (window.StoreAuth) StoreAuth.ready.then(ok => { if (ok) playEntrance(); });
     }
 
+    // ===== الجداول على الهاتف: كل سطر بطاقة، وكل خانة بعنوان عمودها (التنسيق في design.css) =====
+    const SKIP_TABLE = '#printSheet, #receipt, #printArea, .no-stack, .ps-table';
+
+    function labelTable(table) {
+        if (table.closest(SKIP_TABLE) || !table.tHead) return;
+        const body = table.tBodies[0];
+        if (!body) return;
+        // جدول إدخال (أصناف الفاتورة والمشتريات): بطاقات بخانات بعرض كامل
+        table.classList.toggle('stack-form', !!body.querySelector('input:not([type=checkbox]), select, textarea'));
+        const heads = [...table.tHead.rows[0].cells].map(th => th.textContent.trim());
+        if (heads.length < 3) return;
+        table.classList.add('stacked');
+        [...table.tBodies].forEach(tb => [...tb.rows].forEach(tr => {
+            let col = 0;
+            [...tr.cells].forEach(td => {
+                const label = td.colSpan > 1 ? '' : (heads[col] || '');
+                if (td.dataset.label !== label) td.dataset.label = label;
+                td.classList.toggle('wide', td.colSpan > 1);
+                // خانة فارغة («لا يوجد»، «—») تُخفى في البطاقة فتقصر
+                const text = td.textContent.trim();
+                td.classList.toggle('blank', td.colSpan === 1 && !td.querySelector('img, svg, button, a, input') && ['', '—', '-', 'لا يوجد'].includes(text));
+                col += td.colSpan || 1;
+            });
+        }));
+    }
+
+    let labelQueued = false;
+    function labelTables() {
+        labelQueued = false;
+        document.querySelectorAll('main table, dialog table').forEach(labelTable);
+    }
+    function queueLabels() {
+        if (labelQueued) return;
+        labelQueued = true;
+        requestAnimationFrame(labelTables);
+    }
+
+    function initTables() {
+        labelTables();
+        // الصفحات ترسم صفوفها بعد التحميل وعند كل تصفية
+        new MutationObserver(queueLabels).observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTables);
+    } else {
+        initTables();
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

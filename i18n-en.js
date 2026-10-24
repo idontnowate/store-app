@@ -1008,6 +1008,8 @@ window.STORE_I18N_EN = {
         [/^كل التغييرات محفوظة في السحابة — آخر مزامنة (.+)$/, 'All changes are saved to the cloud — last synced {1}'],
         [/^بيع فاتورة (\S+) - (.+)$/, 'Sale, invoice {1} - {2}'],
         [/^شراء فاتورة (\S+) - (.+)$/, 'Purchase, invoice {1} - {2}'],
+        [/^دفعة لمورد: فاتورة (\S+) - (.+)$/, 'Supplier payment: invoice {1} - {2}'],
+        [/^تسديد فاتورة مورد (\S+) - (.+)$/, 'Supplier invoice paid {1} - {2}'],
         [/^تسديد دين فاتورة (\S+)$/, 'Debt payment, invoice {1}'],
         [/^تسديد فاتورة (\S+) — (.+)$/, 'Payment, invoice {1} — {2}'],
         [/^فاتورة بيع (\S+)$/, 'Sales invoice {1}'],

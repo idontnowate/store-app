@@ -23,9 +23,10 @@
     <script src="storage.js?v=202610251"></script>
     <script src="rates.js?v=202610241"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610251"></script>
+    <script src="i18n-en.js?v=202610252"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
+    <script src="print.js?v=202610252"></script>
     <script src="auth.js?v=202610250"></script>
     <script src="layout.js?v=202610242"></script>
     <script src="storefront.js?v=202610242"></script>
@@ -612,7 +613,7 @@
                     <td>
                         <span class="actions">
                             <a class="view-link" href="add-invoice.html?invoice=${index}">عرض</a>
-                            <a class="view-link" href="add-invoice.html?invoice=${index}&print=1">طباعة</a>
+                            <a class="view-link" href="add-invoice.html?invoice=${index}&print=1" data-print="${index}">طباعة</a>
                             <button class="wa-btn small icon" type="button" data-wa="${index}" title="إرسال بالواتساب" aria-label="إرسال بالواتساب">${StoreWA.ICON}</button>
                             <button class="danger-link" type="button" data-del="${index}">حذف</button>
                         </span>
@@ -634,6 +635,16 @@
 
         // ===== الحذف =====
         body.addEventListener('click', event => {
+            // طباعة دون مغادرة الصفحة
+            const pr = event.target.closest('[data-print]');
+            if (pr && window.StorePrint) {
+                event.preventDefault();
+                if (pr.getAttribute('aria-busy') === 'true') return;
+                pr.setAttribute('aria-busy', 'true');
+                StorePrint.printUrl(`add-invoice.html?invoice=${pr.dataset.print}&print=1`).then(() => pr.removeAttribute('aria-busy'));
+                return;
+            }
+
             const wa = event.target.closest('[data-wa]');
             if (wa) {
                 const inv = invoices[Number(wa.dataset.wa)];

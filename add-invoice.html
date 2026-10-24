@@ -24,9 +24,10 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610251"></script>
+    <script src="i18n-en.js?v=202610252"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
+    <script src="print.js?v=202610252"></script>
     <script src="auth.js?v=202610250"></script>
     <script src="layout.js?v=202610242"></script>
     <script src="barcode-engine.js?v=202610242"></script>
@@ -1181,12 +1182,17 @@
                 `الزبون: ${data.customer || '—'} — المبلغ: ${money(total)} — الدفع: ${data.payment || '—'} — الموظف: ${data.employee || '—'} — الأصناف: ${num(items.length)}`
             );
 
+            // طباعة تلقائية لفاتورة جديدة إذا فُعّلت من الإعدادات
+            const printed = !isEdit && StorePrint.prefs().invoiceAutoPrint ? printInvoice(data) : Promise.resolve();
+
             if (event.submitter && event.submitter.value === 'addMore') {
-                resetForNew();
-                showNotice('تم حفظ الفاتورة. يمكنك إدخال فاتورة جديدة.');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                printed.then(() => {
+                    resetForNew();
+                    showNotice('تم حفظ الفاتورة. يمكنك إدخال فاتورة جديدة.');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                });
             } else {
-                location.href = SALES_PAGE;
+                printed.then(() => { location.href = SALES_PAGE; });
             }
         });
 
@@ -1293,20 +1299,72 @@
                 <div class="ps-footer">${esc(info.footer)}</div>`;
         }
 
+        // فاتورة على ورق إيصال (80 أو 58 ملم) حسب إعدادات الطباعة لهذا الجهاز
+        function buildReceiptSheet(inv, width) {
+            const info = getInfo();
+            const items = inv.items || [];
+            const subtotal = items.reduce((s, it) => s + Number(it.total || 0), 0);
+            const discount = Number(inv.discount || 0);
+            printSheet.innerHTML = `
+                <div class="rc">
+                    <div class="rc-head"><strong>${esc(info.name)}</strong><div>${esc(info.phone)}</div><div>${esc(info.address)}</div></div>
+                    <div>فاتورة: ${esc(inv.number)} — ${esc(inv.date)}</div>
+                    <div>الزبون: ${esc(inv.customer)}</div>
+                    <div>الدفع: ${esc(inv.payment)}</div>
+                    <hr>
+                    <table>${items.map(it => `
+                        <tr><td>${esc(it.description)} × ${num(it.qty)}</td><td class="l">${money(it.total)}</td></tr>`).join('')}
+                    </table>
+                    <hr>
+                    <table>
+                        ${discount ? `<tr><td>الخصم</td><td class="l">${money(discount)}</td></tr>` : ''}
+                        <tr><td><strong>الإجمالي</strong></td><td class="l"><strong>${money(Math.max(0, subtotal - discount))}</strong></td></tr>
+                    </table>
+                    ${inv.notes ? `<div>${esc(inv.notes)}</div>` : ''}
+                    <div class="rc-foot">${esc(info.footer || 'شكرًا لتسوقكم')}</div>
+                </div>`;
+            let style = document.getElementById('paperStyle');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'paperStyle';
+                document.head.appendChild(style);
+            }
+            const narrow = width === '58';
+            style.textContent = `@media print {
+                @page { size: ${narrow ? '58mm' : '80mm'} auto; margin: ${narrow ? '2mm' : '4mm'}; }
+                #printSheet { display: block !important; width: ${narrow ? '54mm' : '72mm'} !important; min-height: 0 !important; padding: 0 !important; font: ${narrow ? 11 : 12}px Tahoma, Arial, sans-serif; color: #000; }
+                #printSheet table { width: 100%; border-collapse: collapse; }
+                #printSheet td { padding: 2px 0; }
+                #printSheet .l { text-align: left; white-space: nowrap; }
+                #printSheet .rc-head, #printSheet .rc-foot { text-align: center; }
+                #printSheet .rc-foot { margin-top: 6px; }
+            }`;
+        }
+
+        // يطبع الفاتورة ويعيد وعدًا يكتمل بعد الطباعة
         function printInvoice(inv) {
+            const prefs = StorePrint.prefs();
+            const paper = prefs.invoicePaper;
             try {
-                buildPrintSheet(inv);
+                const style = document.getElementById('paperStyle');
+                if (paper === '80' || paper === '58') buildReceiptSheet(inv, paper);
+                else {
+                    if (style) style.textContent = '';
+                    buildPrintSheet(inv);
+                }
             } catch (err) {
                 console.error('فشل تجهيز الفاتورة للطباعة:', err);
                 showNotice('تعذر تجهيز الفاتورة للطباعة، افتح Console لمعرفة السبب', true);
-                return;
+                return Promise.resolve();
             }
 
             const waits = Array.from(printSheet.querySelectorAll('img')).map(img => img.complete
                 ? Promise.resolve()
                 : new Promise(resolve => { img.onload = resolve; img.onerror = resolve; }));
 
-            Promise.all(waits).then(() => setTimeout(() => window.print(), 150));
+            return Promise.all(waits)
+                .then(() => new Promise(r => setTimeout(r, 150)))
+                .then(() => StorePrint.print({ copies: prefs.invoiceCopies }));
         }
 
         printBtn.addEventListener('click', () => {
@@ -1318,8 +1376,13 @@
             if (editingIndex !== -1) StoreWA.sendInvoice(savedInvoices[editingIndex]);
         });
 
+        // ?print=1: طباعة مباشرة عند الفتح. ?embed=1: الصفحة مفتوحة مخفية من قائمة المبيعات للطباعة فقط
         if (new URLSearchParams(location.search).get('print') === '1' && editingIndex !== -1) {
-            window.addEventListener('load', () => printInvoice(savedInvoices[editingIndex]));
+            const run = () => printInvoice(savedInvoices[editingIndex]).then(() => StorePrint.notifyPrinted());
+            if (document.readyState === 'complete') run();
+            else window.addEventListener('load', run);
+        } else if (StorePrint.isEmbedded()) {
+            StorePrint.notifyPrinted();
         }
     </script>
 </body>

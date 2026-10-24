@@ -21,10 +21,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المستخدمين</title>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610249"></script>
+    <script src="i18n-en.js?v=202610250"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
-    <script src="auth.js?v=202610234"></script>
+    <script src="auth.js?v=202610250"></script>
     <script src="layout.js?v=202610242"></script>
     <style>
         :root {
@@ -287,6 +287,117 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .devices-card {
+            margin-top: 18px;
+        }
+
+        .dev-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .dev-head h2 {
+            margin-bottom: 4px;
+        }
+
+        .btn.small {
+            height: 38px;
+            padding: 0 14px;
+            font-size: 14px;
+        }
+
+        .dev-table td {
+            vertical-align: middle;
+        }
+
+        .dev-name {
+            display: grid;
+            gap: 2px;
+            text-align: start;
+        }
+
+        .dev-name small {
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .dev-tag {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: 999px;
+            background: var(--accent-soft, #e6f4ee);
+            color: var(--accent-text, #0a6b4d);
+            margin-inline-start: 6px;
+        }
+
+        .dev-tag.off {
+            background: var(--danger-soft, #fdecea);
+            color: var(--danger-text, #b42318);
+        }
+
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+            margin-inline-end: 6px;
+        }
+
+        .dot.on {
+            background: #16a34a;
+        }
+
+        .dev-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .dev-actions button {
+            height: 32px;
+            padding: 0 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border, #d1d5db);
+            background: transparent;
+            color: inherit;
+            font: 600 13px var(--font);
+            cursor: pointer;
+        }
+
+        .dev-actions button.danger {
+            color: var(--danger-text, #b42318);
+        }
+
+        .dev-actions button:disabled {
+            opacity: .45;
+            cursor: default;
+        }
+
+        tr.revoked td {
+            opacity: .7;
+        }
+
+        .link-btn {
+            border: 0;
+            background: none;
+            color: var(--accent-text, #0a6b4d);
+            font: 600 14px var(--font);
+            cursor: pointer;
+            padding: 8px 0;
+        }
+
+        .usage-over {
+            color: var(--danger-text, #b42318);
+            font-weight: 700;
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -376,6 +487,33 @@
                 </table>
             </article>
         </section>
+
+        <section class="card devices-card" id="devices">
+            <div class="dev-head">
+                <div>
+                    <h2>الأجهزة المتصلة</h2>
+                    <p class="hint" id="devUsage"></p>
+                </div>
+                <button class="btn small secondary" type="button" id="devRefresh">تحديث</button>
+            </div>
+            <div class="table-wrap">
+                <table class="dev-table">
+                    <thead>
+                        <tr>
+                            <th>الجهاز</th>
+                            <th>المستخدم</th>
+                            <th>آخر نشاط</th>
+                            <th>أول دخول</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deviceRows"></tbody>
+                </table>
+            </div>
+            <button class="link-btn" type="button" id="devOldToggle" hidden></button>
+            <p class="hint">الجهاز الموقوف يخرج من البرنامج خلال دقيقتين ولا يستطيع الدخول بأي حساب حتى تعيد السماح له. الأجهزة التي لم تُستخدم 30 يومًا لا تُحسب من حد الأجهزة.</p>
+            <div class="msg" id="devMsg" role="status" aria-live="polite"></div>
+        </section>
     </main>
 
     <script>
@@ -458,9 +596,180 @@
             }
         });
 
+        // ===== الأجهزة المتصلة =====
+        const ONLINE_MS = 5 * 60 * 1000;
+        const STALE_MS = 30 * 86400000;
+        const deviceRows = document.getElementById('deviceRows');
+        const devMsg = document.getElementById('devMsg');
+        let devices = [];
+        let showOld = false;
+
+        function deviceTitle(d) {
+            const auto = [d.platform, d.browser].filter(Boolean).join(' – ') || 'جهاز';
+            return d.label || auto;
+        }
+
+        // كل جزء في عنصر مستقل حتى تُترجم أسماء الأنظمة في الواجهة الإنجليزية
+        const spans = (parts, sep) => parts.filter(Boolean).map(p => `<span>${esc(p)}</span>`).join(sep);
+
+        function deviceTitleHtml(d) {
+            return d.label ? esc(d.label) : (spans([d.platform, d.browser], ' – ') || '<span>جهاز</span>');
+        }
+
+        function deviceSubHtml(d) {
+            return spans([d.label ? [d.platform, d.browser].filter(Boolean).join(' – ') : '', d.model, d.installed ? 'مثبّت كتطبيق' : ''], ' · ');
+        }
+
+        function agoText(iso) {
+            const ms = Date.now() - Date.parse(iso);
+            if (!Number.isFinite(ms)) return '';
+            const min = Math.floor(ms / 60000);
+            if (min < 1) return 'الآن';
+            if (min < 60) return `قبل ${min} دقيقة`;
+            const h = Math.floor(min / 60);
+            if (h < 24) return `قبل ${h} ساعة`;
+            const d = Math.floor(h / 24);
+            return `قبل ${d} يوم`;
+        }
+
+        function dateText(iso) {
+            const d = new Date(iso);
+            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB');
+        }
+
+        const isOnline = d => !d.revoked && Date.now() - Date.parse(d.last_seen) < ONLINE_MS;
+        const isStale = d => !d.revoked && Date.now() - Date.parse(d.last_seen) >= STALE_MS;
+
+        function renderDevices(limit) {
+            const mine = StoreAuth.deviceId();
+            const sorted = [...devices].sort((a, b) =>
+                (b.device_id === mine) - (a.device_id === mine) ||
+                a.revoked - b.revoked ||
+                Date.parse(b.last_seen) - Date.parse(a.last_seen));
+            const old = sorted.filter(isStale);
+            const shown = showOld ? sorted : sorted.filter(d => !isStale(d));
+            const active = devices.filter(d => !d.revoked && !isStale(d)).length;
+
+            const usage = document.getElementById('devUsage');
+            usage.className = 'hint' + (limit && active > limit ? ' usage-over' : '');
+            usage.textContent = limit
+                ? `${active} من ${limit} أجهزة مسموحة` + (active > limit ? ' — تجاوزت الحد: أوقف جهازًا لا يُستخدم' : '')
+                : `${active} جهاز نشط`;
+
+            deviceRows.innerHTML = shown.length ? shown.map(d => {
+                const me = d.device_id === mine;
+                const status = d.revoked
+                    ? '<span class="dev-tag off">موقوف</span>'
+                    : `<span class="dot ${isOnline(d) ? 'on' : ''}"></span>${isOnline(d) ? 'متصل الآن' : esc(agoText(d.last_seen))}`;
+                return `
+                <tr class="${d.revoked ? 'revoked' : ''}">
+                    <td><span class="dev-name"><b>${deviceTitleHtml(d)}${me ? '<span class="dev-tag">هذا الجهاز</span>' : ''}</b>${deviceSubHtml(d) ? `<small>${deviceSubHtml(d)}</small>` : ''}</span></td>
+                    <td>${esc(d.display_name || d.username)}</td>
+                    <td>${status}</td>
+                    <td>${esc(dateText(d.first_seen))}</td>
+                    <td><span class="dev-actions">
+                        <button type="button" data-dev-rename="${esc(d.id)}">تسمية</button>
+                        ${d.revoked
+                            ? `<button type="button" data-dev-allow="${esc(d.id)}">السماح من جديد</button>`
+                            : `<button type="button" class="danger" data-dev-revoke="${esc(d.id)}" ${me ? 'disabled title="لا يمكنك إيقاف الجهاز الذي تستخدمه الآن"' : ''}>إيقاف</button>`}
+                        ${isStale(d) ? `<button type="button" data-dev-delete="${esc(d.id)}">إزالة</button>` : ''}
+                    </span></td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="5">لا توجد أجهزة بعد</td></tr>';
+
+            const toggle = document.getElementById('devOldToggle');
+            toggle.hidden = !old.length;
+            toggle.textContent = showOld ? 'إخفاء الأجهزة القديمة' : `عرض الأجهزة القديمة (${old.length})`;
+        }
+
+        let deviceLimit = 0;
+        async function loadDevices() {
+            devMsg.textContent = '';
+            const me = StoreAuth.currentUser();
+            const client = await StoreAuth.getClient();
+            // نسجّل هذا الجهاز أولًا حتى يظهر في القائمة
+            await StoreAuth.checkDevice();
+            const [list, plan] = await Promise.all([
+                client.from('store_devices')
+                    .select('id, device_id, username, display_name, label, platform, browser, model, installed, first_seen, last_seen, revoked')
+                    .eq('store_id', me.store_id)
+                    .order('last_seen', { ascending: false }),
+                client.from('store_device_plans').select('device_limit').eq('store_id', me.store_id).maybeSingle()
+            ]);
+            if (list.error) {
+                deviceRows.innerHTML = `<tr><td colspan="5">${/store_devices|relation|42P01|schema cache/.test(list.error.message)
+                    ? 'ميزة الأجهزة غير مفعّلة بعد عند المزود'
+                    : esc(list.error.message)}</td></tr>`;
+                return;
+            }
+            devices = list.data || [];
+            deviceLimit = plan.data ? Number(plan.data.device_limit || 0) : 0;
+            renderDevices(deviceLimit);
+        }
+
+        async function updateDevice(id, fields, done) {
+            const client = await StoreAuth.getClient();
+            const { error } = await client.from('store_devices').update(fields).eq('id', id);
+            if (error) {
+                devMsg.textContent = 'تعذر الحفظ: ' + error.message;
+                devMsg.className = 'msg err';
+                return false;
+            }
+            devMsg.textContent = done;
+            devMsg.className = 'msg ok';
+            await loadDevices();
+            devMsg.textContent = done;
+            devMsg.className = 'msg ok';
+            return true;
+        }
+
+        deviceRows.addEventListener('click', async e => {
+            const b = e.target.closest('button');
+            if (!b || b.disabled) return;
+            const d = devices.find(x => x.id === (b.dataset.devRename || b.dataset.devRevoke || b.dataset.devAllow || b.dataset.devDelete));
+            if (!d) return;
+            if (b.dataset.devRename) {
+                const name = prompt('اسم الجهاز (مثلًا: كاشير المحل، تلفون علي)', d.label || '');
+                if (name === null) return;
+                if (await updateDevice(d.id, { label: name.trim().slice(0, 40) }, 'تم حفظ اسم الجهاز')) {
+                    if (window.StoreLog) StoreLog.add('settings', 'الأجهزة', `سمّى جهاز ${deviceTitle(d)}: ${name.trim() || '(بدون اسم)'}`);
+                }
+            } else if (b.dataset.devRevoke) {
+                if (!confirm(`إيقاف «${deviceTitle(d)}» (${d.display_name || d.username})؟ سيخرج من البرنامج ولن يستطيع الدخول من هذا الجهاز حتى تعيد السماح له.`)) return;
+                if (await updateDevice(d.id, { revoked: true, revoked_at: new Date().toISOString() }, 'تم إيقاف الجهاز')) {
+                    if (window.StoreLog) StoreLog.add('settings', 'الأجهزة', `أوقف الجهاز ${deviceTitle(d)} (${d.display_name || d.username})`);
+                }
+            } else if (b.dataset.devAllow) {
+                const active = devices.filter(x => !x.revoked && !isStale(x)).length;
+                if (deviceLimit && active >= deviceLimit && !confirm(`وصلت للحد (${deviceLimit} أجهزة). الجهاز لن يستطيع الدخول حتى توقف جهازًا آخر. متابعة؟`)) return;
+                if (await updateDevice(d.id, { revoked: false, revoked_at: null }, 'تم السماح للجهاز من جديد')) {
+                    if (window.StoreLog) StoreLog.add('settings', 'الأجهزة', `أعاد السماح للجهاز ${deviceTitle(d)}`);
+                }
+            } else if (b.dataset.devDelete) {
+                const client = await StoreAuth.getClient();
+                const { error } = await client.from('store_devices').delete().eq('id', d.id);
+                if (error) {
+                    devMsg.textContent = 'تعذر الإزالة: ' + error.message;
+                    devMsg.className = 'msg err';
+                    return;
+                }
+                await loadDevices();
+            }
+        });
+
+        document.getElementById('devOldToggle').addEventListener('click', () => {
+            showOld = !showOld;
+            renderDevices(deviceLimit);
+        });
+        document.getElementById('devRefresh').addEventListener('click', loadDevices);
+
         StoreAuth.ready.then(() => {
             const me = StoreAuth.currentUser();
-            if (me && me.role === 'admin') loadMembers();
+            if (me && me.role === 'admin') {
+                loadMembers();
+                loadDevices();
+                if (location.hash === '#devices') document.getElementById('devices').scrollIntoView();
+            }
         });
     </script>
 </body>

@@ -24,10 +24,10 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610249"></script>
+    <script src="i18n-en.js?v=202610250"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
-    <script src="auth.js?v=202610234"></script>
+    <script src="auth.js?v=202610250"></script>
     <script src="layout.js?v=202610242"></script>
     <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
@@ -884,8 +884,8 @@
             if (phone && phone !== localStorage.getItem(REPORT_PHONE_KEY)) localStorage.setItem(REPORT_PHONE_KEY, phone);
         });
 
-        window.addEventListener('storage', () => { render(); drawOrders(); });
-        document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); drawOrders(); } });
+        window.addEventListener('storage', () => { render(); drawOrders(); drawDevices(); });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); drawOrders(); drawDevices(); } });
 
         try {
             render();
@@ -915,6 +915,40 @@
             list.prepend(a);
         }
         if (window.StoreAuth) StoreAuth.ready.then(showNewOrders);
+
+        // ===== أجهزة جديدة دخلت للمتجر خلال يومين (للمدير) =====
+        let newDevices = [];
+        async function showNewDevices() {
+            const me = StoreAuth.currentUser();
+            if (!me || me.role !== 'admin' || navigator.onLine === false) return;
+            try {
+                const client = await StoreAuth.getClient();
+                const since = new Date(Date.now() - 2 * DAY_MS).toISOString();
+                const { data, error } = await client.from('store_devices')
+                    .select('device_id, display_name, username, label, platform, browser')
+                    .eq('store_id', me.store_id)
+                    .eq('revoked', false)
+                    .gte('first_seen', since);
+                if (error) return;
+                const mine = StoreAuth.deviceId();
+                newDevices = (data || []).filter(d => d.device_id !== mine);
+                drawDevices();
+            } catch (e) { }
+        }
+
+        function drawDevices() {
+            document.querySelectorAll('.alert.devices').forEach(el => el.remove());
+            if (!newDevices.length) return;
+            const list = document.getElementById('alerts');
+            list.querySelector('.alert.ok')?.remove();
+            const a = document.createElement('a');
+            a.className = 'alert devices lv-info';
+            a.href = 'users.html#devices';
+            const who = topNames(newDevices.map(d => `${d.display_name || d.username} (${d.label || [d.platform, d.browser].filter(Boolean).join(' – ')})`), 2);
+            a.innerHTML = `<span class="count">${num(newDevices.length)}</span><span class="txt"><b>أجهزة جديدة دخلت للمتجر</b><small>${esc(who)}</small></span>`;
+            list.appendChild(a);
+        }
+        if (window.StoreAuth) StoreAuth.ready.then(showNewDevices);
         setInterval(() => { if (!document.hidden) showNewOrders(); }, 60000);
     </script>
 </body>

@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610249"></script>
+    <script src="i18n-en.js?v=202610250"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <style>
@@ -639,6 +639,35 @@
             </div>
         </div>
         <div class="block">
+            <h3>الأجهزة</h3>
+            <form id="devicePlanForm" novalidate>
+                <div class="grid">
+                    <label class="field">الحد الأعلى لعدد الأجهزة
+                        <input name="limit" type="number" min="0" max="1000" step="1" inputmode="numeric">
+                    </label>
+                    <p class="hint full">0 = بلا حد. الجهاز الذي لم يُستخدم 30 يومًا والجهاز الموقوف لا يُحسبان. المدير يدخل دائمًا حتى يستطيع إيقاف جهاز قديم، والموظف يُمنع من الدخول من جهاز جديد عند الوصول للحد.</p>
+                </div>
+                <div class="facts" id="deviceFacts"></div>
+                <div class="msg" id="devicePlanMsg" role="alert"></div>
+                <div class="actions-bar">
+                    <div class="row">
+                        <span class="hint">زيادة الحد:</span>
+                        <button class="btn secondary" type="button" data-dev-add="1">+1 جهاز</button>
+                        <button class="btn secondary" type="button" data-dev-add="2">+2 جهاز</button>
+                    </div>
+                    <button class="btn" type="submit">حفظ حد الأجهزة</button>
+                </div>
+            </form>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>الجهاز</th><th>المستخدم</th><th>آخر نشاط</th><th>الحالة</th></tr>
+                    </thead>
+                    <tbody id="deviceRows"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="block">
             <h3>الحسابات</h3>
             <div id="members"></div>
             <form id="addMemberForm" class="grid" novalidate style="margin-top:14px">
@@ -1134,6 +1163,71 @@
             $('aiPlanMsg').textContent = 'اضغط "حفظ الباقة" لتطبيق الحد الجديد';
         });
 
+        // ===== الأجهزة لكل متجر (devices.sql) =====
+        const DEVICE_STALE_MS = 30 * 86400000;
+        async function fillDevicesBlock(s) {
+            const f = $('devicePlanForm').elements;
+            $('devicePlanMsg').textContent = '';
+            $('deviceFacts').innerHTML = '';
+            $('deviceRows').innerHTML = '<tr><td colspan="4" class="muted">جارِ التحميل…</td></tr>';
+            const [plan, list] = await Promise.all([
+                sb.from('store_device_plans').select('device_limit').eq('store_id', s.store_id).maybeSingle(),
+                sb.from('store_devices')
+                    .select('display_name, username, label, platform, browser, model, last_seen, revoked')
+                    .eq('store_id', s.store_id)
+                    .order('last_seen', { ascending: false })
+                    .limit(50)
+            ]);
+            if (!current || current.store_id !== s.store_id) return;
+            if (plan.error || list.error) {
+                const m = (plan.error || list.error).message;
+                $('devicePlanMsg').textContent = /store_device|relation|42P01|schema cache/.test(m)
+                    ? 'شغّل الملف supabase/devices.sql في Supabase أولًا'
+                    : 'تعذر تحميل الأجهزة: ' + m;
+                $('deviceRows').innerHTML = '';
+                return;
+            }
+            const limit = plan.data ? Number(plan.data.device_limit || 0) : 0;
+            f.limit.value = limit;
+            const rows = list.data || [];
+            const active = rows.filter(d => !d.revoked && Date.now() - Date.parse(d.last_seen) < DEVICE_STALE_MS).length;
+            const online = rows.filter(d => !d.revoked && Date.now() - Date.parse(d.last_seen) < 5 * 60000).length;
+            $('deviceFacts').innerHTML = `
+                <div class="fact ${limit && active > limit ? 'loss' : ''}">الأجهزة النشطة<b>${num(active)} / ${limit ? num(limit) : 'بلا حد'}</b></div>
+                <div class="fact">متصل الآن<b>${num(online)}</b></div>
+                <div class="fact">موقوفة<b>${num(rows.filter(d => d.revoked).length)}</b></div>`;
+            $('deviceRows').innerHTML = rows.map(d => `
+                <tr>
+                    <td>${esc(d.label || [d.platform, d.browser].filter(Boolean).join(' – ') || 'جهاز')}${d.model ? `<small>${esc(d.model)}</small>` : ''}</td>
+                    <td>${esc(d.display_name || d.username)}</td>
+                    <td>${esc(ago(d.last_seen))}</td>
+                    <td>${d.revoked ? 'موقوف من المدير' : Date.now() - Date.parse(d.last_seen) >= DEVICE_STALE_MS ? 'قديم (لا يُحسب)' : 'نشط'}</td>
+                </tr>`).join('') || '<tr><td colspan="4" class="muted">لم يدخل أي جهاز بعد</td></tr>';
+        }
+
+        $('devicePlanForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            if (!current) return;
+            const limit = Math.max(0, Math.min(1000, Math.floor(Number(e.target.elements.limit.value || 0))));
+            const { error } = await sb.from('store_device_plans').upsert({ store_id: current.store_id, device_limit: limit, updated_at: new Date().toISOString() });
+            if (error) {
+                $('devicePlanMsg').textContent = /store_device|relation|42P01|schema cache/.test(error.message)
+                    ? 'شغّل الملف supabase/devices.sql في Supabase أولًا'
+                    : 'تعذر الحفظ: ' + error.message;
+                return;
+            }
+            flash(limit ? `حد الأجهزة لهذا المتجر: ${limit}` : 'هذا المتجر بلا حد للأجهزة');
+            await fillDevicesBlock(current);
+        });
+
+        $('devicePlanForm').addEventListener('click', e => {
+            const b = e.target.closest('[data-dev-add]');
+            if (!b) return;
+            const f = $('devicePlanForm').elements;
+            f.limit.value = Number(f.limit.value || 0) + Number(b.dataset.devAdd);
+            $('devicePlanMsg').textContent = 'اضغط "حفظ حد الأجهزة" لتطبيق الحد الجديد';
+        });
+
         // ملخص كل المتاجر
         async function renderAIDialog() {
             $('aiRows').innerHTML = '<tr><td colspan="9" class="muted">جارِ التحميل…</td></tr>';
@@ -1355,6 +1449,7 @@
             $('sdActivity').textContent = ago(s.last_activity);
             $('sdRows').textContent = num(s.rows_count);
             fillAIBlock(s);
+            fillDevicesBlock(s);
         }
 
         $('rows').addEventListener('click', e => {

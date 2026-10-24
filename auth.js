@@ -178,6 +178,14 @@
             throw new Error('هذا الحساب غير مرتبط بأي متجر');
         }
         membership = m;
+
+        // الجهاز موقوف من المدير، أو وصل المتجر للحد الأعلى من الأجهزة
+        const dev = await deviceCheckin(true);
+        if (dev && (dev.status === 'revoked' || dev.status === 'limit')) {
+            membership = null;
+            await sb.auth.signOut({ scope: 'local' });
+            throw new Error(deviceBlockedMessage(dev));
+        }
         saveMembership(m);
 
         // نؤجل كتابة سجل الدخول إلى الصفحة التالية، بعد اكتمال مزامنة المتجر
@@ -333,6 +341,114 @@
         const { error } = await sb.auth.signOut({ scope: 'others' });
         if (error) throw new Error('تعذر تسجيل الخروج من الأجهزة الأخرى');
         writeLog('settings', 'الأمان', 'سجّل المستخدم ' + displayName(membership) + ' الخروج من الأجهزة الأخرى');
+    }
+
+    // ===== الأجهزة: كل جهاز يسجّل نفسه، والمدير يرى القائمة ويوقف أي جهاز (devices.sql) =====
+    const DEVICE_ID_KEY = 'appDeviceId';
+    const DEVICE_CHECK_KEY = 'appDeviceCheck';
+    const FORCED_OUT_KEY = 'appForcedOut';
+    const DEVICE_CHECK_MS = 60000;
+
+    // معرّف ثابت لهذا المتصفح، لا يُمسح عند تسجيل الخروج
+    function deviceId() {
+        let id = localStorage.getItem(DEVICE_ID_KEY);
+        if (!id || id.length < 8) {
+            id = window.crypto && crypto.randomUUID
+                ? crypto.randomUUID()
+                : Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+            localStorage.setItem(DEVICE_ID_KEY, id);
+        }
+        return id;
+    }
+
+    async function deviceInfo() {
+        const ua = navigator.userAgent || '';
+        const platform =
+            /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'آيباد'
+                : /iPhone|iPod/.test(ua) ? 'آيفون'
+                    : /Android/.test(ua) ? (/Mobile/.test(ua) ? 'أندرويد' : 'تابلت أندرويد')
+                        : /Windows/.test(ua) ? 'ويندوز'
+                            : /Mac OS X|Macintosh/.test(ua) ? 'ماك'
+                                : /CrOS/.test(ua) ? 'كروم بوك'
+                                    : /Linux/.test(ua) ? 'لينكس' : 'جهاز آخر';
+        const browser =
+            /Edg\//.test(ua) ? 'Edge'
+                : /SamsungBrowser/.test(ua) ? 'Samsung Internet'
+                    : /OPR\/|Opera/.test(ua) ? 'Opera'
+                        : /Firefox|FxiOS/.test(ua) ? 'Firefox'
+                            : /CriOS|Chrome/.test(ua) ? 'Chrome'
+                                : /Safari/.test(ua) ? 'Safari' : '';
+        let model = '';
+        try {
+            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+                const v = await navigator.userAgentData.getHighEntropyValues(['model']);
+                model = v.model || '';
+            }
+        } catch (e) { }
+        if (!model) {
+            const m = ua.match(/Android [\d.]+; ([^;)]+)\)/);
+            if (m && m[1] !== 'K') model = m[1].replace(/ Build\/.*$/, '').trim();
+        }
+        let installed = false;
+        try {
+            installed = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+        } catch (e) { }
+        return { platform, browser, model: model.slice(0, 60), installed };
+    }
+
+    // يسجّل الجهاز ويحدّث آخر نشاط. null = تعذر التحقق (لا إنترنت، أو لم يُشغَّل devices.sql بعد): لا نمنع شيئًا
+    async function deviceCheckin(force) {
+        if (!membership || navigator.onLine === false) return null;
+        const last = read(DEVICE_CHECK_KEY, null);
+        if (!force && last && last.store === membership.store_id && last.status === 'ok' && Date.now() - last.at < DEVICE_CHECK_MS) return last;
+        try {
+            const info = await deviceInfo();
+            const { data, error } = await sb.rpc('device_checkin', {
+                p_store: membership.store_id,
+                p_device: deviceId(),
+                p_platform: info.platform,
+                p_browser: info.browser,
+                p_model: info.model,
+                p_installed: info.installed
+            });
+            if (error || !data || !data.status) return null;
+            const out = { ...data, store: membership.store_id, at: Date.now() };
+            write(DEVICE_CHECK_KEY, out);
+            return out;
+        } catch {
+            return null;
+        }
+    }
+
+    function deviceBlockedMessage(dev) {
+        return dev.status === 'revoked'
+            ? 'هذا الجهاز موقوف من مدير المتجر. اطلب منه إعادة السماح له من صفحة المستخدمين'
+            : `وصل المتجر للحد الأعلى من الأجهزة (${dev.limit}). اطلب من المدير إيقاف جهاز لا يُستخدم من صفحة المستخدمين، أو تواصل مع المزود لزيادة الحد`;
+    }
+
+    // جهاز أُوقف وهو داخل: نرفع ما لم يُرفع ثم نخرجه
+    async function applyDevice(dev) {
+        if (!dev || (dev.status !== 'revoked' && dev.status !== 'limit')) return;
+        let pending = 0;
+        try { if (window.StoreSync) pending = StoreSync.flush(); } catch (e) { }
+        try { sessionStorage.setItem(FORCED_OUT_KEY, deviceBlockedMessage(dev)); } catch (e) { }
+        try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { }
+        membership = null;
+        localStorage.removeItem(MEMBERSHIP_KEY);
+        // تغييرات لم تُرفع تبقى على الجهاز حتى لا تضيع مبيعات مسجلة
+        if (window.StoreSync && !pending) StoreSync.clearLocal();
+        location.replace(LOGIN_PAGE);
+    }
+
+    // سبب الخروج الإجباري لصفحة الدخول (مرة واحدة)
+    function takeForcedOutMessage() {
+        try {
+            const v = sessionStorage.getItem(FORCED_OUT_KEY);
+            sessionStorage.removeItem(FORCED_OUT_KEY);
+            return v || '';
+        } catch {
+            return '';
+        }
     }
 
     // ===== الحماية =====
@@ -556,6 +672,7 @@
                 flushPendingLogin();
                 // حالة الاشتراك من السحابة (لا تؤخر ظهور الصفحة)
                 fetchSubscription().then(applySubscription);
+                deviceCheckin().then(applyDevice);
             }
             return ok;
         })
@@ -599,6 +716,14 @@
         if (window.StoreSync && StoreSync.status().pending > 0) syncNow();
     }, 30000);
 
+    // آخر نشاط للجهاز (يظهر للمدير «متصل الآن»)، ويخرج الجهاز إذا أوقفه المدير
+    setInterval(() => {
+        if (!isLogin && membership && !document.hidden) deviceCheckin().then(applyDevice);
+    }, 2 * DEVICE_CHECK_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (!isLogin && membership && !document.hidden) deviceCheckin().then(applyDevice);
+    });
+
     window.StoreAuth = {
         ready,
         client: null, // يُملأ بعد التهيئة، انظر getClient()
@@ -619,6 +744,10 @@
         changePassword,
         signOutOthers,
         syncNow,
+        deviceId,
+        deviceInfo,
+        checkDevice: () => deviceCheckin(true).then(dev => { applyDevice(dev); return dev; }),
+        takeForcedOutMessage,
         // لصفحة انتهاء الاشتراك
         checkSubscription: () => fetchSubscription().then(st => { applySubscription(st); return st; }),
         subscriptionStatus: () => membership && cachedSubscription(membership.store_id),

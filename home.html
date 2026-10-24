@@ -24,7 +24,7 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610253"></script>
+    <script src="i18n-en.js?v=202610254"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610250"></script>
@@ -32,6 +32,7 @@
     <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610251"></script>
+    <script src="reminders.js?v=202610254"></script>
     <style>
         :root {
             --page: #efede5;
@@ -657,7 +658,7 @@
                     'customers.html?filter=late');
             }
 
-            // 6ب) أقساط تستحق اليوم أو غدًا: تنبيه قبل موعد التسديد بيوم
+            // 6ب) أقساط تستحق اليوم أو غدًا: تنبيه قبل موعد التسديد بيوم، ويفتح تذكيرات الواتساب الجاهزة
             const upcoming = StoreCredit.upcomingInstallments(1);
             [[0, 'أقساط تستحق اليوم'], [1, 'أقساط تستحق غدًا']].forEach(([inDays, title]) => {
                 const list = upcoming.filter(x => x.inDays === inDays);
@@ -665,8 +666,18 @@
                 const amount = list.reduce((s, x) => s + x.left, 0);
                 add('warn', list.length, `${title} — ${money(amount)}`,
                     topNames(list.map(x => `${x.customer || 'بدون اسم'} (${money(x.left)})`)),
-                    new Set(list.map(x => x.customer)).size === 1 && list[0].customer ? `customers.html?name=${encodeURIComponent(list[0].customer)}` : 'customers.html?filter=debt');
+                    'debts.html#reminders');
             });
+
+            // 6ج) تذكيرات واتساب لم تُرسل بعد
+            if (window.StoreReminders) {
+                const pending = StoreReminders.queue().filter(x => !x.sent);
+                if (pending.length) {
+                    add('info', pending.length, 'تذكيرات أقساط جاهزة للإرسال بالواتساب',
+                        topNames(pending.map(x => `${x.customer || 'بدون اسم'} (${StoreReminders.whenText(x.inDays)})`)),
+                        'debts.html#reminders');
+                }
+            }
 
             // 7) ديون زبائن مضى عليها أكثر من 30 يومًا (غير المقسطة؛ المقسطة لها تنبيهات الأقساط)
             const planned = new Set(safeParse(localStorage.getItem('storeInstallments')).map(p => p.invoiceNumber));

@@ -23,7 +23,7 @@
     <script src="storage.js?v=202610251"></script>
     <script src="rates.js?v=202610241"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610253"></script>
+    <script src="i18n-en.js?v=202610254"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610250"></script>
@@ -31,6 +31,7 @@
     <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610251"></script>
+    <script src="reminders.js?v=202610254"></script>
     <style>
         :root {
             --page: #efede5;
@@ -563,6 +564,127 @@
                 border-radius: 24px;
             }
         }
+
+        /* ===== تذكيرات الأقساط ===== */
+        .reminders {
+            margin: 0 0 18px;
+            padding: 18px 20px;
+        }
+
+        .rem-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .rem-head h2 {
+            margin: 0 0 4px;
+            font-size: 18px;
+        }
+
+        .rem-next,
+        .rem-send {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 40px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 12px;
+            background: #1fa855;
+            color: #fff;
+            font: 700 14.5px var(--font);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+.rem-next[hidden] {
+            display: none;
+        }
+
+                .rem-next svg,
+        .rem-send svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .rem-send.again {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border, #d5d8dd);
+            font-weight: 600;
+        }
+
+        .rem-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .rem-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border, #e5e7eb);
+            border-inline-start: 4px solid #c98a1b;
+            border-radius: 12px;
+        }
+
+        .rem-item.late {
+            border-inline-start-color: var(--red);
+        }
+
+        .rem-item.done {
+            border-inline-start-color: #9ca3af;
+            opacity: .75;
+        }
+
+        .rem-main {
+            display: grid;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .rem-main small {
+            color: var(--muted);
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        .rem-when {
+            font-size: 13px;
+            font-weight: 700;
+            color: #b7700a;
+        }
+
+        .rem-item.late .rem-when {
+            color: var(--red);
+        }
+
+        .rem-help {
+            margin: 12px 0 0;
+            font-size: 13px;
+        }
+
+        @media (max-width: 650px) {
+            .rem-item {
+                flex-wrap: wrap;
+            }
+
+            .rem-send,
+            .rem-next {
+                flex: 1 1 100%;
+            }
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -629,6 +751,18 @@
                 <div class="label">إجمالي المسدَّد</div>
                 <div class="value" id="totalPaid">0 د.ع</div>
             </article>
+        </section>
+
+        <section class="card reminders" id="reminders" aria-labelledby="remTitle" hidden>
+            <div class="rem-head">
+                <div>
+                    <h2 id="remTitle">تذكيرات الأقساط</h2>
+                    <p class="hint" data-rem-summary></p>
+                </div>
+                <button type="button" class="rem-next" data-rem-next hidden></button>
+            </div>
+            <ul class="rem-list" data-rem-list></ul>
+            <p class="hint rem-help">كل قسط قريب تظهر رسالته جاهزة. اضغط «إرسال» فينفتح واتساب على الزبون والرسالة مكتوبة، اضغط إرسال بواتساب ثم ارجع للبرنامج. «إرسال التالي» يفتح الزبون التالي مباشرة. الموعد ونص الرسالة من الإعدادات ← تذكير الأقساط.</p>
         </section>
 
         <div class="toolbar">
@@ -1212,6 +1346,17 @@
         loadData();
         syncInvoicePayments();
         render();
+
+        // ===== تذكيرات الأقساط =====
+        if (window.StoreReminders) {
+            const mountReminders = () => {
+                const ui = StoreReminders.mount(document.getElementById('reminders'));
+                if (location.hash === '#reminders') document.getElementById('reminders').scrollIntoView({ block: 'start' });
+                return ui;
+            };
+            if (window.StoreAuth) StoreAuth.ready.then(mountReminders);
+            else mountReminders();
+        }
     </script>
 </body>
 

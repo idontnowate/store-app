@@ -24,7 +24,7 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610253"></script>
+    <script src="i18n-en.js?v=202610254"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="print.js?v=202610252"></script>
@@ -32,6 +32,8 @@
     <script src="layout.js?v=202610253"></script>
     <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
+    <script src="credit.js?v=202610251"></script>
+    <script src="reminders.js?v=202610254"></script>
     <style>
         :root {
             --page: #efede5;
@@ -648,6 +650,17 @@
             display: none;
         }
 
+        .link-btn {
+            border: 0;
+            background: none;
+            padding: 0;
+            color: var(--accent-text);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
         .silent-steps ol {
             margin: 8px 0 14px;
             padding-inline-start: 20px;
@@ -988,6 +1001,32 @@
                             </label>
                         </div>
                         <p class="hint" id="usdNow"></p>
+
+                        <p class="set-sub set-sep" id="reminders">تذكير الأقساط بالواتساب</p>
+                        <div class="grid">
+                            <label>متى يظهر التذكير
+                                <select name="reminderDays">
+                                    <option value="1">قبل الموعد بيوم</option>
+                                    <option value="2">قبل الموعد بيومين</option>
+                                    <option value="3">قبل الموعد بـ 3 أيام</option>
+                                    <option value="0">يوم الموعد فقط</option>
+                                </select>
+                            </label>
+                        </div>
+                        <label class="set-toggle">
+                            <span>
+                                <strong>تذكير الأقساط المتأخرة أيضًا</strong>
+                                <span class="hint">القسط الذي فات موعده ولم يُسدَّد يظهر برسالة خاصة.</span>
+                            </span>
+                            <input type="checkbox" class="switch" name="reminderLate">
+                        </label>
+                        <label class="full">رسالة القسط القريب
+                            <textarea name="reminderTextSoon" rows="4" dir="rtl"></textarea>
+                        </label>
+                        <label class="full">رسالة القسط المتأخر
+                            <textarea name="reminderTextLate" rows="4" dir="rtl"></textarea>
+                        </label>
+                        <p class="hint">تُستبدل الكلمات بين القوسين تلقائيًا: <span dir="rtl">{الزبون} {المبلغ} {التاريخ} {اليوم} {القسط} {الفاتورة} {المتجر}</span>. رقم المتجر يُضاف آخر الرسالة. <button type="button" class="link-btn" id="reminderReset">إرجاع النص الأصلي</button></p>
                         <div class="set-actions">
                             <span class="hint">الحد الأدنى يظهر تنبيه "منخفض" عند الوصول إليه.</span>
                             <button class="btn red" type="submit">حفظ إعدادات البيع</button>
@@ -1440,6 +1479,11 @@
             optionsForm.elements.allowNegativeStock.checked = !!o.allowNegativeStock;
             optionsForm.elements.defaultPayment.value = o.defaultPayment === 'بطاقة' ? 'بطاقة' : 'نقدي';
             optionsForm.elements.defaultMinQty.value = Number(o.defaultMinQty || 0);
+            const rem = StoreReminders.options();
+            optionsForm.elements.reminderDays.value = String(rem.days);
+            optionsForm.elements.reminderLate.checked = rem.late;
+            optionsForm.elements.reminderTextSoon.value = rem.soonText;
+            optionsForm.elements.reminderTextLate.value = rem.lateText;
             optionsForm.elements.usdSource.value = o.usdSource || (Number(o.usdFixed) > 0 ? 'fixed' : 'auto');
             optionsForm.elements.usdMarket.value = o.usdMarket === 'fixed' ? 'baghdad' : (o.usdMarket || 'baghdad');
             optionsForm.elements.usdFixed.value = Number(o.usdFixed) > 0 ? o.usdFixed : '';
@@ -1482,7 +1526,12 @@
                 defaultMinQty: Math.max(0, Math.floor(Number(f.defaultMinQty.value || 0))),
                 usdSource: f.usdSource.value,
                 usdMarket: f.usdMarket.value,
-                usdFixed: f.usdSource.value === 'fixed' ? Math.max(0, Number(f.usdFixed.value || 0)) : 0
+                usdFixed: f.usdSource.value === 'fixed' ? Math.max(0, Number(f.usdFixed.value || 0)) : 0,
+                reminderDays: Number(f.reminderDays.value),
+                reminderLate: f.reminderLate.checked,
+                // النص الأصلي لا يُحفظ، حتى يصل أي تحسين عليه لاحقًا
+                reminderTextSoon: f.reminderTextSoon.value.trim() === StoreReminders.DEFAULT_SOON ? '' : f.reminderTextSoon.value.trim().slice(0, 1000),
+                reminderTextLate: f.reminderTextLate.value.trim() === StoreReminders.DEFAULT_LATE ? '' : f.reminderTextLate.value.trim().slice(0, 1000)
             };
             if (f.usdSource.value === 'fixed' && !(options.usdFixed > 0)) {
                 flash('اكتب السعر الثابت للدولار', true);
@@ -1493,6 +1542,12 @@
             loadOptionsForm();
             log('إعدادات البيع', `البيع عند النفاد: ${options.allowNegativeStock ? 'مسموح' : 'ممنوع'} — الدفع الافتراضي: ${options.defaultPayment} — الحد الأدنى الافتراضي: ${options.defaultMinQty}`);
             flash('تم حفظ إعدادات البيع');
+        });
+
+        $('reminderReset').addEventListener('click', () => {
+            optionsForm.elements.reminderTextSoon.value = StoreReminders.DEFAULT_SOON;
+            optionsForm.elements.reminderTextLate.value = StoreReminders.DEFAULT_LATE;
+            flash('اضغط "حفظ إعدادات البيع" لتطبيق النص الأصلي');
         });
 
         // ===== المتجر الإلكتروني =====

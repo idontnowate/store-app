@@ -5,7 +5,7 @@
  * - المكتبات والخطوط من الإنترنت تُحفظ عند أول تحميل.
  * - طلبات Supabase (البيانات وتسجيل الدخول) لا تمر من هنا؛ المزامنة تتكفل بها.
  */
-const CACHE = 'store-app-v1';
+const CACHE = 'store-app-v2';
 const PAGES = [
     'index.html', 'home.html', 'cashier.html', 'sales-new_1.html', 'add-invoice.html',
     'inventory.html', 'purchases.html', 'debts.html', 'customers.html', 'orders.html', 'shop.html', 'cashbox.html', 'reports.html',
@@ -62,7 +62,8 @@ async function page(req) {
     const cache = await caches.open(CACHE);
     const url = new URL(req.url);
     const name = url.pathname.split('/').pop() || 'index.html';
-    const network = fetch(req).then(res => {
+    // no-cache: نتحقق من الخادم في كل فتح (بدون إعادة تنزيل إن لم تتغير)، فيظهر التحديث فورًا
+    const network = fetch(req, { cache: 'no-cache' }).then(res => {
         if (res.ok) {
             cache.put(name, res.clone());
             if (Date.now() - lastPrecache > REFRESH_EVERY) precache();

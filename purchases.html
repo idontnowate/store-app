@@ -26,12 +26,13 @@
     <script src="products.js?v=202610243"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610245"></script>
+    <script src="i18n-en.js?v=202610246"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610242"></script>
     <script src="storefront.js?v=202610242"></script>
+    <script src="ai.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -678,6 +679,46 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <style>
+        .ai-actions {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .ai-note {
+            grid-column: 1 / -1;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm, 10px);
+            background: var(--accent-soft, #e6f4ee);
+            color: var(--accent-text, #0a6d4f);
+            font-size: 13.5px;
+            line-height: 1.7;
+        }
+
+        .ai-note[hidden] {
+            display: none;
+        }
+
+        .ai-note.busy {
+            background: var(--surface-2, #f3f4f6);
+            color: var(--text-2, #3a404a);
+        }
+
+        .ai-note.err {
+            background: var(--danger-soft, #fdecea);
+            color: var(--danger-text, #a3241c);
+        }
+
+        table.items tr.check td {
+            background: var(--warn-soft, #fdf3e1);
+        }
+
+        table.items tr.needs-barcode input[name=barcode] {
+            outline: 2px solid var(--warn, #b7700a);
+            outline-offset: -2px;
+        }
+    </style>
     <link rel="stylesheet" href="design.css?v=202610232">
 </head>
 
@@ -803,8 +844,12 @@
 
             <div class="items-head">
                 <span>الأصناف</span>
-                <button class="btn ok" type="button" id="addItemBtn">+ سطر</button>
+                <span class="ai-actions">
+                    <button class="btn secondary ai-btn" type="button" id="aiInvoiceBtn" hidden>✨ قراءة الفاتورة من صورة</button>
+                    <button class="btn ok" type="button" id="addItemBtn">+ سطر</button>
+                </span>
             </div>
+            <div class="ai-note" id="aiNote" role="status" aria-live="polite" hidden></div>
             <div class="items-wrap">
                 <table class="items">
                     <thead>
@@ -1349,6 +1394,7 @@
             form.elements.notes.value = p?.notes || '';
 
             setItems(p?.items || []);
+            setAiNote('');
             dialog.showModal();
             setTimeout(() => {
                 const first = itemsBody.querySelector('[name=barcode]');
@@ -1363,6 +1409,97 @@
             renumber();
             recalc();
             itemsBody.lastElementChild.querySelector('[name=barcode]').focus();
+        });
+
+        // ===== الباقة الذكية: قراءة فاتورة المورد من صورتها =====
+        const aiBtn = $('aiInvoiceBtn');
+        const aiNote = $('aiNote');
+
+        function setAiNote(text, kind = '') {
+            aiNote.hidden = !text;
+            aiNote.className = 'ai-note ' + kind;
+            aiNote.textContent = text;
+        }
+
+        async function initAI() {
+            if (!window.StoreAI) return;
+            try {
+                const st = await StoreAI.status();
+                aiBtn.hidden = !st.enabled;
+                if (st.enabled) aiBtn.title = `متبقي ${Math.max(0, st.limits.invoice - st.used.invoice)} من ${st.limits.invoice} هذا الشهر`;
+            } catch (err) {
+                aiBtn.hidden = true;
+            }
+        }
+
+        // يملأ النموذج بما قرأه الذكاء: المعروف من المخزن يأخذ باركوده واسمه، والجديد يُعلَّم ليُمسح باركوده
+        function applyInvoice(r) {
+            const f = form.elements;
+            if (!f.supplier.value.trim() && r.supplier) f.supplier.value = r.supplier;
+            if (!f.number.value.trim() && r.invoice_number) f.number.value = r.invoice_number;
+            if (!editingId && /^\d{4}-\d{2}-\d{2}$/.test(r.date || '')) f.date.value = r.date;
+
+            const rate = r.currency === 'USD' ? StoreProducts.usdRate() : null;
+            const toIQD = v => Math.round(Number(v || 0) * (rate ? rate.rate : 1));
+
+            const hasRows = readItems().some(it => it.barcode || it.name);
+            if (!hasRows) itemsBody.innerHTML = '';
+
+            let known = 0, fresh = 0, unsure = 0;
+            (r.items || []).forEach(it => {
+                const qty = Math.max(1, Math.round(Number(it.qty) || 1));
+                const unit = Number(it.unit_cost) || (Number(it.qty) ? Number(it.line_total) / Number(it.qty) : 0);
+                const p = (it.product_id && products.find(x => x.id === it.product_id)) || (it.barcode && findByBarcode(it.barcode)) || null;
+                const row = { barcode: p ? (p.barcode || '') : (it.barcode || ''), name: p ? p.name : it.name, qty, cost: toIQD(unit) };
+                addRow(row);
+                const tr = itemsBody.lastElementChild;
+                if (!row.barcode) {
+                    tr.classList.add('needs-barcode');
+                    fresh++;
+                } else {
+                    known++;
+                }
+                if (it.confidence !== 'high') {
+                    tr.classList.add('check');
+                    unsure++;
+                }
+            });
+            renumber();
+            recalc();
+
+            const parts = [`قُرئ ${known + fresh} صنف: ${known} موجود في المخزن`];
+            if (fresh) parts.push(`${fresh} جديد يحتاج مسح باركوده (معلَّم)`);
+            if (unsure) parts.push(`${unsure} سطر غير واضح تمامًا (مظلَّل)، راجع كميته وسعره`);
+            const subtotal = readItems().reduce((s, it) => s + it.total, 0);
+            const invTotal = toIQD(r.total);
+            if (invTotal > 0 && Math.abs(invTotal - subtotal) > Math.max(250, invTotal * 0.01)) {
+                parts.push(`مجموع الأسطر ${money(subtotal)} يختلف عن إجمالي الفاتورة ${money(invTotal)}`);
+            }
+            if (r.currency === 'USD') parts.push(rate ? `الفاتورة بالدولار وحُوّلت بسعر ${rate.rate.toLocaleString('en-US')}` : 'الفاتورة بالدولار ولا يوجد سعر صرف: صحّح الأسعار');
+            if (r.notes) parts.push(r.notes);
+            return parts.join('. ') + '.';
+        }
+
+        aiBtn.addEventListener('click', async () => {
+            const file = await StoreAI.pickImage();
+            if (!file) return;
+            aiBtn.disabled = true;
+            setAiNote('جارِ قراءة الفاتورة… قد تأخذ حتى دقيقة', 'busy');
+            try {
+                const out = await StoreAI.readInvoice(file);
+                const summary = applyInvoice(out.result);
+                setAiNote(`${summary} راجع كل شيء قبل الحفظ. متبقي ${out.remaining} من ${out.limit} هذا الشهر.`);
+                aiBtn.title = `متبقي ${out.remaining} من ${out.limit} هذا الشهر`;
+            } catch (err) {
+                setAiNote(err.message, 'err');
+            } finally {
+                aiBtn.disabled = false;
+            }
+        });
+
+        // مسح باركود سطر جديد يزيل علامته
+        itemsBody.addEventListener('input', e => {
+            if (e.target.matches('[name=barcode]') && e.target.value.trim()) e.target.closest('tr').classList.remove('needs-barcode');
         });
 
         itemsBody.addEventListener('click', e => {
@@ -1553,6 +1690,7 @@
 
         load();
         render();
+        if (window.StoreAuth) StoreAuth.ready.then(initAI);
     </script>
 </body>
 

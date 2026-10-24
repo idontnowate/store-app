@@ -26,12 +26,13 @@
     <script src="log.js?v=202610231"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610245"></script>
+    <script src="i18n-en.js?v=202610246"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610242"></script>
     <script src="storefront.js?v=202610242"></script>
+    <script src="ai.js?v=202610241"></script>
     <style>
         :root {
             --page: #efede5;
@@ -752,6 +753,7 @@
                         <div class="img-buttons">
                             <button class="btn view" id="takePhotoBtn" type="button">📷 التقاط صورة</button>
                             <button class="btn view" id="pickImageBtn" type="button">🖼 من المعرض</button>
+                            <button class="btn view ai-btn" id="aiProductBtn" type="button" hidden>✨ تعبئة من الصورة</button>
                         </div>
                         <button class="btn remove" id="removeImageBtn" type="button" hidden>حذف الصورة</button>
                     </div>
@@ -962,6 +964,48 @@
                 }
                 input.value = '';
             });
+        });
+
+        // ===== الباقة الذكية: بيانات المنتج من صورته =====
+        // تملأ الخانات الفارغة فقط (الاسم، الفئة، الباركود)، والصورة نفسها تصبح صورة المنتج
+        const aiProductBtn = $('aiProductBtn');
+
+        async function initAI() {
+            if (!window.StoreAI) return;
+            try {
+                const st = await StoreAI.status();
+                aiProductBtn.hidden = !st.enabled;
+                if (st.enabled) aiProductBtn.title = `متبقي ${Math.max(0, st.limits.product - st.used.product)} من ${st.limits.product} هذا الشهر`;
+            } catch (err) {
+                aiProductBtn.hidden = true;
+            }
+        }
+
+        aiProductBtn.addEventListener('click', async () => {
+            const file = await StoreAI.pickImage();
+            if (!file) return;
+            const f = productForm.elements;
+            const label = aiProductBtn.textContent;
+            aiProductBtn.disabled = true;
+            aiProductBtn.textContent = 'جارِ التعرّف على المنتج…';
+            productError.textContent = '';
+            try {
+                const [out, image] = await Promise.all([StoreAI.readProduct(file), resizeImage(file)]);
+                const r = out.result || {};
+                if (!f.name.value.trim() && r.name) f.name.value = r.name;
+                if (!f.category.value.trim() && r.category) f.category.value = r.category;
+                if (!barcodeField.value.trim() && /^\d{8,14}$/.test(r.barcode || '')) barcodeField.value = r.barcode;
+                pendingImage = image;
+                setPreview(image);
+                productError.textContent = (!barcodeField.value.trim() ? 'امسح باركود المنتج ثم احفظ. ' : '') +
+                    `راجع الاسم والسعر قبل الحفظ. متبقي ${out.remaining} من ${out.limit} هذا الشهر.`;
+                aiProductBtn.title = `متبقي ${out.remaining} من ${out.limit} هذا الشهر`;
+            } catch (err) {
+                productError.textContent = err.message;
+            } finally {
+                aiProductBtn.disabled = false;
+                aiProductBtn.textContent = label;
+            }
         });
 
         removeImageBtn.addEventListener('click', () => {
@@ -1320,6 +1364,7 @@
 
         load();
         render();
+        if (window.StoreAuth) StoreAuth.ready.then(initAI);
     </script>
 </body>
 

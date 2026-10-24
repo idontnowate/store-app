@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610245"></script>
+    <script src="i18n-en.js?v=202610246"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <style>
@@ -434,6 +434,18 @@
             color: var(--text-3, #6b717b);
         }
 
+        .ai-facts {
+            margin: 12px 0;
+        }
+
+        .fact.profit b {
+            color: var(--accent-text, #0a6d4f);
+        }
+
+        .fact.loss b {
+            color: var(--danger-text, #a3241c);
+        }
+
         .rates-h {
             margin: 20px 0 8px;
             font-size: 15px;
@@ -477,6 +489,7 @@
             <div class="row">
                 <button class="btn secondary" type="button" id="refreshBtn">تحديث</button>
                 <button class="btn secondary" type="button" id="ratesBtn">أسعار الصرف</button>
+                <button class="btn secondary" type="button" id="aiBtn">الباقة الذكية</button>
                 <button class="btn" type="button" id="newStoreBtn">+ متجر جديد</button>
                 <button class="btn danger" type="button" id="signOutBtn">خروج</button>
             </div>
@@ -587,6 +600,45 @@
         </div>
 
         <div class="block">
+            <h3>الباقة الذكية</h3>
+            <form id="aiPlanForm" novalidate>
+                <div class="grid">
+                    <label class="toggle full">
+                        <span>تفعيل الباقة الذكية<small>قراءة فاتورة المورد من صورتها، وإضافة منتج من صورته.</small></span>
+                        <input type="checkbox" class="switch" name="enabled">
+                    </label>
+                    <label class="field">سعر الباقة الشهري (د.ع)
+                        <input name="price" type="number" min="0" step="250" inputmode="numeric">
+                    </label>
+                    <label class="field">حد فواتير الموردين بالشهر
+                        <input name="invoiceLimit" type="number" min="0" step="1" inputmode="numeric">
+                    </label>
+                    <label class="field">حد المنتجات بالصورة بالشهر
+                        <input name="productLimit" type="number" min="0" step="1" inputmode="numeric">
+                    </label>
+                </div>
+                <div class="facts ai-facts" id="aiFacts"></div>
+                <div class="msg" id="aiPlanMsg" role="alert"></div>
+                <div class="actions-bar">
+                    <div class="row">
+                        <span class="hint">زيادة الحد:</span>
+                        <button class="btn secondary" type="button" data-ai-add="10">+10 فواتير</button>
+                        <button class="btn secondary" type="button" data-ai-add="20">+20 فاتورة</button>
+                    </div>
+                    <button class="btn" type="submit">حفظ الباقة</button>
+                </div>
+            </form>
+            <h4 class="rates-h">آخر الطلبات وكلفة كل طلب</h4>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>الوقت</th><th>النوع</th><th>الرموز (دخول / خروج)</th><th>الكلفة</th><th>النتيجة</th></tr>
+                    </thead>
+                    <tbody id="aiUsageRows"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="block">
             <h3>الحسابات</h3>
             <div id="members"></div>
             <form id="addMemberForm" class="grid" novalidate style="margin-top:14px">
@@ -675,6 +727,27 @@
             </div>
         </form>
         <div class="creds" id="newCreds" hidden></div>
+    </dialog>
+
+    <!-- ===== الباقة الذكية لكل المتاجر ===== -->
+    <dialog class="wide" id="aiDialog">
+        <div class="dlg-head">
+            <div>
+                <h2>الباقة الذكية</h2>
+                <p id="aiDlgSub">استخدام هذا الشهر وكلفته وربحك لكل متجر.</p>
+            </div>
+            <button class="x-btn" type="button" data-close aria-label="إغلاق">×</button>
+        </div>
+        <div class="facts ai-facts" id="aiTotals"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>المتجر</th><th>الحالة</th><th>الفواتير</th><th>المنتجات</th><th>الكلفة</th><th>سعر الباقة</th><th>ربحك</th><th>متوسط كلفة الطلب</th><th></th></tr>
+                </thead>
+                <tbody id="aiRows"></tbody>
+            </table>
+        </div>
+        <p class="hint" id="aiRateNote"></p>
     </dialog>
 
     <!-- ===== أسعار الصرف لكل المتاجر ===== -->
@@ -949,6 +1022,173 @@
             document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
             render();
         }));
+        // ===== الباقة الذكية =====
+        const AI_DEFAULTS = { enabled: false, price_iqd: 10000, invoice_limit: 40, product_limit: 200 };
+        let aiSummary = new Map(); // معرّف المتجر -> استخدام هذا الشهر وكلفته
+        let usdIqd = { rate: 1500, from: '' };
+
+        // الكلفة بالدولار تُحوَّل للدينار بآخر سعر بغداد نشرته، وإلا بسعر تقديري
+        async function loadUsdRate() {
+            const { data } = await sb.from('market_rates').select('rates, created_at').order('created_at', { ascending: false }).limit(1);
+            const r = data && data[0] && data[0].rates && data[0].rates.baghdad;
+            const v = r && (r.sell || r.buy);
+            usdIqd = v ? { rate: v, from: 'آخر سعر بغداد نشرته' } : { rate: 1500, from: 'سعر تقديري، لم تنشر سعر صرف بعد' };
+        }
+
+        async function loadAI() {
+            const { data, error } = await sb.rpc('provider_ai_summary', { p_from: null });
+            if (error) {
+                throw new Error(/provider_ai_summary|function|42883|schema cache|relation/.test(error.message)
+                    ? 'شغّل الملف supabase/ai.sql في Supabase أولًا'
+                    : 'تعذر تحميل بيانات الباقة: ' + error.message);
+            }
+            aiSummary = new Map((data || []).map(r => [r.store_id, r]));
+        }
+
+        const iqd = usd => Math.round(Number(usd || 0) * usdIqd.rate);
+        const usdText = v => '$' + Number(v || 0).toFixed(Number(v || 0) < 1 ? 4 : 2);
+
+        function aiRow(storeId) {
+            return aiSummary.get(storeId) || { ...AI_DEFAULTS, invoices: 0, products: 0, failed: 0, cost_usd: 0 };
+        }
+
+        function aiNumbers(r) {
+            const cost = Number(r.cost_usd || 0);
+            const requests = Number(r.invoices || 0) + Number(r.products || 0) + Number(r.failed || 0);
+            const revenue = r.enabled ? Number(r.price_iqd || 0) : 0;
+            return { cost, requests, revenue, profit: revenue - iqd(cost), avg: requests ? cost / requests : 0 };
+        }
+
+        function aiFactsHtml(r) {
+            const n = aiNumbers(r);
+            return `
+                <div class="fact">فواتير الموردين هذا الشهر<b>${num(r.invoices)} / ${num(r.invoice_limit)}</b></div>
+                <div class="fact">منتجات بالصورة هذا الشهر<b>${num(r.products)} / ${num(r.product_limit)}</b></div>
+                <div class="fact">كلفتك هذا الشهر<b>${usdText(n.cost)} ≈ ${num(iqd(n.cost))} د.ع</b></div>
+                <div class="fact">متوسط كلفة الطلب<b>${n.requests ? `${usdText(n.avg)} ≈ ${num(iqd(n.avg))} د.ع` : '—'}</b></div>
+                <div class="fact ${n.profit >= 0 ? 'profit' : 'loss'}">ربحك هذا الشهر<b>${num(n.profit)} د.ع</b></div>`;
+        }
+
+        async function fillAIBlock(s) {
+            const f = $('aiPlanForm').elements;
+            $('aiPlanMsg').textContent = '';
+            $('aiFacts').innerHTML = '<div class="fact">جارِ التحميل…</div>';
+            $('aiUsageRows').innerHTML = '';
+            try {
+                await Promise.all([loadAI(), loadUsdRate()]);
+            } catch (err) {
+                $('aiFacts').innerHTML = '';
+                $('aiPlanMsg').textContent = err.message;
+            }
+            if (!current || current.store_id !== s.store_id) return;
+            const r = aiRow(s.store_id);
+            f.enabled.checked = !!r.enabled;
+            f.price.value = r.price_iqd;
+            f.invoiceLimit.value = r.invoice_limit;
+            f.productLimit.value = r.product_limit;
+            if (!$('aiPlanMsg').textContent) $('aiFacts').innerHTML = aiFactsHtml(r);
+
+            const { data } = await sb.from('ai_usage')
+                .select('created_at, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, ok, error')
+                .eq('store_id', s.store_id)
+                .order('created_at', { ascending: false })
+                .limit(30);
+            $('aiUsageRows').innerHTML = (data || []).map(u => `
+                <tr>
+                    <td>${esc(ago(u.created_at))}</td>
+                    <td>${u.kind === 'invoice' ? 'فاتورة مورد' : 'منتج بالصورة'}</td>
+                    <td dir="ltr">${num(u.input_tokens + (u.cache_read_tokens || 0) + (u.cache_write_tokens || 0))} / ${num(u.output_tokens)}</td>
+                    <td>${usdText(u.cost_usd)}<small>≈ ${num(iqd(u.cost_usd))} د.ع</small></td>
+                    <td>${u.ok ? 'نجح' : 'لم ينجح (لا يُحسب من الحد)'}</td>
+                </tr>`).join('') || '<tr><td colspan="5" class="muted">لا توجد طلبات بعد</td></tr>';
+        }
+
+        $('aiPlanForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            if (!current) return;
+            const f = e.target.elements;
+            const row = {
+                store_id: current.store_id,
+                enabled: f.enabled.checked,
+                price_iqd: Math.max(0, Number(f.price.value || 0)),
+                invoice_limit: Math.max(0, Math.floor(Number(f.invoiceLimit.value || 0))),
+                product_limit: Math.max(0, Math.floor(Number(f.productLimit.value || 0))),
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await sb.from('store_ai_plans').upsert(row);
+            if (error) {
+                $('aiPlanMsg').textContent = /store_ai_plans|relation|42P01|schema cache/.test(error.message)
+                    ? 'شغّل الملف supabase/ai.sql في Supabase أولًا'
+                    : 'تعذر الحفظ: ' + error.message;
+                return;
+            }
+            flash(row.enabled ? 'تم حفظ الباقة الذكية لهذا المتجر' : 'الباقة الذكية متوقفة لهذا المتجر');
+            await fillAIBlock(current);
+        });
+
+        $('aiPlanForm').addEventListener('click', e => {
+            const b = e.target.closest('[data-ai-add]');
+            if (!b) return;
+            const f = $('aiPlanForm').elements;
+            f.invoiceLimit.value = Number(f.invoiceLimit.value || 0) + Number(b.dataset.aiAdd);
+            $('aiPlanMsg').textContent = 'اضغط "حفظ الباقة" لتطبيق الحد الجديد';
+        });
+
+        // ملخص كل المتاجر
+        async function renderAIDialog() {
+            $('aiRows').innerHTML = '<tr><td colspan="9" class="muted">جارِ التحميل…</td></tr>';
+            $('aiTotals').innerHTML = '';
+            try {
+                await Promise.all([loadAI(), loadUsdRate()]);
+            } catch (err) {
+                $('aiRows').innerHTML = `<tr><td colspan="9">${esc(err.message)}</td></tr>`;
+                return;
+            }
+            const list = [...aiSummary.values()]
+                .map(r => ({ r, s: stores.find(x => x.store_id === r.store_id), n: aiNumbers(r) }))
+                .sort((a, b) => Number(b.r.enabled) - Number(a.r.enabled) || b.n.cost - a.n.cost);
+            $('aiRows').innerHTML = list.map(({ r, s, n }) => `
+                <tr>
+                    <td><b>${esc(s ? s.name : r.store_id.slice(0, 8))}</b></td>
+                    <td><span class="status ${r.enabled ? 'closed' : 'none'}">${r.enabled ? 'مفعّلة' : 'متوقفة'}</span></td>
+                    <td>${num(r.invoices)} / ${num(r.invoice_limit)}</td>
+                    <td>${num(r.products)} / ${num(r.product_limit)}</td>
+                    <td>${usdText(n.cost)}<small>≈ ${num(iqd(n.cost))} د.ع</small></td>
+                    <td>${r.enabled ? num(r.price_iqd) + ' د.ع' : '—'}</td>
+                    <td class="${n.profit >= 0 ? '' : 'neg'}">${num(n.profit)} د.ع</td>
+                    <td>${n.requests ? usdText(n.avg) : '—'}<small>${n.requests ? '≈ ' + num(iqd(n.avg)) + ' د.ع' : ''}</small></td>
+                    <td>${s ? `<button class="btn secondary" type="button" data-ai-open="${esc(r.store_id)}">إدارة</button>` : ''}</td>
+                </tr>`).join('') || '<tr><td colspan="9" class="muted">لم تُفعَّل الباقة لأي متجر بعد. فعّلها من نافذة "إدارة" المتجر.</td></tr>';
+
+            const on = list.filter(x => x.r.enabled);
+            const revenue = on.reduce((t, x) => t + x.n.revenue, 0);
+            const cost = list.reduce((t, x) => t + x.n.cost, 0);
+            const requests = list.reduce((t, x) => t + x.n.requests, 0);
+            const profit = revenue - iqd(cost);
+            $('aiTotals').innerHTML = `
+                <div class="fact">متاجر مشتركة بالباقة<b>${num(on.length)}</b></div>
+                <div class="fact">دخل الباقة هذا الشهر<b>${num(revenue)} د.ع</b></div>
+                <div class="fact">كلفة الذكاء هذا الشهر<b>${usdText(cost)} ≈ ${num(iqd(cost))} د.ع</b></div>
+                <div class="fact">متوسط كلفة الطلب<b>${requests ? usdText(cost / requests) + ' ≈ ' + num(iqd(cost / requests)) + ' د.ع' : '—'}</b></div>
+                <div class="fact ${profit >= 0 ? 'profit' : 'loss'}">صافي ربحك<b>${num(profit)} د.ع</b></div>`;
+            $('aiRateNote').textContent = `التحويل للدينار بسعر ${num(usdIqd.rate)} للدولار (${usdIqd.from}). الأرقام من بداية الشهر بتوقيت بغداد.`;
+        }
+
+        $('aiBtn').addEventListener('click', async () => {
+            $('aiDialog').showModal();
+            await renderAIDialog();
+        });
+
+        $('aiRows').addEventListener('click', e => {
+            const b = e.target.closest('[data-ai-open]');
+            if (!b) return;
+            const s = stores.find(x => x.store_id === b.dataset.aiOpen);
+            if (!s) return;
+            $('aiDialog').close();
+            fillStoreDialog(s);
+            $('storeDialog').showModal();
+        });
+
         // ===== أسعار الصرف لكل المتاجر =====
         const RATE_MARKETS = [['baghdad', 'بغداد'], ['erbil', 'أربيل'], ['basra', 'البصرة'], ['official', 'الرسمي']];
         let rateRows = [];
@@ -1114,6 +1354,7 @@
             $('sdId').textContent = s.store_id;
             $('sdActivity').textContent = ago(s.last_activity);
             $('sdRows').textContent = num(s.rows_count);
+            fillAIBlock(s);
         }
 
         $('rows').addEventListener('click', e => {

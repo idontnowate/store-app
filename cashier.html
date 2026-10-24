@@ -21,14 +21,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الكاشير</title>
     <script src="storage.js?v=202610251"></script>
-    <script src="products.js?v=202610242"></script>
+    <script src="rates.js?v=202610241"></script>
+    <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610244"></script>
+    <script src="i18n-en.js?v=202610245"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610242"></script>
-    <script src="storefront.js?v=202610241"></script>
+    <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="barcode-camera.js?v=202610233"></script>
     <script src="scanbridge.js?v=202610231"></script>
@@ -1134,7 +1135,10 @@
             // ما يعادل الإجمالي بالدولار، لمن يدفع بالدولار
             const r = StoreProducts.usdRate();
             el.grandUsd.hidden = !r || !subtotal;
-            if (r) el.grandUsd.textContent = `≈ ${StoreProducts.fmtUSD(Math.round((subtotal - disc) / r.rate * 100) / 100)} بسعر ${num(r.rate)}`;
+            if (r) {
+                const src = r.source === 'central' && window.StoreRates ? ` · المزود ${StoreRates.age(r.at)}` : '';
+                el.grandUsd.textContent = `≈ ${StoreProducts.fmtUSD(Math.round((subtotal - disc) / r.rate * 100) / 100)} بسعر ${num(r.rate)}${src}`;
+            }
         }
 
         // ===== الأحداث =====
@@ -1432,6 +1436,9 @@
                 render();
             }
         });
+
+        // سعر جديد من المزود: أسعار منتجات الدولار تتغير في البطاقات (الأسطر المضافة تبقى بسعرها)
+        window.addEventListener('marketrates', () => render());
 
         // ===== التهيئة =====
         try {

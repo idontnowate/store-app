@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610244"></script>
+    <script src="i18n-en.js?v=202610245"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <style>
@@ -397,6 +397,47 @@
                 grid-template-columns: 1fr;
             }
         }
+    
+        .rates-grid {
+            display: grid;
+            grid-template-columns: 90px 1fr 1fr;
+            gap: 8px 10px;
+            align-items: center;
+        }
+
+        .rates-grid .h {
+            font-size: 13px;
+            color: var(--text-3, #6b717b);
+        }
+
+        .rates-grid input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-strong, #d5d8dd);
+            background: var(--surface, #fff);
+            color: var(--text, #0e1116);
+            font: inherit;
+        }
+
+        .rates-last {
+            margin: 0 0 14px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: var(--surface-2, #f3f4f6);
+            font-size: 13.5px;
+        }
+
+        .hint {
+            margin: 8px 0;
+            font-size: 12.5px;
+            color: var(--text-3, #6b717b);
+        }
+
+        .rates-h {
+            margin: 20px 0 8px;
+            font-size: 15px;
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -435,6 +476,7 @@
             </div>
             <div class="row">
                 <button class="btn secondary" type="button" id="refreshBtn">تحديث</button>
+                <button class="btn secondary" type="button" id="ratesBtn">أسعار الصرف</button>
                 <button class="btn" type="button" id="newStoreBtn">+ متجر جديد</button>
                 <button class="btn danger" type="button" id="signOutBtn">خروج</button>
             </div>
@@ -633,6 +675,52 @@
             </div>
         </form>
         <div class="creds" id="newCreds" hidden></div>
+    </dialog>
+
+    <!-- ===== أسعار الصرف لكل المتاجر ===== -->
+    <dialog class="wide" id="ratesDialog">
+        <div class="dlg-head">
+            <div>
+                <h2>أسعار الصرف</h2>
+                <p>تُنشر لكل المتاجر المشتركة، والكاشير يستخدمها تلقائيًا لمنتجات الدولار (ما لم يختر المتجر سعره الخاص).</p>
+            </div>
+            <button class="x-btn" type="button" data-close aria-label="إغلاق">×</button>
+        </div>
+        <p class="rates-last" id="ratesLast"></p>
+        <form id="ratesForm" novalidate>
+            <div class="rates-grid">
+                <span class="h">السوق</span><span class="h">شراء</span><span class="h">بيع</span>
+                <span>بغداد</span>
+                <input name="baghdadBuy" inputmode="decimal" dir="ltr" placeholder="168500">
+                <input name="baghdadSell" inputmode="decimal" dir="ltr" placeholder="169000">
+                <span>أربيل</span>
+                <input name="erbilBuy" inputmode="decimal" dir="ltr">
+                <input name="erbilSell" inputmode="decimal" dir="ltr">
+                <span>البصرة</span>
+                <input name="basraBuy" inputmode="decimal" dir="ltr">
+                <input name="basraSell" inputmode="decimal" dir="ltr">
+                <span>الرسمي</span>
+                <input name="officialBuy" inputmode="decimal" dir="ltr">
+                <span></span>
+            </div>
+            <label class="field" style="margin-top:12px">ملاحظة (اختياري)
+                <input name="note" maxlength="200" placeholder="مثلًا: بورصة الكفاح الساعة 10">
+            </label>
+            <p class="hint">اكتب السعر لكل 100 دولار كما في البورصة (169000) أو لكل دولار (1690)، والبرنامج يفهم الاثنين. اترك السوق فارغًا إذا لا تعرف سعره.</p>
+            <div class="msg" id="ratesMsg" role="alert"></div>
+            <div class="actions-bar">
+                <button class="btn" type="submit">نشر لكل المتاجر</button>
+            </div>
+        </form>
+        <h3 class="rates-h">آخر التسجيلات</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>الوقت</th><th>بغداد</th><th>أربيل</th><th>البصرة</th><th>الرسمي</th><th>ملاحظة</th><th></th></tr>
+                </thead>
+                <tbody id="ratesRows"></tbody>
+            </table>
+        </div>
     </dialog>
 
     <!-- ===== كلمة مرور جديدة لحساب ===== -->
@@ -861,6 +949,130 @@
             document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
             render();
         }));
+        // ===== أسعار الصرف لكل المتاجر =====
+        const RATE_MARKETS = [['baghdad', 'بغداد'], ['erbil', 'أربيل'], ['basra', 'البصرة'], ['official', 'الرسمي']];
+        let rateRows = [];
+
+        // يقبل 169000 (لكل 100 دولار) أو 1690 (لكل دولار)، وبالأرقام العربية أيضًا. يعيد السعر لكل دولار
+        function perDollar(v) {
+            const t = String(v || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[,،٬\s]/g, '').replace('٫', '.');
+            if (!t) return null;
+            const n = Number(t);
+            if (!isFinite(n) || n <= 0) return NaN;
+            return Math.round((n > 20000 ? n / 100 : n) * 100) / 100;
+        }
+
+        function rateCell(r) {
+            if (!r) return '—';
+            return [r.buy, r.sell].filter(x => x).map(x => num(Math.round(x * 100))).join(' / ') || '—';
+        }
+
+        async function loadRates() {
+            const { data, error } = await sb.from('market_rates')
+                .select('id, rates, note, created_at')
+                .order('created_at', { ascending: false })
+                .limit(10);
+            if (error) {
+                $('ratesLast').textContent = /market_rates|relation|42P01|schema cache/.test(error.message)
+                    ? 'شغّل الملف supabase/rates.sql في Supabase أولًا'
+                    : 'تعذر تحميل الأسعار: ' + error.message;
+                rateRows = [];
+            } else {
+                rateRows = data || [];
+            }
+            renderRates();
+        }
+
+        function renderRates() {
+            const last = rateRows[0];
+            if (last) {
+                const b = last.rates.baghdad;
+                $('ratesLast').textContent = `آخر نشر ${ago(last.created_at)}` + (b ? ` — بغداد ${rateCell(b)} لكل 100 دولار` : '');
+            } else if (!$('ratesLast').textContent.includes('rates.sql')) {
+                $('ratesLast').textContent = 'لم تُنشر أسعار بعد. المتاجر تستخدم أسعارها المسجلة يدويًا حتى تنشر.';
+            }
+            $('ratesRows').innerHTML = rateRows.map(r => `
+                <tr>
+                    <td>${esc(ago(r.created_at))}</td>
+                    ${RATE_MARKETS.map(([k]) => `<td dir="ltr">${rateCell(r.rates[k])}</td>`).join('')}
+                    <td>${esc(r.note || '')}</td>
+                    <td><button class="btn danger small" type="button" data-del-rate="${r.id}">حذف</button></td>
+                </tr>`).join('') || '<tr><td colspan="7" class="muted">لا توجد تسجيلات</td></tr>';
+            // نملأ النموذج بآخر الأسعار (لكل 100 دولار) لتعديل ما تغيّر فقط
+            const f = $('ratesForm').elements;
+            RATE_MARKETS.forEach(([k]) => {
+                const r = last && last.rates[k];
+                if (f[k + 'Buy']) f[k + 'Buy'].value = r && r.buy ? Math.round(r.buy * 100) : '';
+                if (f[k + 'Sell']) f[k + 'Sell'].value = r && r.sell ? Math.round(r.sell * 100) : '';
+            });
+            f.note.value = '';
+        }
+
+        $('ratesBtn').addEventListener('click', async () => {
+            $('ratesMsg').textContent = '';
+            $('ratesDialog').showModal();
+            await loadRates();
+        });
+
+        $('ratesForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const f = e.target.elements;
+            const msg = $('ratesMsg');
+            msg.className = 'msg';
+            msg.textContent = '';
+            const rates = {};
+            for (const [k, label] of RATE_MARKETS) {
+                const buy = perDollar(f[k + 'Buy'] && f[k + 'Buy'].value);
+                const sell = perDollar(f[k + 'Sell'] && f[k + 'Sell'].value);
+                for (const v of [buy, sell]) {
+                    if (Number.isNaN(v) || (v !== null && (v < 500 || v > 10000))) {
+                        msg.textContent = `سعر ${label} غير معقول. اكتبه لكل 100 دولار (مثل 169000) أو لكل دولار (مثل 1690)`;
+                        return;
+                    }
+                }
+                if (buy && sell && sell < buy) {
+                    msg.textContent = `سعر البيع في ${label} أقل من سعر الشراء`;
+                    return;
+                }
+                if (buy || sell) rates[k] = { buy: buy || null, sell: sell || null };
+            }
+            if (!Object.keys(rates).length) {
+                msg.textContent = 'أدخل سعرًا واحدًا على الأقل';
+                return;
+            }
+            // تغيّر كبير عن آخر نشر: غالبًا خطأ كتابة، نطلب تأكيدًا
+            const last = rateRows[0];
+            const big = last && RATE_MARKETS.find(([k]) => {
+                const a = rates[k] && (rates[k].sell || rates[k].buy);
+                const b = last.rates[k] && (last.rates[k].sell || last.rates[k].buy);
+                return a && b && Math.abs(a - b) / b > 0.03;
+            });
+            if (big && !confirm(`سعر ${big[1]} تغيّر أكثر من 3% عن آخر نشر. متأكد أنه صحيح؟`)) return;
+
+            const btn = e.target.querySelector('button[type=submit]');
+            btn.disabled = true;
+            const { error } = await sb.from('market_rates').insert({ rates, note: f.note.value.trim().slice(0, 200) });
+            btn.disabled = false;
+            if (error) {
+                msg.textContent = /row-level|policy|permission/.test(error.message)
+                    ? 'هذا الحساب ليس مزودًا في جدول providers'
+                    : /market_rates|relation|42P01|schema cache/.test(error.message)
+                        ? 'شغّل الملف supabase/rates.sql في Supabase أولًا'
+                        : 'تعذر النشر: ' + error.message;
+                return;
+            }
+            flash('تم نشر الأسعار لكل المتاجر');
+            await loadRates();
+        });
+
+        $('ratesRows').addEventListener('click', async e => {
+            const b = e.target.closest('[data-del-rate]');
+            if (!b || !confirm('حذف هذا التسجيل؟ المتاجر ستعود لآخر تسجيل قبله.')) return;
+            const { error } = await sb.from('market_rates').delete().eq('id', Number(b.dataset.delRate));
+            if (error) return flash('تعذر الحذف: ' + error.message, true);
+            await loadRates();
+        });
+
         $('refreshBtn').addEventListener('click', async e => {
             e.currentTarget.disabled = true;
             await load();

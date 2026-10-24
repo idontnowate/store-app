@@ -86,12 +86,32 @@
         }
     }
 
-    // سعر الدولار المعتمد: الثابت من الإعدادات، أو آخر سعر بيع مسجل في السوق المختار
-    function usdRate() {
-        const o = options();
+    // أسعار المزود المحفوظة على الجهاز (rates.js)
+    function central() {
+        try {
+            return JSON.parse(localStorage.getItem('appMarketRates')) || null;
+        } catch {
+            return null;
+        }
+    }
+
+    /* سعر الدولار المعتمد حسب مصدر السعر في الإعدادات (usdSource):
+     * auto (الافتراضي): آخر سعر من المزود للسوق المختار، وإن لم يوجد فآخر سعر سجّله المتجر
+     * manual: آخر سعر سجّله المتجر في صفحة سعر الصرف
+     * fixed: سعر ثابت من الإعدادات */
+    function usdRate(o) {
+        o = o || options();
         const fixed = Number(o.usdFixed || 0);
-        if (fixed > 0) return { rate: fixed, date: '', source: 'fixed' };
+        if (o.usdSource === 'fixed' || (!o.usdSource && fixed > 0)) {
+            return fixed > 0 ? { rate: fixed, date: '', source: 'fixed' } : null;
+        }
         const market = o.usdMarket || 'baghdad';
+        if (o.usdSource !== 'manual') {
+            const c = central();
+            const r = c && c.rates && c.rates[market];
+            const v = r ? (r.sell ?? r.buy) : null;
+            if (v > 0) return { rate: Number(v), date: String(c.at || '').slice(0, 10), at: c.at, source: 'central', market };
+        }
         const entries = read(RATES_KEY).sort((a, b) =>
             (b.date || '').localeCompare(a.date || '') ||
             (b.time || '').localeCompare(a.time || '') ||
@@ -99,9 +119,9 @@
         for (const e of entries) {
             const r = e.rates && e.rates[market];
             const v = r ? (r.sell ?? r.buy) : null;
-            if (v > 0) return { rate: Number(v), date: e.date || '', source: market };
+            if (v > 0) return { rate: Number(v), date: e.date || '', source: 'store', market };
             // النسخة الأقدم من صفحة سعر الصرف: { rate }
-            if (!e.rates && Number(e.rate) > 0 && market === 'baghdad') return { rate: Number(e.rate), date: e.date || '', source: market };
+            if (!e.rates && Number(e.rate) > 0 && market === 'baghdad') return { rate: Number(e.rate), date: e.date || '', source: 'store', market };
         }
         return null;
     }

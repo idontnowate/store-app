@@ -227,6 +227,8 @@
             if (!e.key || WATCH.test(e.key)) schedule(4000);
         });
         window.addEventListener('online', () => schedule(3000));
+        // سعر صرف جديد من المزود يغيّر أسعار منتجات الدولار
+        window.addEventListener('marketrates', () => schedule(3000));
         document.addEventListener('visibilitychange', () => { if (document.hidden) publish(false); });
         setInterval(() => { if (!document.hidden) publish(false); }, CHECK_EVERY);
     }

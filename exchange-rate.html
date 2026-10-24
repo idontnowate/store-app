@@ -21,13 +21,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>سعر الصرف</title>
     <script src="storage.js?v=202610251"></script>
+    <script src="rates.js?v=202610241"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610244"></script>
+    <script src="i18n-en.js?v=202610245"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610242"></script>
-    <script src="storefront.js?v=202610241"></script>
+    <script src="storefront.js?v=202610242"></script>
     <style>
         :root {
             --page: #efede5;
@@ -501,6 +502,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <style>
+        .rate-source {
+            font-size: 13.5px;
+            color: var(--text-3, #6b717b);
+        }
+
+        .central-tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: var(--accent-soft, #e6f4ee);
+            color: var(--accent-text, #0a6d4f);
+            font-size: 12px;
+            font-weight: 600;
+        }
+    </style>
     <link rel="stylesheet" href="design.css?v=202610232">
 </head>
 
@@ -571,6 +588,7 @@
 
         <div class="toolbar">
             <button class="add-button" id="addRateBtn" type="button">+ تسجيل أسعار اليوم</button>
+            <span class="rate-source" id="rateSource"></span>
         </div>
 
         <div class="two-col">
@@ -742,9 +760,27 @@
             localStorage.setItem(RATES_KEY, JSON.stringify(entries));
         }
 
+        // أسعار المزود تظهر كتسجيل مثل غيرها (لا تُحذف من هنا)
+        function centralEntry() {
+            const c = window.StoreRates && StoreRates.latest();
+            if (!c || !c.at || !c.rates || !Object.keys(c.rates).length) return null;
+            const d = new Date(c.at);
+            const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
+            return {
+                id: 'central',
+                central: true,
+                date: local.slice(0, 10),
+                time: local.slice(11, 16),
+                created: d.getTime(),
+                note: 'من المزود' + (c.note ? ' — ' + c.note : ''),
+                rates: Object.fromEntries(MARKETS.map(m => [m.key, c.rates[m.key] || null]))
+            };
+        }
+
         // الأحدث أولًا حسب التاريخ ثم الوقت
         function sorted() {
-            return [...entries].sort((a, b) =>
+            const central = centralEntry();
+            return [...entries, ...(central ? [central] : [])].sort((a, b) =>
                 (b.date || '').localeCompare(a.date || '') ||
                 (b.time || '').localeCompare(a.time || '') ||
                 (b.created || 0) - (a.created || 0));
@@ -838,7 +874,7 @@
                     <td>${marketCell(e.rates, 'erbil')}</td>
                     <td>${marketCell(e.rates, 'basra')}</td>
                     <td>${esc(e.note || '')}</td>
-                    <td><button class="btn danger" type="button" data-del="${e.id}">حذف</button></td>
+                    <td>${e.central ? '<span class="central-tag">تلقائي</span>' : `<button class="btn danger" type="button" data-del="${e.id}">حذف</button>`}</td>
                 </tr>`).join('');
         }
 
@@ -880,8 +916,19 @@
             }
         }
 
+        // من أين يأخذ الكاشير سعر الدولار
+        function renderSource() {
+            const o = window.StoreAuth ? StoreAuth.getStoreOptions() : {};
+            const src = o.usdSource || (Number(o.usdFixed) > 0 ? 'fixed' : 'auto');
+            const c = window.StoreRates && StoreRates.latest();
+            $('rateSource').textContent = src === 'auto'
+                ? (c ? `الأسعار تتحدث تلقائيًا من المزود — آخر تحديث ${StoreRates.age(c.at)}` : 'الأسعار التلقائية من المزود لم تصل بعد')
+                : src === 'manual' ? 'الكاشير يستخدم الأسعار التي تسجّلها هنا' : 'الكاشير يستخدم سعرًا ثابتًا من الإعدادات';
+        }
+
         function render() {
             const list = sorted();
+            renderSource();
             renderSummary(list);
             renderCurrent(list);
             renderHistory(list);
@@ -981,6 +1028,10 @@
                 render();
             }
         });
+
+        window.addEventListener('marketrates', render);
+        // الإعدادات (مصدر السعر) تصل بعد تجهيز الدخول
+        if (window.StoreAuth) StoreAuth.ready.then(renderSource);
 
         loadEntries();
         render();

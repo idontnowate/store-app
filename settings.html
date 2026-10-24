@@ -21,14 +21,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
     <script src="storage.js?v=202610251"></script>
-    <script src="products.js?v=202610242"></script>
+    <script src="rates.js?v=202610241"></script>
+    <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610244"></script>
+    <script src="i18n-en.js?v=202610245"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
     <script src="layout.js?v=202610242"></script>
-    <script src="storefront.js?v=202610241"></script>
+    <script src="storefront.js?v=202610242"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <style>
         :root {
@@ -926,13 +927,19 @@
                             <label>الحد الأدنى الافتراضي للمنتجات الجديدة
                                 <input name="defaultMinQty" type="number" min="0" step="1" inputmode="numeric">
                             </label>
-                            <label>سعر الدولار للمنتجات المسعّرة بالدولار
-                                <select name="usdMarket">
-                                    <option value="baghdad">آخر سعر بيع في سوق بغداد</option>
-                                    <option value="erbil">آخر سعر بيع في سوق أربيل</option>
-                                    <option value="basra">آخر سعر بيع في سوق البصرة</option>
-                                    <option value="official">السعر الرسمي</option>
+                            <label>مصدر سعر الدولار
+                                <select name="usdSource">
+                                    <option value="auto">تلقائي من المزود</option>
+                                    <option value="manual">أسجّله بنفسي في صفحة سعر الصرف</option>
                                     <option value="fixed">سعر ثابت أحدده</option>
+                                </select>
+                            </label>
+                            <label id="usdMarketField">السوق
+                                <select name="usdMarket">
+                                    <option value="baghdad">بغداد (سعر البيع)</option>
+                                    <option value="erbil">أربيل (سعر البيع)</option>
+                                    <option value="basra">البصرة (سعر البيع)</option>
+                                    <option value="official">السعر الرسمي</option>
                                 </select>
                             </label>
                             <label id="usdFixedField">السعر الثابت (دينار لكل دولار)
@@ -1240,7 +1247,8 @@
             optionsForm.elements.allowNegativeStock.checked = !!o.allowNegativeStock;
             optionsForm.elements.defaultPayment.value = o.defaultPayment === 'بطاقة' ? 'بطاقة' : 'نقدي';
             optionsForm.elements.defaultMinQty.value = Number(o.defaultMinQty || 0);
-            optionsForm.elements.usdMarket.value = Number(o.usdFixed) > 0 ? 'fixed' : (o.usdMarket || 'baghdad');
+            optionsForm.elements.usdSource.value = o.usdSource || (Number(o.usdFixed) > 0 ? 'fixed' : 'auto');
+            optionsForm.elements.usdMarket.value = o.usdMarket === 'fixed' ? 'baghdad' : (o.usdMarket || 'baghdad');
             optionsForm.elements.usdFixed.value = Number(o.usdFixed) > 0 ? o.usdFixed : '';
             renderUsd();
         }
@@ -1248,13 +1256,28 @@
         // السعر المعتمد الآن، كما سيستخدمه الكاشير
         function renderUsd() {
             const f = optionsForm.elements;
-            $('usdFixedField').style.display = f.usdMarket.value === 'fixed' ? '' : 'none';
-            const r = StoreProducts.usdRate();
-            $('usdNow').textContent = r
-                ? `السعر المعتمد الآن: ${Number(r.rate).toLocaleString('en-US')} دينار لكل دولار` + (r.date ? ` (مسجل في ${r.date})` : '')
-                : 'لا يوجد سعر صرف مسجل لهذا السوق. سجّله من صفحة سعر الصرف، وإلا لا يمكن بيع المنتجات المسعّرة بالدولار.';
+            const src = f.usdSource.value;
+            $('usdFixedField').style.display = src === 'fixed' ? '' : 'none';
+            $('usdMarketField').style.display = src === 'fixed' ? 'none' : '';
+            // نعرض السعر الذي سيُستخدم باختيارات النموذج الحالية، قبل الحفظ
+            const r = StoreProducts.usdRate({ ...A.getStoreOptions(), usdSource: src, usdMarket: f.usdMarket.value, usdFixed: src === 'fixed' ? Number(f.usdFixed.value || 0) : 0 });
+            const el = $('usdNow');
+            if (!r) {
+                el.textContent = src === 'auto'
+                    ? 'لم يصل سعر من المزود لهذا السوق بعد، ولا يوجد سعر مسجل في المتجر.'
+                    : 'لا يوجد سعر صرف مسجل لهذا السوق. سجّله من صفحة سعر الصرف، وإلا لا يمكن بيع المنتجات المسعّرة بالدولار.';
+                return;
+            }
+            const from = r.source === 'central' ? 'من المزود، ' + StoreRates.age(r.at)
+                : r.source === 'store' ? (src === 'auto' ? 'لم يصل سعر من المزود، نستخدم آخر سعر سجّله المتجر في ' : 'مسجل في ') + r.date
+                : 'سعر ثابت';
+            el.textContent = `السعر المعتمد الآن: ${Number(r.rate).toLocaleString('en-US')} دينار لكل دولار (${from})`;
         }
+
+        optionsForm.elements.usdSource.addEventListener('change', renderUsd);
         optionsForm.elements.usdMarket.addEventListener('change', renderUsd);
+        optionsForm.elements.usdFixed.addEventListener('input', renderUsd);
+        window.addEventListener('marketrates', renderUsd);
 
         optionsForm.addEventListener('submit', event => {
             event.preventDefault();
@@ -1264,10 +1287,11 @@
                 allowNegativeStock: f.allowNegativeStock.checked,
                 defaultPayment: f.defaultPayment.value,
                 defaultMinQty: Math.max(0, Math.floor(Number(f.defaultMinQty.value || 0))),
-                usdMarket: f.usdMarket.value === 'fixed' ? 'baghdad' : f.usdMarket.value,
-                usdFixed: f.usdMarket.value === 'fixed' ? Math.max(0, Number(f.usdFixed.value || 0)) : 0
+                usdSource: f.usdSource.value,
+                usdMarket: f.usdMarket.value,
+                usdFixed: f.usdSource.value === 'fixed' ? Math.max(0, Number(f.usdFixed.value || 0)) : 0
             };
-            if (f.usdMarket.value === 'fixed' && !(options.usdFixed > 0)) {
+            if (f.usdSource.value === 'fixed' && !(options.usdFixed > 0)) {
                 flash('اكتب السعر الثابت للدولار', true);
                 f.usdFixed.focus();
                 return;

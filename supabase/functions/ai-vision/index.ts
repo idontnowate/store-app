@@ -209,7 +209,11 @@ Deno.serve(async (req) => {
             prompt = `The shop's existing categories: ${JSON.stringify(categories)}\n\nDescribe the product in the photo.`;
         }
 
-        const client = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
+        // المفتاح كما لُصق في الأسرار: نزيل المسافات والأسطر وعلامات التنصيص الزائدة
+        const apiKey = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
+        if (!apiKey) throw new UserError("مفتاح الذكاء غير موجود عند المزود: أضف ANTHROPIC_API_KEY في أسرار الدوال", 502, "key_missing");
+        if (!apiKey.startsWith("sk-ant-")) throw new UserError("مفتاح الذكاء عند المزود ليس مفتاح Anthropic API (يبدأ بـ sk-ant-)", 502, "key_format");
+        const client = new Anthropic({ apiKey });
         let response;
         try {
             response = await client.beta.messages.create({
@@ -229,8 +233,13 @@ Deno.serve(async (req) => {
             });
         } catch (err) {
             console.error("Claude API error:", err);
-            if (err instanceof Anthropic.AuthenticationError) throw new UserError("مفتاح الذكاء غير صحيح عند المزود", 502, "key");
+            const detail = String(err?.message ?? "");
+            if (err instanceof Anthropic.AuthenticationError) throw new UserError("مفتاح الذكاء مرفوض من Anthropic: أنشئ مفتاحًا جديدًا من console.anthropic.com وضعه في ANTHROPIC_API_KEY", 502, "key");
+            if (err instanceof Anthropic.PermissionDeniedError) throw new UserError("مفتاح الذكاء لا يملك صلاحية استخدام النموذج. تحقق من حساب Anthropic", 502, "permission");
             if (err instanceof Anthropic.RateLimitError) throw new UserError("الخدمة مشغولة الآن، حاول بعد دقيقة", 503, "busy");
+            if (err instanceof Anthropic.BadRequestError && /credit|balance|billing/i.test(detail)) {
+                throw new UserError("رصيد الذكاء عند المزود انتهى. اشحن الرصيد من console.anthropic.com", 502, "credit");
+            }
             if (err instanceof Anthropic.BadRequestError) throw new UserError("تعذرت قراءة الصورة. جرّب صورة أوضح", 400, "bad");
             throw new UserError("تعذر الاتصال بخدمة الذكاء، حاول مرة أخرى", 502, "api");
         }

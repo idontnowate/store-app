@@ -24,7 +24,7 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610248"></script>
+    <script src="i18n-en.js?v=202610249"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -295,6 +295,19 @@
             font-size: 15px;
         }
 
+        .alert .txt {
+            display: grid;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .alert .txt small {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--muted);
+            overflow-wrap: anywhere;
+        }
+
         .alert.ok {
             color: var(--muted);
             justify-content: center;
@@ -398,7 +411,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610232">
+    <link rel="stylesheet" href="design.css?v=202610233">
 </head>
 
 <body>
@@ -525,6 +538,164 @@
             return Math.max(0, subtotal - Number(p.discount || 0));
         }
 
+        const DAY_MS = 86400000;
+        const LEVEL_ORDER = { danger: 0, warn: 1, info: 2 };
+
+        function daysBetween(from, to) {
+            const a = Date.parse(from + 'T00:00:00');
+            const b = Date.parse(to + 'T00:00:00');
+            return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / DAY_MS) : 0;
+        }
+
+        function addDays(date, n) {
+            const d = new Date(date + 'T00:00:00');
+            d.setDate(d.getDate() + n);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        // المدفوع لمورد فعلًا (مع الدفعات الجزئية) — نفس حساب صفحة المشتريات
+        function purchasePaid(p) {
+            if (p.payment !== 'دين') return purchaseTotal(p);
+            if (Array.isArray(p.payments)) return p.payments.reduce((s, x) => s + Number(x.amount || 0), 0);
+            return p.settled ? purchaseTotal(p) : 0;
+        }
+
+        // أسماء أول العناصر: «أ، ب، ج و٤ غيرها»
+        function topNames(names, max = 3) {
+            const list = names.filter(Boolean);
+            const shown = list.slice(0, max).join('، ');
+            return list.length > max ? `${shown} و${num(list.length - max)} غيرها` : shown;
+        }
+
+        function inventoryLink(list, title) {
+            const ids = list.map(r => r.p.id).filter(Boolean);
+            return ids.length && ids.length <= 300
+                ? `inventory.html?ids=${encodeURIComponent(ids.join(','))}&title=${encodeURIComponent(title)}`
+                : 'inventory.html';
+        }
+
+        function buildAlerts({ rows, stockRows, products, purchases, rate, cashBalance, today }) {
+            const alerts = [];
+            const add = (level, count, title, detail, href) => alerts.push({ level, count, title, detail, href });
+
+            // مبيعات آخر 30 يومًا لكل منتج: لترتيب الأهم ولتوقع النفاد
+            const since = addDays(today, -29);
+            const recent = rows.map(r => r.inv).filter(inv => (inv.date || '') >= since && (inv.date || '') <= today);
+            const live = stockRows.filter(r => !r.p.archived);
+            live.forEach(r => { r.sold30 = StoreProducts.soldQty(r.p, recent); });
+            const bySales = (a, b) => b.sold30 - a.sold30 || a.qty - b.qty;
+
+            // 1) نفد من المخزن (منتج له سعر بيع؛ الأكثر مبيعًا أولًا)
+            const out = live.filter(r => r.qty <= 0 && Number(r.p.price || 0) > 0).sort(bySales);
+            if (out.length) {
+                const selling = out.filter(r => r.sold30 > 0).length;
+                add(selling ? 'danger' : 'warn', out.length, 'نفد من المخزن',
+                    topNames(out.map(r => r.p.name)) + (selling ? ` — ${num(selling)} منها يُباع باستمرار` : ''),
+                    inventoryLink(out, 'نفد من المخزن'));
+            }
+
+            // 2) قارب على النفاد: وصل الحد الأدنى الذي حدده صاحب المتجر (منتج بلا حد أدنى لا يُنبَّه عنه هنا)
+            const low = live.filter(r => r.qty > 0 && Number(r.p.minQty || 0) > 0 && r.qty <= Number(r.p.minQty)).sort(bySales);
+            if (low.length) {
+                add('warn', low.length, 'قارب على النفاد',
+                    topNames(low.map(r => `${r.p.name} (${num(r.qty)})`)),
+                    inventoryLink(low, 'قارب على النفاد'));
+            }
+
+            // 3) سينفد قريبًا حسب سرعة البيع (≤ 7 أيام) وإن لم يصل الحد الأدنى
+            const soon = live
+                .filter(r => r.qty > Math.max(0, Number(r.p.minQty || 0)) && r.sold30 >= 3)
+                .map(r => ({ ...r, days: Math.floor(r.qty / (r.sold30 / 30)) }))
+                .filter(r => r.days <= 7)
+                .sort((a, b) => a.days - b.days);
+            if (soon.length) {
+                add('warn', soon.length, 'سينفد قريبًا حسب سرعة البيع',
+                    topNames(soon.map(r => `${r.p.name} (≈ ${num(Math.max(1, r.days))} ${r.days <= 1 ? 'يوم' : 'أيام'})`)),
+                    inventoryLink(soon, 'سينفد قريبًا'));
+            }
+
+            // 4) أسعار تحتاج مراجعة: سعر البيع أقل من التكلفة، أو منتج في المخزن بلا سعر بيع
+            const below = [];
+            const noPrice = [];
+            live.forEach(r => {
+                const price = StoreProducts.priceIQD(r.p, rate);
+                const cost = StoreProducts.costIQD(r.p, rate);
+                if (Number(r.p.price || 0) <= 0) {
+                    if (r.qty > 0) noPrice.push(r);
+                } else if (price !== null && cost > 0 && price < cost) {
+                    below.push(r);
+                }
+            });
+            if (below.length || noPrice.length) {
+                const parts = [];
+                if (below.length) parts.push(`${num(below.length)} بسعر أقل من التكلفة: ${topNames(below.map(r => r.p.name), 2)}`);
+                if (noPrice.length) parts.push(`${num(noPrice.length)} بلا سعر بيع`);
+                add(below.length ? 'danger' : 'warn', below.length + noPrice.length, 'أسعار تحتاج مراجعة',
+                    parts.join(' — '), inventoryLink([...below, ...noPrice], 'أسعار تحتاج مراجعة'));
+            }
+
+            // 5) سعر الدولار: منتجات بالدولار بلا سعر صرف، أو سعر قديم
+            const usdCount = live.filter(r => r.p.currency === 'USD').length;
+            if (usdCount) {
+                if (!rate) {
+                    add('danger', usdCount, 'لا يوجد سعر صرف للدولار', 'منتجات الدولار لا تظهر بسعر في الكاشير حتى تسجل سعر الصرف', 'exchange-rate.html');
+                } else if (rate.source !== 'fixed') {
+                    const day = rate.date || String(rate.at || '').slice(0, 10);
+                    const age = day ? daysBetween(day, today) : 0;
+                    if (age > 2) {
+                        add('warn', usdCount, 'سعر الدولار قديم', `آخر تحديث قبل ${num(age)} يوم (${num(rate.rate)} دينار) — ${num(usdCount)} منتج بالدولار`, 'exchange-rate.html');
+                    }
+                }
+            }
+
+            // 6) أقساط متأخرة
+            const late = StoreCredit.overdueInstallments();
+            if (late.length) {
+                const amount = late.reduce((s, x) => s + x.overdueAmount, 0);
+                add('danger', late.length, `أقساط متأخرة — ${money(amount)}`,
+                    topNames([...new Set(late.map(x => (x.inv.customer || x.plan.customer || '').trim()))]),
+                    'customers.html?filter=late');
+            }
+
+            // 7) ديون زبائن مضى عليها أكثر من 30 يومًا (غير المقسطة؛ المقسطة لها تنبيه الأقساط)
+            const planned = new Set(late.map(x => x.inv.number));
+            const old = rows
+                .filter(r => r.inv.payment === 'دين' && r.remaining > 0 && !planned.has(r.inv.number)
+                    && r.inv.date && daysBetween(r.inv.date, today) > 30)
+                .sort((a, b) => b.remaining - a.remaining);
+            if (old.length) {
+                const total = old.reduce((s, r) => s + r.remaining, 0);
+                const perCustomer = new Map();
+                old.forEach(r => {
+                    const name = (r.inv.customer || '').trim() || 'بدون اسم';
+                    perCustomer.set(name, (perCustomer.get(name) || 0) + r.remaining);
+                });
+                const [topName, topAmount] = [...perCustomer.entries()].sort((a, b) => b[1] - a[1])[0];
+                add('warn', old.length, `ديون أقدم من 30 يومًا — ${money(total)}`,
+                    `${num(perCustomer.size)} زبون، أكبرها: ${topName} (${money(topAmount)})`,
+                    'customers.html?filter=debt');
+            }
+
+            // 8) فواتير الموردين: المتبقي الفعلي بعد الدفعات الجزئية
+            const unpaid = purchases
+                .filter(p => p.payment === 'دين')
+                .map(p => ({ p, left: Math.max(0, purchaseTotal(p) - purchasePaid(p)) }))
+                .filter(x => x.left > 0);
+            if (unpaid.length) {
+                const total = unpaid.reduce((s, x) => s + x.left, 0);
+                const suppliers = [...new Set(unpaid.map(x => (x.p.supplier || '').trim()))];
+                add('warn', unpaid.length, `مستحق للموردين — ${money(total)}`,
+                    topNames(suppliers), 'purchases.html?filter=unpaid');
+            }
+
+            // 9) الصندوق بالسالب: مصروف أكثر من الموجود، غالبًا عملية لم تُسجل
+            if (cashBalance < 0) {
+                add('danger', 1, `رصيد الصندوق بالسالب — ${money(cashBalance)}`, 'راجع حركات الصندوق: قد يكون هناك قبض لم يُسجل', 'cashbox.html');
+            }
+
+            return alerts.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);
+        }
+
         function computeData() {
             const invoices = safeParse(localStorage.getItem(INVOICES_KEY));
             const payments = safeParse(localStorage.getItem(PAYMENTS_KEY));
@@ -596,31 +767,13 @@
             const rawSales = rows.reduce((s, r) => s + r.amount, 0);
             const profit = rawSales - cogs;
 
-            // المشتريات غير المسددة
-            const unpaidPurchases = purchases.filter(p => p.payment === 'دين' && !p.settled);
-            const unpaidPurchasesTotal = unpaidPurchases.reduce((s, p) => s + purchaseTotal(p), 0);
-
             // آخر المبيعات
             const latest = [...rows]
                 .sort((a, b) => (b.inv.date || '').localeCompare(a.inv.date || '') || b.index - a.index)
                 .slice(0, 6);
 
-            // التنبيهات
-            const lowStock = stockRows.filter(r => r.qty <= Number(r.p.minQty || 0));
-            const alerts = [];
-            if (lowStock.length) {
-                alerts.push({ count: lowStock.length, text: 'منتجات وصلت للحد الأدنى للمخزون', href: 'inventory.html' });
-            }
-            if (openDebts.length) {
-                alerts.push({ count: openDebts.length, text: `فواتير دين غير مسددة - ${money(debtTotal)}`, href: 'debts.html' });
-            }
-            const late = StoreCredit.overdueInstallments();
-            if (late.length) {
-                alerts.push({ count: late.length, text: `أقساط متأخرة - ${money(late.reduce((s, x) => s + x.overdueAmount, 0))}`, href: 'customers.html' });
-            }
-            if (unpaidPurchases.length) {
-                alerts.push({ count: unpaidPurchases.length, text: `فواتير مورد غير مسددة - ${money(unpaidPurchasesTotal)}`, href: 'purchases.html' });
-            }
+            // ===== التنبيهات: الأهم أولًا، وكل تنبيه يفتح الصفحة على العناصر المقصودة نفسها =====
+            const alerts = buildAlerts({ rows, stockRows, products, purchases, rate, cashBalance, today });
 
             return {
                 stats: [
@@ -662,9 +815,9 @@
 
             document.getElementById('alerts').innerHTML = data.alerts.length
                 ? data.alerts.map(item => `
-                    <a class="alert" href="${item.href}">
+                    <a class="alert lv-${item.level}" href="${esc(item.href)}">
                         <span class="count">${num(item.count)}</span>
-                        <span>${esc(item.text)}</span>
+                        <span class="txt"><b>${esc(item.title)}</b>${item.detail ? `<small>${esc(item.detail)}</small>` : ''}</span>
                     </a>`).join('')
                 : `<div class="alert ok">لا توجد تنبيهات حالياً</div>`;
         }
@@ -756,9 +909,9 @@
             const list = document.getElementById('alerts');
             list.querySelector('.alert.ok')?.remove();
             const a = document.createElement('a');
-            a.className = 'alert orders';
+            a.className = 'alert orders lv-info';
             a.href = 'orders.html';
-            a.innerHTML = `<span class="count">${num(n)}</span><span>طلبات جديدة من المتجر الإلكتروني</span>`;
+            a.innerHTML = `<span class="count">${num(n)}</span><span class="txt"><b>طلبات جديدة من المتجر الإلكتروني</b><small>بانتظار القبول</small></span>`;
             list.prepend(a);
         }
         if (window.StoreAuth) StoreAuth.ready.then(showNewOrders);

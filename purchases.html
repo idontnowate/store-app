@@ -27,7 +27,7 @@
     <script src="barcode-engine.js?v=202610242"></script>
     <script src="barcode-camera.js?v=202610242"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610248"></script>
+    <script src="i18n-en.js?v=202610249"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -720,7 +720,7 @@
             outline-offset: -2px;
         }
     </style>
-    <link rel="stylesheet" href="design.css?v=202610232">
+    <link rel="stylesheet" href="design.css?v=202610233">
 </head>
 
 <body>
@@ -1688,6 +1688,12 @@
                 render();
             }
         });
+
+        // رابط من تنبيهات الرئيسية: ?filter=unpaid
+        if (new URLSearchParams(location.search).get('filter') === 'unpaid') {
+            statusFilter = 'unpaid';
+            document.querySelectorAll('#statusChips .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.filter === 'unpaid')));
+        }
 
         load();
         render();

@@ -1123,6 +1123,20 @@ html[data-theme="dark"] {
         color: var(--danger-text) !important;
     }
 
+    /* مستوى التنبيه: خط جانبي ولون العدد */
+    .alert.lv-danger { border-inline-start: 4px solid var(--danger) !important; }
+    .alert.lv-warn { border-inline-start: 4px solid var(--warn) !important; }
+    .alert.lv-info { border-inline-start: 4px solid var(--accent) !important; }
+    .alert.lv-warn .count {
+        background: var(--warn-soft) !important;
+        color: var(--warn-text) !important;
+    }
+    .alert.lv-info .count {
+        background: var(--accent-soft) !important;
+        color: var(--accent-text) !important;
+    }
+    .alert .txt small { color: var(--muted) !important; }
+
     .alert.ok {
         background: var(--accent-soft) !important;
         color: var(--accent-text) !important;

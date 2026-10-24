@@ -23,7 +23,7 @@
     <script src="storage.js?v=202610251"></script>
     <script src="rates.js?v=202610241"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610248"></script>
+    <script src="i18n-en.js?v=202610249"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -668,7 +668,7 @@
             display: none;
         }
     </style>
-    <link rel="stylesheet" href="design.css?v=202610232">
+    <link rel="stylesheet" href="design.css?v=202610233">
 </head>
 
 <body>
@@ -973,6 +973,13 @@
             }
         });
         document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+        // رابط من تنبيهات الرئيسية: ?filter=late
+        const linkedFilter = new URLSearchParams(location.search).get('filter');
+        if (['late', 'debt', 'all'].includes(linkedFilter)) {
+            filter = linkedFilter;
+            document.querySelectorAll('#filterChips .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.filter === filter)));
+        }
 
         // فتح كشف زبون مباشرة: customers.html?name=...
         render();

@@ -27,7 +27,7 @@
     <script src="barcode-engine.js?v=202610242"></script>
     <script src="barcode-camera.js?v=202610242"></script>
     <script src="scanbridge.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610248"></script>
+    <script src="i18n-en.js?v=202610249"></script>
     <script src="theme.js?v=202610231"></script>
     <script src="pwa.js?v=202610232"></script>
     <script src="auth.js?v=202610234"></script>
@@ -622,6 +622,20 @@
                 grid-template-columns: 1fr;
             }
         }
+        .linked-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: var(--surface-2, #f3f4f6);
+            border-inline-start: 4px solid var(--accent, #0c8a63);
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-weight: 700;
+        }
+
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -634,7 +648,7 @@
             font-weight: 500;
         }
     </style>
-    <link rel="stylesheet" href="design.css?v=202610232">
+    <link rel="stylesheet" href="design.css?v=202610233">
 </head>
 
 <body>
@@ -1059,6 +1073,7 @@
 
             const q = searchInput.value.trim().toLowerCase();
             const rows = all
+                .filter(r => !onlyIds || onlyIds.has(r.p.id))
                 .filter(r => statusFilter === 'all' || r.status === statusFilter)
                 .filter(r => !q || `${r.p.name} ${r.p.category || ''} ${r.p.barcode || ''}`.toLowerCase().includes(q))
                 .sort((a, b) => a.p.name.localeCompare(b.p.name, 'ar'));
@@ -1357,6 +1372,30 @@
                 render();
             }
         });
+
+        // رابط من تنبيهات الرئيسية: ?filter=low|out أو ?ids=... (منتجات التنبيه نفسها)
+        const linkParams = new URLSearchParams(location.search);
+        let onlyIds = linkParams.get('ids') ? new Set(linkParams.get('ids').split(',').filter(Boolean)) : null;
+        const linkedFilter = linkParams.get('filter');
+        if (['low', 'out'].includes(linkedFilter)) {
+            statusFilter = linkedFilter;
+            document.querySelectorAll('#statusChips .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.filter === linkedFilter)));
+        }
+        if (onlyIds) {
+            const bar = document.createElement('div');
+            bar.className = 'linked-bar';
+            bar.innerHTML = `<span><b>${linkParams.get('title') ? escLinked(linkParams.get('title')) : 'منتجات التنبيه'}</b> <span>(${onlyIds.size})</span></span><button type="button" class="btn view">عرض كل المنتجات</button>`;
+            bar.querySelector('button').addEventListener('click', () => {
+                onlyIds = null;
+                bar.remove();
+                history.replaceState(null, '', 'inventory.html');
+                render();
+            });
+            document.querySelector('main').prepend(bar);
+        }
+        function escLinked(v) {
+            return String(v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
 
         load();
         render();

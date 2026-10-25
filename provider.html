@@ -5,9 +5,9 @@
     <script>
     (function () {
         try {
-            var p = JSON.parse(localStorage.getItem('storePrefs') || '{}');
+            var p = JSON.parse(localStorage.getItem('providerPrefs') || '{}');
             var glass = p.theme === 'glass'; var dark = glass || p.theme === 'dark' || (!p.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-            document.documentElement.style.background = glass ? '#3a3a3c' : dark ? '#0b0c0e' : '#f6f6f7';
+            document.documentElement.style.background = glass ? '#161618' : dark ? '#0b0c0e' : '#f6f6f7';
             document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
         } catch (e) {}
     })();
@@ -18,8 +18,8 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610260"></script>
-    <script src="theme.js?v=202610260"></script>
+    <script src="i18n-en.js?v=202610261"></script>
+    <script src="theme.js?v=202610261"></script>
     <script src="pwa.js?v=202610260"></script>
     <style>
         * {
@@ -127,6 +127,31 @@
         }
 
         /* ===== الرأس ===== */
+        /* اختيار مظهر اللوحة (منفصل عن مظهر المتجر) */
+        .pv-theme {
+            position: fixed;
+            bottom: 14px;
+            inset-inline-end: 14px;
+            z-index: 30;
+        }
+
+        .pv-theme select {
+            height: 36px !important;
+            padding: 0 30px 0 12px !important;
+            border-radius: 999px !important;
+            font-size: 13px !important;
+            width: auto !important;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+        }
+
         .head {
             display: flex;
             align-items: center;
@@ -455,10 +480,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="design.css?v=202610253">
-    <link rel="stylesheet" href="glass.css?v=202610260">
+    <link rel="stylesheet" href="glass.css?v=202610261">
 </head>
 
 <body class="standalone">
+    <label class="pv-theme">
+        <span class="sr-only">مظهر لوحة المزود</span>
+        <select id="pvTheme" aria-label="مظهر لوحة المزود">
+            <option value="light">فاتح</option>
+            <option value="dark">داكن</option>
+            <option value="glass">زجاج</option>
+        </select>
+    </label>
     <!-- ===== الدخول ===== -->
     <section class="login" id="loginView" hidden>
         <div class="login-card">
@@ -1657,6 +1690,11 @@
             s.onerror = () => showLogin('تعذر تحميل مكتبة Supabase. تحقق من الإنترنت');
             document.head.appendChild(s);
         })();
+
+        // مظهر اللوحة: يُحفظ في providerPrefs (theme.js)، ولا يغيّر مظهر المتجر
+        const pvTheme = document.getElementById('pvTheme');
+        pvTheme.value = StoreTheme.get().theme || 'dark';
+        pvTheme.addEventListener('change', () => StoreTheme.set({ theme: pvTheme.value }));
     </script>
 </body>
 

@@ -1,6 +1,7 @@
 /* theme.js — الوضع الداكن واللغة. الألوان والتنسيق في design.css */
 (function () {
-    const PREFS_KEY = 'storePrefs';
+    // لوحة المزود لها مظهرها الخاص، منفصل عن مظهر المتجر على نفس الجهاز
+    const PREFS_KEY = /(^|\/)provider\.html$/i.test(location.pathname) ? 'providerPrefs' : 'storePrefs';
     // إعدادات خاصة بهذا الجهاز (لا تُزامن): المظهر، اللغة، الحركة، الطباعة
     const DEFAULTS = { theme: 'dark', lang: 'ar', motion: 'on', autoPrint: true, receiptWidth: '80' };
     const REDUCED = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
@@ -29,7 +30,7 @@
         root.dataset.theme = glass ? 'dark' : p.theme;
         root.dataset.glass = glass ? 'on' : 'off';
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.content = glass ? '#3a3a3c' : '#0b0c0e';
+        if (meta) meta.content = glass ? '#161618' : '#0b0c0e';
         root.dataset.motion = p.motion === 'off' ? 'off' : 'on';
         root.lang = p.lang;
         root.dir = p.lang === 'en' ? 'ltr' : 'rtl';

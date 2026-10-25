@@ -14,7 +14,7 @@
     /* ===== الألوان ===== */
     html[data-glass="on"] {
         color-scheme: dark;
-        --bg: #3a3a3c;
+        --bg: #161618;
         --surface: rgba(255, 255, 255, .09);
         --surface-2: rgba(255, 255, 255, .06);
         --surface-3: rgba(255, 255, 255, .12);
@@ -63,15 +63,15 @@
         --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .42), inset 0 0 18px rgba(255, 255, 255, .04);
         --glass-shadow: 0 12px 30px rgba(0, 0, 0, .3);
         --glass-wallpaper:
-            radial-gradient(70% 45% at 88% 0%, #8e8e93 0%, transparent 70%),
-            radial-gradient(60% 40% at 0% 40%, #5a5a5f 0%, transparent 70%),
-            radial-gradient(70% 45% at 100% 95%, #6e6e73 0%, transparent 70%),
-            #3a3a3c;
+            radial-gradient(70% 45% at 88% 0%, #4a4a4f 0%, transparent 70%),
+            radial-gradient(60% 40% at 0% 40%, #2e2e32 0%, transparent 70%),
+            radial-gradient(70% 45% at 100% 95%, #3a3a3e 0%, transparent 70%),
+            #161618;
     }
 
     /* ===== الخلفية: ثابتة خلف كل الصفحة (الهواتف لا تدعم background-attachment: fixed) ===== */
     html[data-glass="on"] {
-        background: #3a3a3c !important;
+        background: #161618 !important;
     }
 
     /* الجسم شفاف حتى تظهر الخلفية الثابتة تحته */
@@ -464,23 +464,23 @@
     /* ===== أجهزة لا تدعم الضبابية، أو طلب صاحبها تقليل الشفافية: نفس الشكل بطبقات معتمة ===== */
     @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
         html[data-glass="on"] {
-            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 50%), #4a4a4e;
-            --glass-strong: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 60%), #3f3f43;
+            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 50%), #2c2c2e;
+            --glass-strong: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 60%), #242426;
         }
 
         html[data-glass="on"] .glass-tabbar {
-            background: #3f3f43 !important;
+            background: #242426 !important;
         }
     }
 
     @media (prefers-reduced-transparency: reduce) {
         html[data-glass="on"] {
-            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 50%), #4a4a4e;
-            --glass-strong: #3f3f43;
+            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 50%), #2c2c2e;
+            --glass-strong: #242426;
         }
 
         html[data-glass="on"] .glass-tabbar {
-            background: #3f3f43 !important;
+            background: #242426 !important;
         }
     }
 }

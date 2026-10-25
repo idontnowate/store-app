@@ -12,6 +12,7 @@
         head.appendChild(l);
     }
     addLink('manifest', 'manifest.webmanifest');
+    applyStoreName();
     addLink('apple-touch-icon', 'icons/apple-touch-icon.png');
     addLink('icon', 'icons/icon-192.png', { type: 'image/png' });
     if (!head.querySelector('meta[name="theme-color"]')) {
@@ -19,6 +20,69 @@
         m.name = 'theme-color';
         m.content = '#0b0c0e';
         head.appendChild(m);
+    }
+
+    // ===== اسم التطبيق = اسم المتجر =====
+    // ملف التطبيق ثابت على الخادم، فنبنيه هنا باسم المتجر المحفوظ على الجهاز.
+    // الاسم يُعتمد وقت التثبيت؛ إن تغيّر اسم المتجر بعدها يظهر الجديد بعد إعادة التثبيت.
+    function storeName() {
+        try {
+            const v = JSON.parse(localStorage.getItem('storeSettings') || '{}');
+            const n = String(v && v.name || '').trim();
+            return n && n !== 'اسم المتجر' ? n.slice(0, 40) : '';
+        } catch {
+            return '';
+        }
+    }
+
+    function setMeta(name, content) {
+        let m = head.querySelector(`meta[name="${name}"]`);
+        if (!m) {
+            m = document.createElement('meta');
+            m.name = name;
+            head.appendChild(m);
+        }
+        m.content = content;
+    }
+
+    function applyStoreName() {
+        const name = storeName();
+        if (!name) return;
+        // آيفون: الاسم تحت الأيقونة عند «إضافة إلى الشاشة الرئيسية»
+        setMeta('apple-mobile-web-app-title', name);
+        setMeta('application-name', name);
+        setMeta('apple-mobile-web-app-capable', 'yes');
+        setMeta('mobile-web-app-capable', 'yes');
+        // أندرويد والكمبيوتر: ملف التطبيق بالاسم الجديد. المسارات كاملة لأن الملف يُقرأ من عنوان مؤقت
+        const base = new URL('./', location.href).href;
+        const abs = path => new URL(path, base).href;
+        const manifest = {
+            id: abs('home.html'),
+            name,
+            short_name: name.length > 14 ? name.slice(0, 14) : name,
+            description: 'الكاشير والمخزن والديون والصندوق والتقارير',
+            lang: 'ar',
+            dir: 'rtl',
+            start_url: abs('home.html'),
+            scope: base,
+            display: 'standalone',
+            background_color: '#0b0c0e',
+            theme_color: '#0b0c0e',
+            icons: [
+                { src: abs('icons/icon-192.png'), sizes: '192x192', type: 'image/png' },
+                { src: abs('icons/icon-512.png'), sizes: '512x512', type: 'image/png' },
+                { src: abs('icons/maskable-512.png'), sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+            ],
+            shortcuts: [
+                { name: 'الكاشير', url: abs('cashier.html'), icons: [{ src: abs('icons/icon-192.png'), sizes: '192x192' }] },
+                { name: 'المخزن', url: abs('inventory.html'), icons: [{ src: abs('icons/icon-192.png'), sizes: '192x192' }] }
+            ]
+        };
+        try {
+            const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+            const link = head.querySelector('link[rel="manifest"]');
+            if (link) link.href = url;
+        } catch (e) { }
     }
 
     // حفظ الصفحات على الجهاز (يحتاج https أو localhost)

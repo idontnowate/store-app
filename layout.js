@@ -98,6 +98,24 @@
         backdrop.className = 'nav-backdrop';
         document.body.appendChild(backdrop);
 
+        // شريط التبويب الزجاجي للهاتف (يظهر في ثيم «زجاج» فقط، انظر glass.css)
+        const page = (location.pathname.split('/').pop() || 'home.html').toLowerCase();
+        const tabs = [
+            ['home.html', 'الرئيسية'],
+            ['cashier.html', 'الكاشير'],
+            ['sales-new_1.html', 'المبيعات'],
+            ['inventory.html', 'المخزن']
+        ];
+        const bar = document.createElement('nav');
+        bar.className = 'glass-tabbar';
+        bar.setAttribute('aria-label', 'التبويبات');
+        bar.innerHTML = tabs.map(([href, label]) =>
+            `<a href="${href}"${href === page ? ' aria-current="page"' : ''}>${svg(ICONS[href])}<span>${label}</span></a>`
+        ).join('') + `<button type="button" data-more>${svg('<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>')}<span>المزيد</span></button>`;
+        bar.querySelector('[data-more]').addEventListener('click', () => document.body.classList.add('nav-open'));
+        document.body.appendChild(bar);
+        document.body.classList.add('has-tabbar');
+
         btn.addEventListener('click', toggle);
         backdrop.addEventListener('click', () => document.body.classList.remove('nav-open'));
 

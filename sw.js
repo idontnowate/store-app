@@ -5,7 +5,7 @@
  * - المكتبات والخطوط من الإنترنت تُحفظ عند أول تحميل.
  * - طلبات Supabase (البيانات وتسجيل الدخول) لا تمر من هنا؛ المزامنة تتكفل بها.
  */
-const CACHE = 'store-app-v2';
+const CACHE = 'store-app-v3';
 const PAGES = [
     'index.html', 'home.html', 'cashier.html', 'sales-new_1.html', 'add-invoice.html',
     'inventory.html', 'purchases.html', 'debts.html', 'customers.html', 'orders.html', 'shop.html', 'cashbox.html', 'reports.html',
@@ -13,7 +13,7 @@ const PAGES = [
     'expired.html', 'terms.html'
 ];
 const EXTRA = [
-    'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+    'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
     'vendor/supabase-js-2.45.4.js',
     'vendor/html5-qrcode-2.3.8.min.js'
 ];

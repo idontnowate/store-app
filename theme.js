@@ -22,9 +22,14 @@
         return (p || getPrefs()).motion === 'off' || REDUCED.matches;
     }
 
+    // «زجاج» (glass.css) مبني على ألوان الوضع الداكن
     function applyRoot(p) {
         const root = document.documentElement;
-        root.dataset.theme = p.theme;
+        const glass = p.theme === 'glass';
+        root.dataset.theme = glass ? 'dark' : p.theme;
+        root.dataset.glass = glass ? 'on' : 'off';
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.content = glass ? '#3a3a3c' : '#0b0c0e';
         root.dataset.motion = p.motion === 'off' ? 'off' : 'on';
         root.lang = p.lang;
         root.dir = p.lang === 'en' ? 'ltr' : 'rtl';
@@ -199,7 +204,16 @@
         else apply();
     }
 
-    window.StoreTheme = { get: getPrefs, set: setPrefs, motionOff };
+    // هل يدعم المتصفح الضبابية؟ (بدونها يظهر الزجاج بطبقات معتمة)، وتقدير قوة الجهاز
+    function glassSupport() {
+        const blur = !!(window.CSS && CSS.supports && (CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)')));
+        const memory = navigator.deviceMemory || null;
+        const cores = navigator.hardwareConcurrency || null;
+        const weak = (memory !== null && memory < 4) || (cores !== null && cores < 4);
+        return { blur, weak };
+    }
+
+    window.StoreTheme = { get: getPrefs, set: setPrefs, motionOff, glassSupport };
 
     applyRoot(getPrefs());
     if (document.readyState === 'loading') {

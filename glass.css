@@ -1,0 +1,486 @@
+/* glass.css — ثيم «زجاج» الاختياري (بأسلوب Liquid Glass): خلفية رمادية هادئة وطبقات زجاج شفافة لامعة
+ *
+ * يعمل فقط عندما يختار المستخدم «زجاج» من الإعدادات ← المظهر (html[data-glass="on"]، يضعه theme.js).
+ * يُحمَّل بعد design.css فيتغلب عليه. الأجهزة التي لا تدعم الضبابية، ومن طلب تقليل الشفافية من
+ * إعدادات جهازه، يرون نفس الشكل بطبقات معتمة بدل الشفافة.
+ */
+
+/* شريط التبويب للهاتف: مخفي إلا في ثيم الزجاج (layout.js ينشئه) */
+.glass-tabbar {
+    display: none;
+}
+
+@media screen {
+    /* ===== الألوان ===== */
+    html[data-glass="on"] {
+        color-scheme: dark;
+        --bg: #3a3a3c;
+        --surface: rgba(255, 255, 255, .09);
+        --surface-2: rgba(255, 255, 255, .06);
+        --surface-3: rgba(255, 255, 255, .12);
+        --border: rgba(255, 255, 255, .14);
+        --border-strong: rgba(255, 255, 255, .24);
+        --text: #ffffff;
+        --text-2: #e5e5ea;
+        --muted: #aeaeb2;
+        --faint: #8e8e93;
+
+        --primary: #0a84ff;
+        --primary-hover: #3395ff;
+        --primary-text: #ffffff;
+
+        /* لون واحد للنشاط، وألوان هادئة للتنبيه فقط */
+        --accent: #0a84ff;
+        --accent-soft: rgba(10, 132, 255, .18);
+        --accent-text: #64a8ff;
+        --danger: #ff6961;
+        --danger-soft: rgba(255, 105, 97, .17);
+        --danger-text: #ff8a84;
+        --warn: #ffb340;
+        --warn-soft: rgba(255, 179, 64, .16);
+        --warn-text: #ffc56b;
+        --info: #64a8ff;
+        --info-soft: rgba(100, 168, 255, .16);
+        --info-text: #8cbcff;
+
+        --hero-bg: linear-gradient(180deg, rgba(255, 255, 255, .18) 0%, rgba(255, 255, 255, 0) 55%), rgba(255, 255, 255, .12);
+        --hero-text: #ffffff;
+        --hero-muted: rgba(255, 255, 255, .7);
+
+        --ring: rgba(10, 132, 255, .38);
+        --shadow-sm: none;
+        --shadow-md: 0 12px 30px rgba(0, 0, 0, .32);
+        --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, .6);
+
+        --radius: 18px;
+        --radius-sm: 12px;
+
+        /* وصفة الزجاج: لمعة علوية، ضبابية، حافة مضيئة، ظل */
+        --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .13) 0%, rgba(255, 255, 255, 0) 50%), rgba(255, 255, 255, .08);
+        --glass-strong: linear-gradient(180deg, rgba(255, 255, 255, .2) 0%, rgba(255, 255, 255, 0) 60%), rgba(44, 44, 46, .55);
+        --glass-blur: blur(20px) saturate(180%);
+        --glass-edge: rgba(255, 255, 255, .2);
+        --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .42), inset 0 0 18px rgba(255, 255, 255, .04);
+        --glass-shadow: 0 12px 30px rgba(0, 0, 0, .3);
+        --glass-wallpaper:
+            radial-gradient(70% 45% at 88% 0%, #8e8e93 0%, transparent 70%),
+            radial-gradient(60% 40% at 0% 40%, #5a5a5f 0%, transparent 70%),
+            radial-gradient(70% 45% at 100% 95%, #6e6e73 0%, transparent 70%),
+            #3a3a3c;
+    }
+
+    /* ===== الخلفية: ثابتة خلف كل الصفحة (الهواتف لا تدعم background-attachment: fixed) ===== */
+    html[data-glass="on"] {
+        background: #3a3a3c !important;
+    }
+
+    /* الجسم شفاف حتى تظهر الخلفية الثابتة تحته */
+    html[data-glass="on"] body {
+        background: transparent !important;
+    }
+
+    html[data-glass="on"] body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background: var(--glass-wallpaper);
+        pointer-events: none;
+    }
+
+    html[data-glass="on"] body {
+        font-family: -apple-system, "SF Pro Text", "SF Arabic", "IBM Plex Sans Arabic", system-ui, sans-serif !important;
+    }
+
+    html[data-glass="on"] body,
+    html[data-glass="on"] button,
+    html[data-glass="on"] input,
+    html[data-glass="on"] select,
+    html[data-glass="on"] textarea {
+        font-family: -apple-system, "SF Pro Text", "SF Arabic", "IBM Plex Sans Arabic", system-ui, sans-serif !important;
+    }
+
+    /* ===== الأسطح الزجاجية الكبيرة ===== */
+    html[data-glass="on"] .sidebar,
+    html[data-glass="on"] .card,
+    html[data-glass="on"] .table-card,
+    html[data-glass="on"] .form-card,
+    html[data-glass="on"] .report,
+    html[data-glass="on"] .logo-box,
+    html[data-glass="on"] .summary-card,
+    html[data-glass="on"] .stat,
+    html[data-glass="on"] .sheet,
+    html[data-glass="on"] .login-card,
+    html[data-glass="on"] .set-nav,
+    html[data-glass="on"] .prod,
+    html[data-glass="on"] .ba-box {
+        background: var(--glass-bg) !important;
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--glass-edge) !important;
+        box-shadow: var(--glass-shine), var(--glass-shadow) !important;
+    }
+
+    html[data-glass="on"] .card,
+    html[data-glass="on"] .table-card,
+    html[data-glass="on"] .form-card,
+    html[data-glass="on"] .report,
+    html[data-glass="on"] .sheet,
+    html[data-glass="on"] .login-card {
+        border-radius: 24px !important;
+    }
+
+    html[data-glass="on"] .summary-card,
+    html[data-glass="on"] .stat,
+    html[data-glass="on"] .prod {
+        border-radius: 22px !important;
+    }
+
+    /* قائمة أقسام الإعدادات: لوح زجاجي على الكمبيوتر، وكبسولات منفصلة على الشاشات الصغيرة */
+    html[data-glass="on"] .set-nav {
+        padding: 10px !important;
+        border-radius: 22px !important;
+    }
+
+    html[data-glass="on"] .set-nav a.current {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .07)) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38) !important;
+    }
+
+    @media (max-width: 900px) {
+        html[data-glass="on"] .set-nav {
+            padding: 2px 0 6px !important;
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            align-items: center;
+        }
+
+        html[data-glass="on"] .set-nav a {
+            background: rgba(255, 255, 255, .08) !important;
+            border: 1px solid rgba(255, 255, 255, .16) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+        }
+
+        html[data-glass="on"] .set-nav a.current {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .12)) !important;
+            border-color: rgba(255, 255, 255, .34) !important;
+        }
+
+        html[data-glass="on"] .set-nav-label {
+            display: none;
+        }
+    }
+
+    /* البطاقة الأهم (الربح، الإجمالي): زجاج أقوى بلمعة أوضح */
+    html[data-glass="on"] .summary-card.main,
+    html[data-glass="on"] .stat.hero {
+        background: var(--hero-bg) !important;
+        border-color: rgba(255, 255, 255, .26) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 0 22px rgba(255, 255, 255, .06), 0 16px 36px rgba(0, 0, 0, .38) !important;
+    }
+
+    /* الشريط الجانبي: زجاج عائم بزوايا مدورة على الكمبيوتر */
+    @media (min-width: 651px) {
+        html[data-glass="on"] .sidebar {
+            margin: 12px !important;
+            height: calc(100vh - 24px) !important;
+            border-radius: 24px !important;
+        }
+    }
+
+    html[data-glass="on"] .sidebar nav a.active,
+    html[data-glass="on"] .sidebar nav a[aria-current="page"] {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .06)) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35) !important;
+        color: #fff !important;
+    }
+
+    html[data-glass="on"] .sidebar nav a.active svg,
+    html[data-glass="on"] .sidebar nav a[aria-current="page"] svg {
+        stroke: var(--accent-text) !important;
+        color: var(--accent-text) !important;
+    }
+
+    /* ===== النوافذ ===== */
+    html[data-glass="on"] dialog {
+        background: var(--glass-strong) !important;
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        backdrop-filter: blur(28px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, .22) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 30px 70px rgba(0, 0, 0, .55) !important;
+        border-radius: 28px !important;
+    }
+
+    html[data-glass="on"] dialog::backdrop {
+        background: rgba(0, 0, 0, .35) !important;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
+
+    /* ===== الأزرار: كبسولات ===== */
+    html[data-glass="on"] .btn,
+    html[data-glass="on"] .button,
+    html[data-glass="on"] button.primary {
+        border-radius: 999px !important;
+    }
+
+    /* الزر الرئيسي: أزرق بلمعة زجاجية */
+    html[data-glass="on"] .btn:not(.secondary):not(.view):not(.ok):not(.more):not(.small):not(.remove):not(.danger):not(.cancel),
+    html[data-glass="on"] .add-button,
+    html[data-glass="on"] .submit {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .3) 0%, rgba(255, 255, 255, 0) 55%), #0a84ff !important;
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, .3) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 8px 20px rgba(10, 132, 255, .28) !important;
+    }
+
+    /* الأزرار الثانوية: زجاج */
+    html[data-glass="on"] .btn.secondary,
+    html[data-glass="on"] .btn.view,
+    html[data-glass="on"] .btn.ok,
+    html[data-glass="on"] .btn.more,
+    html[data-glass="on"] .btn.small,
+    html[data-glass="on"] .btn.remove,
+    html[data-glass="on"] .btn.cancel,
+    html[data-glass="on"] .button.more,
+    html[data-glass="on"] .button.cancel,
+    html[data-glass="on"] .button.print,
+    html[data-glass="on"] .add-row,
+    html[data-glass="on"] .mini-btn,
+    html[data-glass="on"] .view-link,
+    html[data-glass="on"] .ba-cam-btn,
+    html[data-glass="on"] .qbtn,
+    html[data-glass="on"] .x-btn {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .16) 0%, rgba(255, 255, 255, 0) 60%), rgba(255, 255, 255, .08) !important;
+        border: 1px solid rgba(255, 255, 255, .2) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35) !important;
+        color: #fff !important;
+    }
+
+    html[data-glass="on"] .btn.danger,
+    html[data-glass="on"] .danger-link {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, 0) 60%), rgba(255, 105, 97, .18) !important;
+        border: 1px solid rgba(255, 105, 97, .35) !important;
+        color: var(--danger-text) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25) !important;
+    }
+
+    /* زر القائمة وزر الأقسام: دوائر زجاجية */
+    html[data-glass="on"] .nav-toggle {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .22) 0%, rgba(255, 255, 255, 0) 60%), rgba(255, 255, 255, .1) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        backdrop-filter: blur(16px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, .24) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 8px 20px rgba(0, 0, 0, .35) !important;
+        border-radius: 50% !important;
+        color: #fff !important;
+    }
+
+    /* شرائح التصفية: كبسولات زجاجية، والمختارة أوضح */
+    html[data-glass="on"] .chip {
+        background: rgba(255, 255, 255, .08) !important;
+        border: 1px solid rgba(255, 255, 255, .16) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+        color: #e5e5ea !important;
+    }
+
+    html[data-glass="on"] .chip[aria-pressed="true"],
+    html[data-glass="on"] .chip.active {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .12)) !important;
+        border-color: rgba(255, 255, 255, .34) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55) !important;
+        color: #fff !important;
+    }
+
+    /* ===== الحقول ===== */
+    html[data-glass="on"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="range"]),
+    html[data-glass="on"] select,
+    html[data-glass="on"] textarea,
+    html[data-glass="on"] .input,
+    html[data-glass="on"] .search,
+    html[data-glass="on"] .select,
+    html[data-glass="on"] .date-input {
+        background: rgba(0, 0, 0, .18) !important;
+        border: 1px solid rgba(255, 255, 255, .16) !important;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, .18) !important;
+        color: #fff !important;
+        border-radius: 14px !important;
+    }
+
+    html[data-glass="on"] input::placeholder,
+    html[data-glass="on"] textarea::placeholder {
+        color: #8e8e93 !important;
+    }
+
+    html[data-glass="on"] input:focus,
+    html[data-glass="on"] select:focus,
+    html[data-glass="on"] textarea:focus {
+        border-color: rgba(10, 132, 255, .7) !important;
+        box-shadow: 0 0 0 4px var(--ring) !important;
+    }
+
+    html[data-glass="on"] select option {
+        background: #2c2c2e;
+        color: #fff;
+    }
+
+    /* ===== الجداول ===== */
+    html[data-glass="on"] thead th,
+    html[data-glass="on"] table th {
+        background: rgba(255, 255, 255, .05) !important;
+        color: var(--muted) !important;
+    }
+
+    html[data-glass="on"] table td,
+    html[data-glass="on"] table th {
+        border-color: rgba(255, 255, 255, .1) !important;
+    }
+
+    html[data-glass="on"] tbody tr:hover td {
+        background: rgba(255, 255, 255, .04) !important;
+    }
+
+    /* الجداول بطاقاتٍ على الهاتف: زجاج خفيف بدون ضبابية (أخف على الجهاز) */
+    html[data-glass="on"] table.stacked tr {
+        background: rgba(255, 255, 255, .07) !important;
+        border: 1px solid rgba(255, 255, 255, .14) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+        border-radius: 18px !important;
+    }
+
+    html[data-glass="on"] table.stacked td + td {
+        border-top-color: rgba(255, 255, 255, .1) !important;
+    }
+
+    /* ===== التنبيهات والرسائل ===== */
+    html[data-glass="on"] .alert {
+        background: rgba(255, 255, 255, .06) !important;
+        border: 1px solid rgba(255, 255, 255, .12) !important;
+        border-radius: 16px !important;
+    }
+
+    html[data-glass="on"] .flash,
+    html[data-glass="on"] .net-pill {
+        background: var(--glass-strong) !important;
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: 1px solid rgba(255, 255, 255, .22) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 12px 30px rgba(0, 0, 0, .4) !important;
+        color: #fff !important;
+    }
+
+    /* شعار صفحة الدخول */
+    html[data-glass="on"] .mark {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .08)) !important;
+        border: 1px solid rgba(255, 255, 255, .3);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 8px 20px rgba(0, 0, 0, .3);
+        color: #fff !important;
+    }
+
+    /* ===== شريط التبويب الزجاجي العائم (الهاتف فقط) ===== */
+    @media (max-width: 650px) {
+        html[data-glass="on"] .glass-tabbar {
+            display: flex;
+            position: fixed;
+            z-index: 60;
+            inset-inline: 14px;
+            bottom: calc(14px + env(safe-area-inset-bottom));
+            padding: 5px;
+            gap: 2px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, .2) 0%, rgba(255, 255, 255, 0) 60%), rgba(44, 44, 46, .6);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+            backdrop-filter: blur(18px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, .24);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 0 16px rgba(255, 255, 255, .06), 0 14px 32px rgba(0, 0, 0, .45);
+        }
+
+        html[data-glass="on"] .glass-tabbar a,
+        html[data-glass="on"] .glass-tabbar button {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 7px 0 6px;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: #e5e5ea;
+            font-size: 10.5px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html[data-glass="on"] .glass-tabbar svg {
+            width: 23px;
+            height: 23px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        html[data-glass="on"] .glass-tabbar [aria-current="page"] {
+            color: #64a8ff;
+            background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .06));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4);
+        }
+
+        /* المحتوى لا يختفي تحت الشريط */
+        html[data-glass="on"] body.has-tabbar > main {
+            padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+        }
+
+        /* زر القائمة العلوي يُستبدل بـ «المزيد» في الشريط */
+        html[data-glass="on"] body.has-tabbar .nav-toggle {
+            display: none !important;
+        }
+
+        html[data-glass="on"] body:not(.standalone) > header,
+        html[data-glass="on"] .topbar {
+            padding-inline-end: var(--gutter) !important;
+        }
+
+        html[data-glass="on"] body.has-tabbar .net-pill {
+            bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+        }
+
+        /* القائمة الجانبية على الهاتف: لوح زجاجي */
+        html[data-glass="on"] .sidebar {
+            background: var(--glass-strong) !important;
+            -webkit-backdrop-filter: blur(28px) saturate(180%);
+            backdrop-filter: blur(28px) saturate(180%);
+        }
+    }
+
+    /* ===== أجهزة لا تدعم الضبابية، أو طلب صاحبها تقليل الشفافية: نفس الشكل بطبقات معتمة ===== */
+    @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+        html[data-glass="on"] {
+            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 50%), #4a4a4e;
+            --glass-strong: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 60%), #3f3f43;
+        }
+
+        html[data-glass="on"] .glass-tabbar {
+            background: #3f3f43 !important;
+        }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+        html[data-glass="on"] {
+            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 50%), #4a4a4e;
+            --glass-strong: #3f3f43;
+        }
+
+        html[data-glass="on"] .glass-tabbar {
+            background: #3f3f43 !important;
+        }
+    }
+}

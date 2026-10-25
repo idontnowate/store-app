@@ -120,12 +120,24 @@ create policy orders_delete on public.store_orders
     for delete to authenticated
     using (public.is_store_admin(store_id));
 
--- حماية من الإغراق: 3 طلبات لنفس الرقم كل 10 دقائق، و 30 طلبًا للمتجر كل 10 دقائق
+-- حماية من الإغراق: 3 طلبات لنفس الرقم كل 10 دقائق، و 30 طلبًا للمتجر كل 10 دقائق.
+-- وأصناف الطلب والإجمالي يعاد بناؤها من الكتالوج المنشور: الزائر يرسل المعرّف والكمية فقط،
+-- فلا يستطيع وضع اسم أو سعر أو إجمالي من عنده، ولا طلب منتج غير موجود أو نافد.
 create or replace function public.orders_throttle()
 returns trigger
 language plpgsql security definer set search_path = public
 as $$
+declare
+    catalog jsonb;
+    it jsonb;
+    p jsonb;
+    qty int;
+    clean jsonb := '[]'::jsonb;
+    total numeric := 0;
 begin
+    -- طلب متزامن من نفس المتجر ينتظر دوره حتى يكون العد صحيحًا
+    perform pg_advisory_xact_lock(hashtext('store_orders:' || new.store_id::text));
+
     if (select count(*) from store_orders
         where store_id = new.store_id and customer_phone = new.customer_phone
           and created_at > now() - interval '10 minutes') >= 3 then
@@ -135,9 +147,36 @@ begin
         where store_id = new.store_id and created_at > now() - interval '10 minutes') >= 30 then
         raise exception 'too many orders, try again later';
     end if;
+
+    select data -> 'products' into catalog from store_catalog where store_id = new.store_id;
+    for it in select * from jsonb_array_elements(new.items) loop
+        select x into p from jsonb_array_elements(coalesce(catalog, '[]'::jsonb)) x
+         where x ->> 'id' = it ->> 'id' limit 1;
+        if p is null then
+            raise exception 'product not found in the store';
+        end if;
+        if coalesce((p ->> 'available')::boolean, false) is not true then
+            raise exception 'product is sold out: %', p ->> 'name';
+        end if;
+        qty := least(999, greatest(1, coalesce(floor((it ->> 'qty')::numeric), 1)::int));
+        clean := clean || jsonb_build_array(jsonb_build_object(
+            'id', p ->> 'id',
+            'name', p ->> 'name',
+            'price', (p ->> 'price')::numeric,
+            'qty', qty
+        ));
+        total := total + (p ->> 'price')::numeric * qty;
+    end loop;
+
+    new.items := clean;
+    new.total := total;
+    new.status := 'new';
     new.created_at := now();
     new.updated_at := now();
     return new;
+exception
+    when invalid_text_representation or numeric_value_out_of_range then
+        raise exception 'invalid order items';
 end;
 $$;
 

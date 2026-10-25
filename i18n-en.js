@@ -394,6 +394,7 @@ window.STORE_I18N_EN = {
         "نشط": "Active",
         "لم يدخل أي جهاز بعد": "No device has signed in yet",
         "بلا حد": "Unlimited",
+        "بعض المنتجات في السلة نفدت أو تغيّرت. حدّث الصفحة وأعد اختيارها.": "Some products in the cart sold out or changed. Refresh the page and choose them again.",
         "تذكيرات الأقساط": "Installment reminders",
         "تذكيرات أقساط جاهزة للإرسال بالواتساب": "Installment reminders ready to send on WhatsApp",
         "كل قسط قريب تظهر رسالته جاهزة. اضغط «إرسال» فينفتح واتساب على الزبون والرسالة مكتوبة، اضغط إرسال بواتساب ثم ارجع للبرنامج. «إرسال التالي» يفتح الزبون التالي مباشرة. الموعد ونص الرسالة من الإعدادات ← تذكير الأقساط.": "Each upcoming installment has its message ready. Tap “Send” to open WhatsApp with the customer and the message written, send it, then come back. “Send next” opens the next customer directly. Timing and message text are in Settings → Installment reminders.",

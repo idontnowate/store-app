@@ -128,3 +128,51 @@ end;
 $$;
 revoke all on function public.provider_ai_summary(timestamptz) from public, anon;
 grant execute on function public.provider_ai_summary(timestamptz) to authenticated;
+
+-- ===== حجز مكان الطلب قبل إرساله للذكاء (تستدعيه دالة ai-vision بمفتاح الخدمة فقط) =====
+-- بقفل لكل متجر حتى لا تعبر طلبات متزامنة الحد معًا. يُحسب ضمن الحد:
+--   - الناجح، والمحجوز الذي ما زال قيد التنفيذ (آخر 5 دقائق)
+--   - والفاشل أيضًا ضمن سقف أعلى (الحد × 2 + 10)، لأن المزود يدفع كلفة الطلب الفاشل
+--   - و 6 طلبات بالدقيقة للمتجر كحد أقصى
+-- يعيد: { status: ok, id } | limit | hard | busy
+create or replace function public.ai_reserve(p_store uuid, p_user uuid, p_kind text, p_limit int)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+    m timestamptz := public.ai_month_start();
+    counted int;
+    attempts int;
+    recent int;
+    v_id bigint;
+begin
+    perform pg_advisory_xact_lock(hashtext('ai_usage:' || p_store::text));
+
+    select count(*) filter (where ok or (error = 'pending' and created_at > now() - interval '5 minutes')),
+           count(*)
+      into counted, attempts
+      from ai_usage
+     where store_id = p_store and kind = p_kind and created_at >= m;
+
+    if counted >= p_limit then
+        return jsonb_build_object('status', 'limit');
+    end if;
+    if attempts >= p_limit * 2 + 10 then
+        return jsonb_build_object('status', 'hard');
+    end if;
+
+    select count(*) into recent from ai_usage
+     where store_id = p_store and created_at > now() - interval '1 minute';
+    if recent >= 6 then
+        return jsonb_build_object('status', 'busy');
+    end if;
+
+    insert into ai_usage (store_id, user_id, kind, ok, error)
+    values (p_store, p_user, p_kind, false, 'pending')
+    returning id into v_id;
+    return jsonb_build_object('status', 'ok', 'id', v_id);
+end;
+$$;
+
+revoke all on function public.ai_reserve(uuid, uuid, text, int) from public, anon, authenticated;
+grant execute on function public.ai_reserve(uuid, uuid, text, int) to service_role;

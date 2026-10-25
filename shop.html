@@ -971,7 +971,10 @@
                     body: JSON.stringify(order)
                 });
                 ok = res.ok;
-                if (!ok) reason = /too many/i.test(await res.text()) ? 'many' : 'server';
+                if (!ok) {
+                    const body = await res.text();
+                    reason = /too many/i.test(body) ? 'many' : /sold out|not found/i.test(body) ? 'changed' : 'server';
+                }
             } catch (e3) {
                 reason = 'network';
             }
@@ -996,7 +999,9 @@
                 if (!$('cartDlg').open) $('cartDlg').showModal();
                 return;
             }
-            err.textContent = reason === 'many'
+            err.textContent = reason === 'changed'
+                ? 'بعض المنتجات في السلة نفدت أو تغيّرت. حدّث الصفحة وأعد اختيارها.'
+                : reason === 'many'
                 ? 'أرسلت عدة طلبات قبل قليل. انتظر بضع دقائق أو أرسل الطلب على واتساب.'
                 : 'تعذر إرسال الطلب الآن. يمكنك إرساله على واتساب المتجر.';
             $('waFallback').hidden = !href;

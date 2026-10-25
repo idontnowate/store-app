@@ -176,13 +176,12 @@ Deno.serve(async (req) => {
         }
         const { data: active } = await admin.rpc("store_is_active", { sid: storeId });
         if (active === false) throw new UserError("اشتراك المتجر منتهٍ", 403, "expired");
-        if (used[action] >= status.limits[action]) {
-            throw new UserError(
-                action === "invoice"
-                    ? `وصلت للحد الشهري لقراءة الفواتير (${status.limits.invoice}). تواصل مع المزود لزيادته`
-                    : `وصلت للحد الشهري لإضافة المنتجات بالصورة (${status.limits.product}). تواصل مع المزود لزيادته`,
-                429, "limit");
-        }
+        const limitError = () => new UserError(
+            action === "invoice"
+                ? `وصلت للحد الشهري لقراءة الفواتير (${status.limits.invoice}). تواصل مع المزود لزيادته`
+                : `وصلت للحد الشهري لإضافة المنتجات بالصورة (${status.limits.product}). تواصل مع المزود لزيادته`,
+            429, "limit");
+        if (used[action] >= status.limits[action]) throw limitError();
 
         // ===== الصورة =====
         const image = String(body.image ?? "");
@@ -190,6 +189,20 @@ Deno.serve(async (req) => {
         if (!image || image.length > MAX_IMAGE_BASE64 || !MEDIA_TYPES.includes(mediaType) || !/^[A-Za-z0-9+/=]+$/.test(image.slice(0, 200))) {
             throw new UserError("الصورة غير صالحة أو كبيرة جدًا");
         }
+
+        // ===== حجز مكان الطلب ضمن الحد (ذريًا في قاعدة البيانات، حتى مع طلبات متزامنة) =====
+        const { data: slot, error: slotErr } = await admin.rpc("ai_reserve", {
+            p_store: storeId, p_user: userId, p_kind: action, p_limit: status.limits[action],
+        });
+        if (slotErr || !slot) throw new UserError("تعذر التحقق من حد الباقة، حاول مرة أخرى", 503, "busy");
+        if (slot.status === "limit") throw limitError();
+        if (slot.status === "hard") {
+            throw new UserError("تجاوزت عدد المحاولات المسموح بها هذا الشهر بسبب صور لم تُقرأ. تواصل مع المزود", 429, "limit");
+        }
+        if (slot.status === "busy") throw new UserError("طلبات كثيرة خلال دقيقة، انتظر قليلًا ثم حاول", 429, "busy");
+        const usageId = slot.id;
+        // يُكمل سطر الاستخدام المحجوز بنتيجة الطلب
+        const finishUsage = (fields) => admin.from("ai_usage").update(fields).eq("id", usageId);
 
         // ===== الطلب إلى Claude =====
         let system, schema, effort, prompt;
@@ -233,6 +246,8 @@ Deno.serve(async (req) => {
             });
         } catch (err) {
             console.error("Claude API error:", err);
+            // الطلب لم يصل للنموذج أو رُفض قبل المعالجة: لا كلفة، ويُسجَّل فاشلًا (يُحسب ضمن سقف المحاولات)
+            await finishUsage({ model: MODEL, ok: false, error: "api" });
             const detail = String(err?.message ?? "");
             if (err instanceof Anthropic.AuthenticationError) throw new UserError("مفتاح الذكاء مرفوض من Anthropic: أنشئ مفتاحًا جديدًا من console.anthropic.com وضعه في ANTHROPIC_API_KEY", 502, "key");
             if (err instanceof Anthropic.PermissionDeniedError) throw new UserError("مفتاح الذكاء لا يملك صلاحية استخدام النموذج. تحقق من حساب Anthropic", 502, "permission");
@@ -260,10 +275,7 @@ Deno.serve(async (req) => {
             }
         }
 
-        await admin.from("ai_usage").insert({
-            store_id: storeId,
-            user_id: userId,
-            kind: action,
+        await finishUsage({
             model,
             input_tokens: cost.input,
             output_tokens: cost.output,

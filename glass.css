@@ -382,6 +382,20 @@
 
     /* ===== شريط التبويب الزجاجي العائم (الهاتف فقط) ===== */
     @media (max-width: 650px) {
+        /* يختفي الشريط عند فتح القائمة، حتى لا يغطي زر الخروج أسفلها */
+        html[data-glass="on"] #userBox {
+            background: rgba(36, 36, 40, .94) !important;
+            -webkit-backdrop-filter: blur(18px);
+            backdrop-filter: blur(18px);
+            box-shadow: 0 -12px 20px rgba(0, 0, 0, .55) !important;
+        }
+
+        html[data-glass="on"] body.nav-open .glass-tabbar {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(140%);
+        }
+
         html[data-glass="on"] .glass-tabbar {
             display: flex;
             position: fixed;

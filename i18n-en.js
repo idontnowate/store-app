@@ -440,6 +440,8 @@ window.STORE_I18N_EN = {
         "رسالة القسط المتأخر": "Late installment message",
         "إرجاع النص الأصلي": "Restore original text",
         "ابدأ بمتجرك": "Get your store ready",
+        "تسجيل الخروج من هذا الجهاز": "Sign out of this device",
+        "يخرجك من حسابك على هذا الجهاز فقط. بياناتك تبقى محفوظة في السحابة.": "Signs you out on this device only. Your data stays saved in the cloud.",
         "بحث ·": "Search ·",
         "فاتورة جديدة ·": "New invoice ·",
         "خطوات البدء": "Getting started",

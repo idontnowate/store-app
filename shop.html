@@ -752,8 +752,8 @@
             return d.length >= 10 ? d : '';
         }
 
-        function state(title, text) {
-            $('list').innerHTML = `<div class="state"><h2>${esc(title)}</h2>${text ? `<p>${esc(text)}</p>` : ''}</div>`;
+        function state(title, text, retry) {
+            $('list').innerHTML = `<div class="state"><h2>${esc(title)}</h2>${text ? `<p>${esc(text)}</p>` : ''}${retry ? '<button type="button" onclick="location.reload()" style="margin-top:14px;height:44px;padding:0 22px;border:0;border-radius:12px;background:var(--primary);color:var(--primary-text);font:inherit;font-weight:600">إعادة المحاولة</button>' : ''}</div>`;
         }
 
         // ===== التحميل =====
@@ -769,7 +769,7 @@
                 if (!rows.length) return state('هذا المتجر غير متاح حاليًا', 'قد يكون الرابط خاطئًا أو أوقف المتجر صفحته.');
                 shop = rows[0];
             } catch (err) {
-                return state('تعذر تحميل المتجر', 'تحقق من الإنترنت ثم أعد تحميل الصفحة.');
+                return state('تعذر تحميل المتجر', 'تحقق من الإنترنت ثم حاول مرة أخرى.', true);
             }
             try { cart = JSON.parse(localStorage.getItem(cartKey()) || '{}') || {}; } catch { cart = {}; }
             // نحذف من السلة ما لم يعد متوفرًا

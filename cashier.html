@@ -24,8 +24,8 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610271"></script>
-    <script src="theme.js?v=202610261"></script>
+    <script src="i18n-en.js?v=202610280"></script>
+    <script src="theme.js?v=202610280"></script>
     <script src="pwa.js?v=202610260"></script>
     <script src="print.js?v=202610252"></script>
     <script src="auth.js?v=202610271"></script>
@@ -533,6 +533,28 @@
             display: none;
         }
 
+        .keys-tip {
+            display: none;
+            margin: 8px 0 0;
+            font-size: 12.5px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .keys-tip kbd {
+            font: inherit;
+            font-weight: 700;
+            padding: 1px 6px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .keys-tip {
+                display: block;
+            }
+        }
+
         .print-tip {
             display: block;
             font-size: 13px;
@@ -783,6 +805,7 @@
 
                 <button class="btn pay" id="checkoutBtn" type="button" disabled>إتمام البيع</button>
                 <button class="btn more" id="checkoutMoreBtn" type="button" disabled>إتمام وبدء فاتورة جديدة</button>
+                <p class="keys-tip"><kbd>F2</kbd> بحث · <kbd>F4</kbd> فاتورة جديدة · <kbd>F9</kbd> إتمام البيع</p>
                 <div class="notice" id="cartNotice" role="status" aria-live="polite"></div>
             </div>
 
@@ -1197,6 +1220,38 @@
         });
 
         el.search.addEventListener('input', renderProducts);
+
+        // Enter في البحث يضيف السلعة إذا بقيت واحدة فقط، و Esc يمسح البحث
+        el.search.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && el.search.value) {
+                el.search.value = '';
+                renderProducts();
+            } else if (e.key === 'Enter') {
+                const found = el.area.querySelectorAll('.prod[data-id]');
+                if (found.length === 1) {
+                    e.preventDefault();
+                    found[0].click();
+                    el.search.select();
+                }
+            }
+        });
+
+        // اختصارات الكيبورد للكاشير على الكمبيوتر
+        document.addEventListener('keydown', e => {
+            if (document.querySelector('dialog[open]')) return;
+            const usable = b => b && !b.disabled && b.offsetParent !== null;
+            if (e.key === 'F2') {
+                e.preventDefault();
+                el.search.focus();
+                el.search.select();
+            } else if (e.key === 'F4' && usable(el.startBtn)) {
+                e.preventDefault();
+                el.startBtn.click();
+            } else if (e.key === 'F9' && usable($('checkoutBtn'))) {
+                e.preventDefault();
+                $('checkoutBtn').click();
+            }
+        });
 
         el.lines.addEventListener('click', e => {
             const b = e.target.closest('[data-act]');

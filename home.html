@@ -24,8 +24,8 @@
     <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610271"></script>
-    <script src="theme.js?v=202610261"></script>
+    <script src="i18n-en.js?v=202610280"></script>
+    <script src="theme.js?v=202610280"></script>
     <script src="pwa.js?v=202610260"></script>
     <script src="auth.js?v=202610271"></script>
     <script src="layout.js?v=202610260"></script>
@@ -166,6 +166,84 @@
 
         .card-head a:hover {
             text-decoration: underline;
+        }
+
+        /* خطوات البدء لمتجر جديد */
+        .setup {
+            margin-bottom: 16px;
+        }
+
+        .setup-head p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .setup-hide {
+            border: 0;
+            background: none;
+            color: var(--muted);
+            font: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 6px;
+        }
+
+        .setup-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 10px;
+        }
+
+        .setup-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            color: inherit;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .setup-step:hover {
+            border-color: var(--olive);
+        }
+
+        .setup-step .tick {
+            flex: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--line);
+            display: grid;
+            place-items: center;
+        }
+
+        .setup-step.done {
+            color: var(--muted);
+        }
+
+        .setup-step.done .tick {
+            background: var(--olive);
+            border-color: var(--olive);
+        }
+
+        .setup-step.done .tick::after {
+            content: "";
+            width: 10px;
+            height: 5px;
+            border: solid var(--card, #fff);
+            border-width: 0 0 2px 2px;
+            transform: translateY(-1px) rotate(-45deg);
+        }
+
+        .setup-step.done span:last-child {
+            text-decoration: line-through;
         }
 
         /* بطاقات الملخص */
@@ -459,6 +537,17 @@
     </aside>
 
     <main class="dash">
+        <section class="card setup" id="setup" aria-label="خطوات البدء" hidden>
+            <div class="card-head setup-head">
+                <div>
+                    <h2>ابدأ بمتجرك</h2>
+                    <p id="setupNote"></p>
+                </div>
+                <button type="button" class="setup-hide" id="setupHide">إخفاء</button>
+            </div>
+            <div class="setup-steps" id="setupSteps"></div>
+        </section>
+
         <section class="stats" id="stats" aria-label="ملخص المتجر"></section>
 
         <div class="cols">
@@ -797,7 +886,7 @@
 
             return {
                 stats: [
-                    { title: 'صافي الربح التقديري', value: money(profit), note: 'الإيراد − تكلفة المباع', hero: true },
+                    { title: 'صافي الربح التقديري', value: money(profit), note: 'كل المبيعات منذ البداية: الإيراد − تكلفة المباع', hero: true },
                     { title: 'مبيعات اليوم', value: money(todayTotal), note: `${num(todaySales.length)} فاتورة` },
                     { title: 'رصيد الصندوق', value: money(cashBalance), note: 'النقد الحالي' },
                     { title: 'المخزون (بالتكلفة)', value: money(stockValue), note: `${num(productCount)} منتج` },
@@ -903,6 +992,35 @@
             });
             if (phone && phone !== localStorage.getItem(REPORT_PHONE_KEY)) localStorage.setItem(REPORT_PHONE_KEY, phone);
         });
+
+        // ===== خطوات البدء: تظهر للمدير حتى يكمل الأساسيات أو يخفيها =====
+        const SETUP_HIDDEN_KEY = 'appSetupHidden';
+        function drawSetup() {
+            const box = document.getElementById('setup');
+            const me = window.StoreAuth && StoreAuth.currentUser ? StoreAuth.currentUser() : null;
+            if (!me || me.role !== 'admin' || localStorage.getItem('appDemo') === '1' || localStorage.getItem(SETUP_HIDDEN_KEY) === '1') { box.hidden = true; return; }
+            const info = window.getStoreInfo ? window.getStoreInfo() : {};
+            const has = k => safeParse(localStorage.getItem(k)).length > 0;
+            const steps = [
+                { done: !!info.phone, text: 'أكمل بيانات المتجر (الهاتف والعنوان)', href: 'settings.html#store' },
+                { done: has(PRODUCTS_KEY), text: 'أضف منتجاتك للمخزن', href: 'inventory.html' },
+                { done: has(INVOICES_KEY), text: 'سجّل أول بيعة من الكاشير', href: 'cashier.html' }
+            ];
+            const left = steps.filter(x => !x.done).length;
+            box.hidden = left === 0;
+            if (!left) return;
+            document.getElementById('setupNote').textContent = left === 1 ? 'بقيت خطوة واحدة' : `بقيت ${left} خطوات من ${steps.length}`;
+            document.getElementById('setupSteps').innerHTML = steps.map(x => `
+                <a class="setup-step ${x.done ? 'done' : ''}" href="${x.href}">
+                    <span class="tick" aria-hidden="true"></span>
+                    <span>${esc(x.text)}</span>
+                </a>`).join('');
+        }
+        document.getElementById('setupHide').addEventListener('click', () => {
+            localStorage.setItem(SETUP_HIDDEN_KEY, '1');
+            document.getElementById('setup').hidden = true;
+        });
+        if (window.StoreAuth) StoreAuth.ready.then(drawSetup);
 
         window.addEventListener('storage', () => { render(); drawOrders(); drawDevices(); });
         document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); drawOrders(); drawDevices(); } });

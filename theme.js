@@ -84,7 +84,9 @@
         const key = text.trim();
         // النص قد يمتد على عدة أسطر في الصفحة؛ نطابقه بعد توحيد المسافات
         const out = lookup(key.replace(/\s+/g, ' '));
-        return out == null ? text : text.replace(key, out);
+        if (out != null) return text.replace(key, out);
+        // مبلغ داخل نص غير مترجم، مثل: اسم الزبون (19,000 د.ع)
+        return text.replace(/(\d[\d,.]*)\s*د\.ع/g, '$1 IQD');
     }
 
     function translate(root, lang) {

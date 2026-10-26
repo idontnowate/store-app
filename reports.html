@@ -24,8 +24,8 @@
 <script src="rates.js?v=202610241"></script>
     <script src="products.js?v=202610243"></script>
 <script src="log.js?v=202610231"></script>
-<script src="i18n-en.js?v=202610271"></script>
-    <script src="theme.js?v=202610261"></script>
+<script src="i18n-en.js?v=202610280"></script>
+    <script src="theme.js?v=202610280"></script>
     <script src="pwa.js?v=202610260"></script>
 <script src="auth.js?v=202610271"></script>
 <script src="layout.js?v=202610260"></script>
@@ -494,7 +494,7 @@
                 من <input type="date" id="fromDate">
                 إلى <input type="date" id="toDate">
             </div>
-            <button class="export-btn" id="exportAll" type="button">تصدير الكل (CSV)</button>
+            <button class="export-btn" id="exportAll" type="button">تصدير الكل (Excel)</button>
         </div>
 
         <section class="summary" aria-label="ملخص الفترة">
@@ -520,7 +520,7 @@
             <section class="report" data-report="payment">
                 <div class="report-head">
                     <h2>المبيعات حسب طريقة الدفع</h2>
-                    <button class="mini-btn" type="button" data-export="payment">CSV</button>
+                    <button class="mini-btn" type="button" data-export="payment">Excel</button>
                 </div>
                 <div id="paymentBody"></div>
             </section>
@@ -528,7 +528,7 @@
             <section class="report" data-report="category">
                 <div class="report-head">
                     <h2>المبيعات حسب الفئة</h2>
-                    <button class="mini-btn" type="button" data-export="category">CSV</button>
+                    <button class="mini-btn" type="button" data-export="category">Excel</button>
                 </div>
                 <div id="categoryBody"></div>
             </section>
@@ -536,7 +536,7 @@
             <section class="report" data-report="employee">
                 <div class="report-head">
                     <h2>المبيعات حسب الموظف</h2>
-                    <button class="mini-btn" type="button" data-export="employee">CSV</button>
+                    <button class="mini-btn" type="button" data-export="employee">Excel</button>
                 </div>
                 <div id="employeeBody"></div>
             </section>
@@ -544,7 +544,7 @@
             <section class="report" data-report="customers">
                 <div class="report-head">
                     <h2>أعلى الزبائن</h2>
-                    <button class="mini-btn" type="button" data-export="customers">CSV</button>
+                    <button class="mini-btn" type="button" data-export="customers">Excel</button>
                 </div>
                 <div id="customersBody"></div>
             </section>
@@ -552,7 +552,7 @@
             <section class="report wide" data-report="products">
                 <div class="report-head">
                     <h2>المنتجات الأكثر مبيعًا</h2>
-                    <button class="mini-btn" type="button" data-export="products">CSV</button>
+                    <button class="mini-btn" type="button" data-export="products">Excel</button>
                 </div>
                 <div id="productsBody"></div>
             </section>
@@ -560,7 +560,7 @@
             <section class="report" data-report="stock">
                 <div class="report-head">
                     <h2>تنبيهات المخزن</h2>
-                    <button class="mini-btn" type="button" data-export="stock">CSV</button>
+                    <button class="mini-btn" type="button" data-export="stock">Excel</button>
                 </div>
                 <div id="stockBody"></div>
             </section>
@@ -568,7 +568,7 @@
             <section class="report" data-report="debts">
                 <div class="report-head">
                     <h2>الديون المستحقة</h2>
-                    <button class="mini-btn" type="button" data-export="debts">CSV</button>
+                    <button class="mini-btn" type="button" data-export="debts">Excel</button>
                 </div>
                 <div id="debtsBody"></div>
             </section>
@@ -576,7 +576,7 @@
             <section class="report wide" data-report="suppliers">
                 <div class="report-head">
                     <h2>المشتريات حسب المورد</h2>
-                    <button class="mini-btn" type="button" data-export="suppliers">CSV</button>
+                    <button class="mini-btn" type="button" data-export="suppliers">Excel</button>
                 </div>
                 <div id="suppliersBody"></div>
             </section>
@@ -857,12 +857,6 @@
             );
         }
 
-        // ===== التصدير =====
-        function csvCell(v) {
-            const s = String(v ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&');
-            return `"${s.replace(/"/g, '""')}"`;
-        }
-
         // ===== تصدير Excel مرتب =====
             function xlCell(v) {
                 return String(v ?? '')
@@ -1022,36 +1016,6 @@
                 const html = buildSheetHtml(`التقرير الشامل — ${periodLabel()}`, sections);
                 downloadExcel('تقرير_شامل', html);
             });
-
-        document.querySelectorAll('[data-export]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const key = btn.dataset.export;
-                downloadCsv(key, reportRows(key));
-            });
-        });
-
-        document.getElementById('exportAll').addEventListener('click', () => {
-            const d = cache;
-            const rows = [
-                ['الملخص'],
-                ['إجمالي المبيعات', d.salesTotal],
-                ['عدد الفواتير', d.salesCount],
-                ['تكلفة المباع', d.cogs],
-                ['الربح التقديري', d.profit],
-                ['إجمالي المشتريات', d.purchTotal],
-                ['التسديدات المستلمة', d.byDebtPaid],
-                ['ديون مستحقة', d.debtTotal],
-                [],
-                ...[['المبيعات حسب طريقة الدفع'], ...reportRows('payment')],
-                [],
-                ...[['المنتجات'], ...reportRows('products')],
-                [],
-                ...[['الديون المستحقة'], ...reportRows('debts')],
-                [],
-                ...[['المشتريات حسب المورد'], ...reportRows('suppliers')]
-            ];
-            downloadCsv('تقرير_شامل', rows);
-        });
 
         // ===== الفترة =====
         document.getElementById('rangeChips').addEventListener('click', event => {

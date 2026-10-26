@@ -25,6 +25,9 @@
     const WARN_DAYS = 7;
     // بيانات العضوية محليًا؛ لا تبدأ بـ store حتى لا تُزامن، ويقرأها storage.js لمعرفة المتجر
     const MEMBERSHIP_KEY = 'appMembership';
+    // المتجر التجريبي (demo.js): بيانات وهمية على الجهاز، بلا حساب ولا سحابة
+    const DEMO_KEY = 'appDemo';
+    const DEMO = (() => { try { return localStorage.getItem(DEMO_KEY) === '1'; } catch { return false; } })();
     // يحفظ معرف المتجر الذي اكتملت مزامنته محليًا (يكتبه storage.js)
     const SYNCED_STORE_KEY = 'appSyncedStore';
     // علامة مؤقتة: تسجيل دخول جديد ينتظر كتابته في السجل بعد اكتمال المزامنة
@@ -134,7 +137,7 @@
         });
     }
 
-    let clientReady = makeClient();
+    let clientReady = DEMO ? Promise.resolve() : makeClient();
 
     // إذا فشل تحميل المكتبة (بدون إنترنت) نعيد المحاولة عند الحاجة
     function ensureClient() {
@@ -158,6 +161,7 @@
     }
 
     async function getSession() {
+        if (DEMO) return null;
         await ensureClient();
         const { data } = await sb.auth.getSession();
         return data.session;
@@ -193,7 +197,15 @@
         return m;
     }
 
+    // الخروج من التجربة: تُمسح كل بياناتها الوهمية
+    function exitDemo() {
+        if (window.StoreSync) StoreSync.clearLocal();
+        [DEMO_KEY, MEMBERSHIP_KEY, SUBSCRIPTION_KEY].forEach(k => localStorage.removeItem(k));
+        location.replace(LOGIN_PAGE);
+    }
+
     async function logout() {
+        if (DEMO) return exitDemo();
         // تغييرات لم تصل إلى السحابة ستضيع، لأننا نمسح بيانات المتجر من الجهاز عند الخروج
         if (window.StoreSync && StoreSync.flush() > 0 &&
             !confirm('توجد تغييرات لم تُرفع إلى السحابة بعد (تحقق من الإنترنت). الخروج الآن سيحذفها من هذا الجهاز. هل تريد الخروج؟')) {
@@ -262,7 +274,7 @@
 
     // يجلب اشتراك المتجر من السحابة؛ يعيد null إذا تعذر (أو لم يُنشأ جدول الاشتراكات بعد)
     async function fetchSubscription() {
-        if (!membership) return null;
+        if (DEMO || !membership) return null;
         try {
             const { data, error } = await sb
                 .from('store_subscriptions')
@@ -318,6 +330,7 @@
     // ===== الحساب والأمان =====
     // نتحقق من كلمة المرور الحالية أولًا، ثم نغيّرها لحساب المستخدم الحالي فقط
     async function changePassword(current, next) {
+        if (DEMO) throw new Error('غير متاح في النسخة التجريبية');
         await ensureClient();
         const { data } = await sb.auth.getSession();
         const email = data.session && data.session.user && data.session.user.email;
@@ -337,6 +350,7 @@
 
     // يلغي جلسات هذا الحساب على كل الأجهزة الأخرى، ويبقى هذا الجهاز مسجّلًا
     async function signOutOthers() {
+        if (DEMO) throw new Error('غير متاح في النسخة التجريبية');
         await ensureClient();
         const { error } = await sb.auth.signOut({ scope: 'others' });
         if (error) throw new Error('تعذر تسجيل الخروج من الأجهزة الأخرى');
@@ -398,7 +412,7 @@
 
     // يسجّل الجهاز ويحدّث آخر نشاط. null = تعذر التحقق (لا إنترنت، أو لم يُشغَّل devices.sql بعد): لا نمنع شيئًا
     async function deviceCheckin(force) {
-        if (!membership || navigator.onLine === false) return null;
+        if (DEMO || !membership || navigator.onLine === false) return null;
         const last = read(DEVICE_CHECK_KEY, null);
         if (!force && last && last.store === membership.store_id && last.status === 'ok' && Date.now() - last.at < DEVICE_CHECK_MS) return last;
         try {
@@ -462,6 +476,8 @@
 
     async function guard() {
         await ensureClient();
+        // بدأت التجربة من صفحة الدخول أثناء التحقق: لا نمسح دخولها الوهمي
+        if (localStorage.getItem(DEMO_KEY) === '1') return false;
         const { data, error } = await sb.auth.getSession();
         const session = data && data.session;
 
@@ -646,7 +662,7 @@
     const cachedAtStart = read(MEMBERSHIP_KEY, null);
     let hasStoredSession = false;
     try { hasStoredSession = !!localStorage.getItem(SESSION_TOKEN_KEY); } catch (e) { }
-    const optimistic = !isLogin && !!(cachedAtStart && cachedAtStart.store_id && hasStoredSession);
+    const optimistic = !isLogin && !!(cachedAtStart && cachedAtStart.store_id && (hasStoredSession || DEMO));
 
     if (optimistic) {
         membership = cachedAtStart;
@@ -661,7 +677,52 @@
         document.documentElement.style.visibility = 'hidden';
     }
 
-    const ready = clientReady
+    // ===== شريط النسخة التجريبية =====
+    function showDemoBanner() {
+        const main = document.querySelector('body > main');
+        if (!main || document.querySelector('.demo-banner')) return;
+        const wa = 'https://wa.me/964' + SUPPORT_CONTACT.replace(/^0/, '') + '?text=' +
+            encodeURIComponent('مرحبًا، جربت برنامج إدارة المتجر وأريد نسخة لمحلي');
+        const bar = document.createElement('div');
+        bar.className = 'demo-banner';
+        bar.setAttribute('role', 'status');
+        bar.innerHTML = `<span><b>نسخة تجريبية</b> — بيانات وهمية للتجربة، ولا يُحفظ شيء.</span>
+            <span class="demo-actions">
+                <a class="demo-cta" href="${wa}" target="_blank" rel="noopener">أريد البرنامج لمحلي</a>
+                <button type="button" class="demo-exit">خروج من التجربة</button>
+            </span>`;
+        bar.querySelector('.demo-exit').addEventListener('click', exitDemo);
+        main.prepend(bar);
+    }
+
+    // عميل وهمي للتجربة: أي طلب للسحابة يرجع فارغًا مع رسالة واضحة بدل أن ينكسر
+    function demoClient() {
+        const res = { data: null, error: { message: 'غير متاح في النسخة التجريبية' }, count: 0 };
+        const q = {};
+        ['select', 'eq', 'neq', 'gte', 'lte', 'gt', 'lt', 'in', 'order', 'limit', 'range', 'insert', 'update', 'upsert', 'delete', 'match', 'is', 'like', 'ilike'].forEach(m => { q[m] = () => q; });
+        q.maybeSingle = async () => res;
+        q.single = async () => res;
+        q.then = (ok, bad) => Promise.resolve(res).then(ok, bad);
+        return { from: () => q, rpc: async () => res, auth: { getSession: async () => ({ data: { session: null } }), signOut: async () => ({}) } };
+    }
+
+    const ready = DEMO
+        ? whenDomReady().then(() => {
+            if (isLogin) {
+                location.replace(HOME_PAGE);
+                return false;
+            }
+            membership = read(MEMBERSHIP_KEY, null);
+            if (!membership) {
+                exitDemo();
+                return false;
+            }
+            buildUI();
+            showDemoBanner();
+            document.documentElement.style.visibility = '';
+            return true;
+        })
+        : clientReady
         .then(guard)
         .then(async ok => {
             await whenDomReady();
@@ -693,7 +754,7 @@
     // ===== عودة الاتصال: نجدد الجلسة ثم نرفع ما حُفظ على الجهاز ونجلب الجديد =====
     let syncing = false;
     async function syncNow() {
-        if (syncing || isLogin || !window.StoreSync || navigator.onLine === false) return;
+        if (DEMO || syncing || isLogin || !window.StoreSync || navigator.onLine === false) return;
         syncing = true;
         try {
             try {
@@ -728,9 +789,11 @@
         ready,
         client: null, // يُملأ بعد التهيئة، انظر getClient()
         getClient: async () => {
+            if (DEMO) return demoClient();
             await ensureClient();
             return sb;
         },
+        isDemo: () => DEMO,
         currentUser,
         login,
         logout,

@@ -18,7 +18,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>لوحة المزود</title>
     <link rel="preconnect" href="https://pxxgydllfustqkpkfiqn.supabase.co">
-    <script src="i18n-en.js?v=202610261"></script>
+    <script src="i18n-en.js?v=202610271"></script>
     <script src="theme.js?v=202610261"></script>
     <script src="pwa.js?v=202610260"></script>
     <style>
@@ -150,6 +150,20 @@
             overflow: hidden;
             clip: rect(0 0 0 0);
             white-space: nowrap;
+        }
+
+        .ref-badge {
+            display: inline-grid;
+            place-items: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: var(--warn);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            margin-inline-start: 4px;
         }
 
         .head {
@@ -479,7 +493,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610253">
+    <link rel="stylesheet" href="design.css?v=202610270">
     <link rel="stylesheet" href="glass.css?v=202610261">
 </head>
 
@@ -523,6 +537,7 @@
             <div class="row">
                 <button class="btn secondary" type="button" id="refreshBtn">تحديث</button>
                 <button class="btn secondary" type="button" id="ratesBtn">أسعار الصرف</button>
+                <button class="btn secondary" type="button" id="refsBtn">الإحالات <span class="ref-badge" id="refsBadge" hidden></span></button>
                 <button class="btn secondary" type="button" id="aiBtn">الباقة الذكية</button>
                 <button class="btn" type="button" id="newStoreBtn">+ متجر جديد</button>
                 <button class="btn danger" type="button" id="signOutBtn">خروج</button>
@@ -673,6 +688,23 @@
             </div>
         </div>
         <div class="block">
+            <h3>الإحالة</h3>
+            <div class="facts" id="refFacts"></div>
+            <form id="refLinkForm" class="row" novalidate hidden style="margin-top:10px">
+                <label class="field" style="flex:1">ربط بمحل أحاله (رمزه)
+                    <input name="code" dir="ltr" maxlength="6" autocomplete="off" style="text-transform:uppercase">
+                </label>
+                <button class="btn secondary" type="submit">ربط</button>
+            </form>
+            <div class="msg" id="refMsg" role="alert"></div>
+            <div class="table-wrap" id="refRowsWrap" hidden>
+                <table>
+                    <thead><tr><th>المحل الذي جلبه</th><th>التاريخ</th><th>الحالة</th><th></th></tr></thead>
+                    <tbody id="refRows"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="block">
             <h3>الأجهزة</h3>
             <form id="devicePlanForm" novalidate>
                 <div class="grid">
@@ -742,6 +774,24 @@
     </dialog>
 
     <!-- ===== متجر جديد ===== -->
+    <dialog class="wide" id="refsDialog">
+        <div class="dlg-head">
+            <div>
+                <h2>الإحالات</h2>
+                <p>من جلب من. امنح الشهر المجاني بعد أن يدفع المحل الجديد اشتراكه، فيُمدَّد اشتراك المحل الذي أحاله شهرًا.</p>
+            </div>
+            <button class="x-btn" type="button" data-close aria-label="إغلاق">×</button>
+        </div>
+        <div class="facts" id="refsTotals"></div>
+        <div class="msg" id="refsMsg" role="alert"></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>المحيل</th><th>المحل الجديد</th><th>التاريخ</th><th>الحالة</th><th></th></tr></thead>
+                <tbody id="refsRows"></tbody>
+            </table>
+        </div>
+    </dialog>
+
     <dialog class="wide" id="newDialog">
         <div class="dlg-head">
             <div>
@@ -781,6 +831,9 @@
                 </label>
                 <label class="field full">كلمة مرور المدير
                     <input name="adminPassword" dir="ltr" autocomplete="off" required>
+                </label>
+                <label class="field full">رمز الإحالة (اختياري: رمز المحل الذي جلب هذا الزبون)
+                    <input name="refCode" dir="ltr" autocomplete="off" maxlength="6" placeholder="مثل P8PPCL" style="text-transform:uppercase">
                 </label>
             </div>
             <div class="msg" id="newMsg" role="alert" style="margin-top:12px"></div>
@@ -1032,6 +1085,7 @@
                 const out = await call('overview');
                 stores = out.stores || [];
                 render();
+                loadReferrals().catch(() => { });
                 if (current) {
                     const fresh = stores.find(s => s.store_id === current.store_id);
                     if (fresh) fillStoreDialog(fresh);
@@ -1484,6 +1538,7 @@
             $('sdRows').textContent = num(s.rows_count);
             fillAIBlock(s);
             fillDevicesBlock(s);
+            fillReferralBlock(s);
         }
 
         $('rows').addEventListener('click', e => {
@@ -1625,10 +1680,165 @@
             $('newDialog').showModal();
         });
 
+        // ===== الإحالات (referrals.sql) =====
+        const REF_STATUS = { pending: 'بانتظار المكافأة', rewarded: 'مُنحت', rejected: 'لا تُحتسب' };
+        const storeName = id => (stores.find(x => x.store_id === id) || {}).name || 'متجر محذوف';
+        const refMissing = m => /store_ref|store_referrals|referral_code|relation|42P01|42883|schema cache/.test(m || '');
+        const refSqlMsg = 'شغّل الملف supabase/referrals.sql في Supabase أولًا';
+
+        async function storeByCode(code) {
+            const c = String(code || '').trim().toUpperCase();
+            if (!c) return null;
+            if (!/^[A-Z0-9]{6}$/.test(c)) throw new Error('رمز الإحالة 6 أحرف وأرقام');
+            const { data, error } = await sb.from('store_ref_codes').select('store_id').eq('code', c).maybeSingle();
+            if (error) throw new Error(refMissing(error.message) ? refSqlMsg : error.message);
+            if (!data) throw new Error('رمز الإحالة غير موجود');
+            return data.store_id;
+        }
+
+        async function linkReferral(referrer, referred, name) {
+            if (referrer === referred) throw new Error('لا يمكن للمتجر أن يحيل نفسه');
+            const { error } = await sb.from('store_referrals').insert({ referrer_store: referrer, referred_store: referred, referred_name: String(name || '').slice(0, 120) });
+            if (error) throw new Error(/duplicate|unique/.test(error.message) ? 'هذا المتجر مربوط بمحيل من قبل' : error.message);
+        }
+
+        // يمدد اشتراك المحيل شهرًا ويعلّم الإحالة
+        async function rewardReferral(r) {
+            await call('extend', { storeId: r.referrer_store, months: 1 });
+            const { error } = await sb.from('store_referrals').update({ status: 'rewarded', reward_months: 1, rewarded_at: new Date().toISOString() }).eq('id', r.id);
+            if (error) throw error;
+            flash(`تم تمديد اشتراك ${storeName(r.referrer_store)} شهرًا مجانيًا`);
+        }
+
+        async function setReferralStatus(r, status) {
+            const { error } = await sb.from('store_referrals').update({ status }).eq('id', r.id);
+            if (error) throw error;
+        }
+
+        function refActions(r) {
+            return r.status === 'pending'
+                ? `<span class="row"><button class="btn small" type="button" data-ref-reward="${esc(r.id)}">منح شهر مجاني</button>
+                   <button class="btn secondary small" type="button" data-ref-reject="${esc(r.id)}">لا تُحتسب</button></span>`
+                : '';
+        }
+
+        let refCache = [];
+        async function loadReferrals() {
+            const { data, error } = await sb.from('store_referrals').select('*').order('created_at', { ascending: false });
+            if (error) throw new Error(refMissing(error.message) ? refSqlMsg : error.message);
+            refCache = data || [];
+            const pending = refCache.filter(r => r.status === 'pending').length;
+            $('refsBadge').hidden = !pending;
+            $('refsBadge').textContent = pending;
+            return refCache;
+        }
+
+        async function fillReferralBlock(s) {
+            $('refMsg').textContent = '';
+            $('refFacts').innerHTML = '<div class="fact">جارِ التحميل…</div>';
+            $('refRowsWrap').hidden = true;
+            $('refLinkForm').hidden = true;
+            try {
+                const [{ data: code, error: codeErr }] = await Promise.all([sb.rpc('referral_code', { p_store: s.store_id }), loadReferrals()]);
+                if (codeErr) throw new Error(refMissing(codeErr.message) ? refSqlMsg : codeErr.message);
+                if (!current || current.store_id !== s.store_id) return;
+                const made = refCache.filter(r => r.referrer_store === s.store_id);
+                const by = refCache.find(r => r.referred_store === s.store_id);
+                const months = made.reduce((n, r) => n + (r.status === 'rewarded' ? r.reward_months : 0), 0);
+                $('refFacts').innerHTML = `
+                    <div class="fact">رمز المتجر<b dir="ltr">${esc(code)}</b></div>
+                    <div class="fact">محلات جلبها<b>${num(made.length)}</b></div>
+                    <div class="fact">أشهر مجانية رُبحت<b>${num(months)}</b></div>
+                    <div class="fact">أحاله<b>${by ? esc(storeName(by.referrer_store)) : '—'}</b></div>`;
+                $('refLinkForm').hidden = !!by;
+                $('refRowsWrap').hidden = !made.length;
+                $('refRows').innerHTML = made.map(r => `
+                    <tr>
+                        <td>${esc(r.referred_name || storeName(r.referred_store))}</td>
+                        <td>${esc(ago(r.created_at))}</td>
+                        <td>${REF_STATUS[r.status] || esc(r.status)}</td>
+                        <td>${refActions(r)}</td>
+                    </tr>`).join('');
+            } catch (err) {
+                $('refFacts').innerHTML = '';
+                $('refMsg').textContent = err.message;
+            }
+        }
+
+        async function renderRefsDialog() {
+            $('refsMsg').textContent = '';
+            $('refsRows').innerHTML = '<tr><td colspan="5" class="muted">جارِ التحميل…</td></tr>';
+            try {
+                const rows = await loadReferrals();
+                const rewarded = rows.filter(r => r.status === 'rewarded');
+                $('refsTotals').innerHTML = `
+                    <div class="fact">كل الإحالات<b>${num(rows.length)}</b></div>
+                    <div class="fact">بانتظار المكافأة<b>${num(rows.filter(r => r.status === 'pending').length)}</b></div>
+                    <div class="fact">أشهر مجانية مُنحت<b>${num(rewarded.reduce((n, r) => n + r.reward_months, 0))}</b></div>`;
+                $('refsRows').innerHTML = rows.map(r => `
+                    <tr>
+                        <td>${esc(storeName(r.referrer_store))}</td>
+                        <td>${esc(r.referred_name || storeName(r.referred_store))}</td>
+                        <td>${esc(ago(r.created_at))}</td>
+                        <td>${REF_STATUS[r.status] || esc(r.status)}</td>
+                        <td>${refActions(r)}</td>
+                    </tr>`).join('') || '<tr><td colspan="5" class="muted">لا توجد إحالات بعد. اكتب رمز المحيل عند إنشاء متجر جديد.</td></tr>';
+            } catch (err) {
+                $('refsRows').innerHTML = '';
+                $('refsMsg').textContent = err.message;
+            }
+        }
+
+        $('refsBtn').addEventListener('click', () => { $('refsDialog').showModal(); renderRefsDialog(); });
+
+        // أزرار المنح والرفض في النافذتين
+        document.addEventListener('click', async e => {
+            const b = e.target.closest('[data-ref-reward], [data-ref-reject]');
+            if (!b) return;
+            const r = refCache.find(x => x.id === (b.dataset.refReward || b.dataset.refReject));
+            if (!r) return;
+            if (b.dataset.refReward && !confirm(`تمديد اشتراك «${storeName(r.referrer_store)}» شهرًا مجانيًا؟`)) return;
+            b.disabled = true;
+            try {
+                if (b.dataset.refReward) await rewardReferral(r);
+                else await setReferralStatus(r, 'rejected');
+                if ($('refsDialog').open) await renderRefsDialog();
+                if (current) await fillReferralBlock(current);
+                await load();
+            } catch (err) {
+                flash(err.message || 'تعذرت العملية', true);
+                b.disabled = false;
+            }
+        });
+
+        $('refLinkForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            if (!current) return;
+            $('refMsg').textContent = '';
+            try {
+                const referrer = await storeByCode(e.target.elements.code.value);
+                if (!referrer) return;
+                await linkReferral(referrer, current.store_id, current.name);
+                flash('تم ربط المتجر بمحيله');
+                e.target.reset();
+                await fillReferralBlock(current);
+            } catch (err) {
+                $('refMsg').textContent = err.message;
+            }
+        });
+
         $('newForm').addEventListener('submit', async e => {
             e.preventDefault();
             const f = e.target.elements;
             $('newMsg').textContent = '';
+            // رمز الإحالة يُتحقق منه قبل إنشاء المتجر
+            let referrer = null;
+            try {
+                referrer = await storeByCode(f.refCode.value);
+            } catch (err) {
+                $('newMsg').textContent = err.message;
+                return;
+            }
             const data = {
                 storeName: f.storeName.value.trim(),
                 ownerPhone: f.ownerPhone.value.trim(),
@@ -1644,13 +1854,22 @@
             const btn = e.submitter;
             btn.disabled = true;
             try {
-                await call('create_store', data);
+                const created = await call('create_store', data);
+                let refNote = '';
+                if (referrer && created && created.store_id) {
+                    try {
+                        await linkReferral(referrer, created.store_id, data.storeName);
+                        refNote = `<br>مربوط بإحالة من <b>${esc(storeName(referrer))}</b>. امنحه الشهر المجاني من «الإحالات» بعد أن يدفع.`;
+                    } catch (err) {
+                        refNote = `<br>تعذر ربط الإحالة: ${esc(err.message)}`;
+                    }
+                }
                 // بيانات الدخول لتسليمها لصاحب المتجر
                 $('newForm').hidden = true;
                 $('newCreds').hidden = false;
                 $('newCreds').innerHTML = `تم إنشاء متجر <b>${esc(data.storeName)}</b>. سلّم صاحب المتجر بيانات الدخول:<br>
                     اسم الدخول: <code dir="ltr">${esc(data.adminUsername)}</code><br>
-                    كلمة المرور: <code dir="ltr">${esc(data.adminPassword)}</code><br>
+                    كلمة المرور: <code dir="ltr">${esc(data.adminPassword)}</code>${refNote}<br>
                     <button class="btn secondary" type="button" id="copyCreds" style="margin-top:10px">نسخ بيانات الدخول</button>`;
                 $('copyCreds').addEventListener('click', () => {
                     navigator.clipboard.writeText(`اسم الدخول: ${data.adminUsername}\nكلمة المرور: ${data.adminPassword}`)

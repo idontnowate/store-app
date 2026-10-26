@@ -17,6 +17,7 @@
     }
 
     async function call(body) {
+        if (localStorage.getItem('appDemo') === '1') throw new Error('الباقة الذكية غير متاحة في النسخة التجريبية');
         if (navigator.onLine === false) throw new Error('الباقة الذكية تحتاج اتصالًا بالإنترنت');
         const t = token();
         if (!t) throw new Error('سجّل الدخول من جديد');

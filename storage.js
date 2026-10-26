@@ -92,7 +92,9 @@
         return session && session.access_token ? session.access_token : KEY;
     }
 
+    // المتجر التجريبي (demo.js): لا متجر في السحابة، فلا مزامنة ولا رفع إطلاقًا
     function currentStoreId() {
+        if (getLocal('appDemo') === '1') return null;
         const m = readJSON(MEMBERSHIP_KEY);
         return m && m.store_id ? m.store_id : null;
     }

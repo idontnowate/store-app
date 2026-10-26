@@ -739,6 +739,15 @@
                 <span class="hint">تُستعاد من صفحة الإعدادات في المتجر.</span>
             </div>
         </div>
+
+        <div class="block">
+            <h3>حذف المتجر نهائيًا</h3>
+            <p class="hint">يحذف المتجر وكل حساباته وبياناته (المبيعات، المخزن، الديون، الطلبات) من السحابة، ولا يمكن التراجع. نزّل نسخة احتياطية أولًا.</p>
+            <form class="row" id="deleteStoreForm">
+                <input name="confirm" autocomplete="off" placeholder="اكتب: حذف" style="max-width:180px">
+                <button class="btn danger" type="submit">حذف المتجر نهائيًا</button>
+            </form>
+        </div>
     </dialog>
 
     <!-- ===== متجر جديد ===== -->
@@ -1592,6 +1601,22 @@
                 role: f.role.value
             }, 'تمت إضافة الحساب');
             if (out) e.target.reset();
+        });
+
+        $('deleteStoreForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const typed = e.target.elements.confirm.value.trim();
+            if (typed !== 'حذف') {
+                flash('اكتب كلمة «حذف» في الخانة للتأكيد', true);
+                return;
+            }
+            const name = current.name || 'بدون اسم';
+            if (!confirm(`حذف «${name}» نهائيًا مع كل حساباته وبياناته؟ لا يمكن التراجع.`)) return;
+            const out = await run(e.submitter, 'delete_store', { storeId: current.store_id, confirm: typed }, 'تم حذف المتجر نهائيًا');
+            if (out) {
+                e.target.reset();
+                $('storeDialog').close();
+            }
         });
 
         $('exportBtn').addEventListener('click', async e => {

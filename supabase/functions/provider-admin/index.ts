@@ -356,9 +356,32 @@ const actions = {
         const userId = str(b.userId);
         const m = await memberOf(admin, userId);
         if (m.role === "admin") await ensureAnotherAdmin(admin, m.store_id, userId);
-        const { error } = await admin.from("store_members").delete().eq("user_id", userId);
-        if (error) throw error;
-        await admin.auth.admin.deleteUser(userId);
+        await removeUser(admin, userId);
+        return { ok: true };
+    },
+
+    // حذف المتجر نهائيًا مع كل حساباته وبياناته. يجب كتابة «حذف» للتأكيد
+    async delete_store(admin, b) {
+        const storeId = str(b.storeId);
+        if (!storeId) throw new UserError("المتجر غير محدد");
+        if (str(b.confirm) !== "حذف") throw new UserError("اكتب كلمة «حذف» للتأكيد، لم يُحذف شيء");
+        const { data: sub } = await admin.from("store_subscriptions").select("store_id").eq("store_id", storeId).maybeSingle();
+        const { data: row } = await admin.from("stores").select("id").eq("id", storeId).maybeSingle();
+        if (!sub && !row) throw new UserError("المتجر غير موجود", 404);
+
+        const { data: members, error: mErr } = await admin.from("store_members").select("user_id").eq("store_id", storeId);
+        if (mErr) throw new UserError("تعذر قراءة حسابات المتجر: " + mErr.message, 500);
+        for (const m of members ?? []) await removeUser(admin, m.user_id);
+
+        // الجداول الاختيارية قد لا تكون موجودة إذا لم يُشغَّل ملف SQL الخاص بها
+        for (const table of ["store_orders", "store_catalog", "store_devices", "store_device_plans", "ai_usage", "store_ai_plans", "kv_store", "store_subscriptions"]) {
+            const { error } = await admin.from(table).delete().eq("store_id", storeId);
+            if (error && error.code !== "42P01" && error.code !== "PGRST205") {
+                throw new UserError(`تعذر حذف بيانات المتجر (${table}): ${error.message}`, 500);
+            }
+        }
+        const { error: sErr } = await admin.from("stores").delete().eq("id", storeId);
+        if (sErr) throw new UserError("تعذر حذف المتجر: " + sErr.message, 500);
         return { ok: true };
     },
 
@@ -386,11 +409,26 @@ const actions = {
     },
 };
 
+// يحذف ربط الحساب بالمتجر ثم حساب الدخول. إذا فشل حذف حساب الدخول يُعاد الربط
+// ويظهر السبب الحقيقي بدل رسالة عامة، فلا يبقى اسم مستخدم محجوز بلا حساب ظاهر
+async function removeUser(admin, userId: string) {
+    const { data: row } = await admin.from("store_members").select("*").eq("user_id", userId).maybeSingle();
+    if (row) {
+        const { error } = await admin.from("store_members").delete().eq("user_id", userId);
+        if (error) throw new UserError("تعذر حذف الحساب من المتجر: " + error.message, 500);
+    }
+    const { error: authErr } = await admin.auth.admin.deleteUser(userId);
+    if (authErr && authErr.status !== 404 && !/not.?found/i.test(authErr.message)) {
+        if (row) await admin.from("store_members").insert(row);
+        throw new UserError("تعذر حذف حساب الدخول: " + authErr.message, 500);
+    }
+}
+
 // لا يُحذف أو يُخفَّض آخر مدير في المتجر، حتى لا يبقى المتجر بلا من يديره
 async function ensureAnotherAdmin(admin, storeId: string, userId: string) {
     const { data } = await admin.from("store_members").select("user_id").eq("store_id", storeId).eq("role", "admin");
     if (!(data ?? []).some(m => m.user_id !== userId)) {
-        throw new UserError("هذا آخر مدير في المتجر. أضف مديرًا آخر أولًا");
+        throw new UserError("هذا آخر مدير في المتجر. أضف مديرًا آخر أولًا، أو احذف المتجر كله من «حذف المتجر نهائيًا»");
     }
 }
 

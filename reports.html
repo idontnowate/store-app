@@ -30,6 +30,7 @@
 <script src="auth.js?v=202610310"></script>
 <script src="layout.js?v=202610260"></script>
 <script src="storefront.js?v=202610310"></script>
+    <script src="xlsx.js?v=202610310"></script>
     <style>
         :root {
             --page: #efede5;
@@ -773,6 +774,7 @@
 
             return {
                 range: r,
+                salesInv,
                 salesCount: salesInv.length,
                 salesTotal,
                 cogs,
@@ -857,165 +859,168 @@
             );
         }
 
-        // ===== تصدير Excel مرتب =====
-            function xlCell(v) {
-                return String(v ?? '')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
+        // ===== تصدير Excel (xlsx.js): ملف حقيقي بورقة لكل تقرير =====
+        function periodLabel() {
+            const r = cache.range;
+            if (r.from === '0000-01-01') return 'كل الفترات';
+            if (r.from === r.to) return 'يوم ' + r.from;
+            return `من ${r.from} إلى ${r.to}`;
+        }
+
+        function subtitle() {
+            const info = window.getStoreInfo ? window.getStoreInfo() : {};
+            const now = new Date();
+            const stamp = isoDay(now) + ' ' + now.toTimeString().slice(0, 5);
+            return [info.name, 'الفترة: ' + periodLabel() + '   •   صدر في ' + stamp].filter(Boolean);
+        }
+
+        const sum = (rows, i) => rows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
+        const share = (v, total) => (total ? v / total : 0);
+
+        // عدد الفواتير ومجموعها حسب حقل في الفاتورة
+        function countBy(field, fallback) {
+            const out = {};
+            cache.salesInv.forEach(inv => {
+                const k = String(inv[field] || fallback).trim();
+                out[k] = out[k] || { count: 0, total: 0 };
+                out[k].count += 1;
+                out[k].total += invoiceTotal(inv);
+            });
+            return Object.entries(out).sort((a, b) => b[1].total - a[1].total);
+        }
+
+        // ورقة كل تقرير: عنوانها وأعمدتها وصفوفها وسطر المجموع
+        function reportSheet(key) {
+            const d = cache;
+            const base = { title: REPORT_TITLES[key], subtitle: subtitle() };
+            if (key === 'payment') {
+                const rows = countBy('payment', 'غير محدد').map(([k, v]) => [k, v.count, v.total, share(v.total, d.salesTotal)]);
+                return { ...base, name: 'طرق الدفع', rows,
+                    columns: [{ header: 'طريقة الدفع' }, { header: 'عدد الفواتير', type: 'int' }, { header: 'المبلغ (د.ع)', type: 'money' }, { header: 'النسبة', type: 'percent' }],
+                    total: ['المجموع', sum(rows, 1), sum(rows, 2), rows.length ? 1 : 0] };
             }
-
-            function xlIsNumber(v) {
-                return typeof v === 'number' && isFinite(v);
+            if (key === 'category') {
+                const total = Object.values(d.byCategory).reduce((s, v) => s + v, 0);
+                const rows = sortedEntries(d.byCategory).map(([k, v]) => [k, v, share(v, total)]);
+                return { ...base, name: 'الفئات', rows,
+                    columns: [{ header: 'الفئة' }, { header: 'المبيعات (د.ع)', type: 'money' }, { header: 'النسبة', type: 'percent' }],
+                    total: ['المجموع', sum(rows, 1), rows.length ? 1 : 0] };
             }
-
-            // يبني جدولًا واحدًا بعنوان وأقسام، ويُحفظ كملف Excel
-            function buildSheetHtml(title, sections) {
-                const style = `
-        <style>
-            body { font-family: Tahoma, Arial, sans-serif; direction: rtl; }
-            table { border-collapse: collapse; margin-bottom: 18px; }
-            td, th { border: 1px solid #999; padding: 6px 10px; }
-            th { background: #40570d; color: #fff; font-weight: bold; }
-            .title { font-size: 20px; font-weight: bold; color: #344807; border: none; }
-            .section { font-size: 15px; font-weight: bold; color: #344807; border: none; padding-top: 14px; }
-            .total td { background: #d1cec5; font-weight: bold; }
-            .num { mso-number-format: "#,##0"; text-align: center; }
-        </style>`;
-
-                const body = sections.map(sec => {
-                    const head = sec.headers
-                        ? `<tr>${sec.headers.map(h => `<th>${xlCell(h)}</th>`).join('')}</tr>`
-                        : '';
-                    const rows = (sec.rows || []).map(r => {
-                        const isTotal = r.__total;
-                        const cells = (r.cells || r).map(c => {
-                            const isNum = xlIsNumber(c);
-                            const cls = isNum ? 'num' : '';
-                            const val = isNum ? c : xlCell(c);
-                            return `<td class="${cls}"${isNum ? ` x:num` : ''}>${val}</td>`;
-                        }).join('');
-                        return `<tr class="${isTotal ? 'total' : ''}">${cells}</tr>`;
-                    }).join('');
-                    return `
-            <tr><td class="section" colspan="${sec.headers ? sec.headers.length : 2}">${xlCell(sec.title)}</td></tr>
-            ${head}${rows}
-            <tr><td colspan="1"></td></tr>`;
-                }).join('');
-
-                return `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">${style}</head>
-        <body><table><tr><td class="title" colspan="6">${xlCell(title)}</td></tr>${body}</table></body></html>`;
+            if (key === 'employee') {
+                const rows = countBy('employee', 'غير محدد').map(([k, v]) => [k, v.count, v.total, v.count ? Math.round(v.total / v.count) : 0]);
+                return { ...base, name: 'الموظفون', rows,
+                    columns: [{ header: 'الموظف' }, { header: 'عدد الفواتير', type: 'int' }, { header: 'المبيعات (د.ع)', type: 'money' }, { header: 'متوسط الفاتورة (د.ع)', type: 'money' }],
+                    total: ['المجموع', sum(rows, 1), sum(rows, 2), sum(rows, 1) ? Math.round(sum(rows, 2) / sum(rows, 1)) : 0] };
             }
-
-            function downloadExcel(fileName, html) {
-                const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${fileName}_${isoDay(new Date())}.xls`;
-                a.click();
-                URL.revokeObjectURL(url);
+            if (key === 'customers') {
+                const rows = countBy('customer', 'غير محدد').map(([k, v]) => [k, v.count, v.total]);
+                return { ...base, name: 'الزبائن', rows,
+                    columns: [{ header: 'الزبون' }, { header: 'عدد الفواتير', type: 'int' }, { header: 'إجمالي الشراء (د.ع)', type: 'money' }],
+                    total: ['المجموع', sum(rows, 1), sum(rows, 2)] };
             }
-
-            function periodLabel() {
-                const r = cache.range;
-                if (r.from === '0000-01-01') return 'كل الفترات';
-                return `من ${r.from} إلى ${r.to}`;
+            if (key === 'products') {
+                const rows = Object.entries(d.byProduct)
+                    .sort((a, b) => b[1].value - a[1].value)
+                    .map(([n, p]) => [n, p.qty, p.value, Math.round(p.cost), Math.round(p.value - p.cost), share(p.value - p.cost, p.value)]);
+                const value = sum(rows, 2), profit = sum(rows, 4);
+                return { ...base, name: 'المنتجات', rows,
+                    columns: [{ header: 'المنتج' }, { header: 'الكمية المباعة', type: 'int' }, { header: 'الإيراد (د.ع)', type: 'money' }, { header: 'التكلفة (د.ع)', type: 'money' }, { header: 'الربح التقديري (د.ع)', type: 'money' }, { header: 'هامش الربح', type: 'percent' }],
+                    total: ['المجموع', sum(rows, 1), value, sum(rows, 3), profit, share(profit, value)] };
             }
-
-            // أقسام كل تقرير بصيغة جاهزة للجدول
-            function reportSections(key) {
-                const d = cache;
-                const map = {
-                    payment: [{
-                        title: 'المبيعات حسب طريقة الدفع',
-                        headers: ['طريقة الدفع', 'المبلغ (د.ع)'],
-                        rows: sortedEntries(d.byPayment).map(([k, v]) => [k, v])
-                    }],
-                    category: [{
-                        title: 'المبيعات حسب الفئة',
-                        headers: ['الفئة', 'المبلغ (د.ع)'],
-                        rows: sortedEntries(d.byCategory).map(([k, v]) => [k, v])
-                    }],
-                    employee: [{
-                        title: 'المبيعات حسب الموظف',
-                        headers: ['الموظف', 'المبيعات (د.ع)'],
-                        rows: sortedEntries(d.byEmployee).map(([k, v]) => [k, v])
-                    }],
-                    customers: [{
-                        title: 'أعلى الزبائن',
-                        headers: ['الزبون', 'إجمالي الشراء (د.ع)'],
-                        rows: sortedEntries(d.byCustomer).map(([k, v]) => [k, v])
-                    }],
-                    products: [{
-                        title: 'المنتجات الأكثر مبيعًا',
-                        headers: ['المنتج', 'الكمية', 'الإيراد (د.ع)', 'التكلفة (د.ع)', 'الربح التقديري (د.ع)'],
-                        rows: Object.entries(d.byProduct)
-                            .sort((a, b) => b[1].value - a[1].value)
-                            .map(([n, p]) => [n, p.qty, p.value, p.cost, p.value - p.cost])
-                    }],
-                    stock: [{
-                        title: 'تنبيهات المخزن',
-                        headers: ['المنتج', 'الكمية الحالية', 'الحد الأدنى'],
-                        rows: d.stockRows.map(({ p, qty }) => [p.name, qty, Number(p.minQty || 0)])
-                    }],
-                    debts: [{
-                        title: 'الديون المستحقة',
-                        headers: ['الزبون', 'المتبقي (د.ع)'],
-                        rows: sortedEntries(d.byDebtCustomer).map(([k, v]) => [k, v])
-                    }],
-                    suppliers: [{
-                        title: 'المشتريات حسب المورد',
-                        headers: ['المورد', 'عدد الفواتير', 'الإجمالي (د.ع)', 'غير المسدد (د.ع)'],
-                        rows: Object.entries(d.bySupplier)
-                            .sort((a, b) => b[1].total - a[1].total)
-                            .map(([n, v]) => [n, v.count, v.total, v.unpaid])
-                    }]
-                };
-                return map[key] || [];
+            if (key === 'stock') {
+                const rows = d.stockRows.map(({ p, qty }) => [p.name, p.category || '', qty, Number(p.minQty || 0), qty <= 0 ? 'نفد' : 'منخفض']);
+                return { ...base, name: 'تنبيهات المخزن', rows,
+                    columns: [{ header: 'المنتج' }, { header: 'الفئة' }, { header: 'الكمية الحالية', type: 'int' }, { header: 'الحد الأدنى', type: 'int' }, { header: 'الحالة' }],
+                    note: 'المنتجات التي وصلت كميتها إلى الحد الأدنى أو أقل، حسب المخزن الحالي.' };
             }
+            if (key === 'debts') {
+                const rows = d.debtRows
+                    .slice()
+                    .sort((a, b) => b.remaining - a.remaining)
+                    .map(({ inv, remaining }) => {
+                        const total = invoiceTotal(inv);
+                        return [(inv.customer || 'غير محدد').trim(), inv.number, inv.date, total, total - remaining, remaining];
+                    });
+                return { ...base, name: 'الديون', rows,
+                    columns: [{ header: 'الزبون' }, { header: 'رقم الفاتورة' }, { header: 'التاريخ', type: 'date' }, { header: 'قيمة الفاتورة (د.ع)', type: 'money' }, { header: 'المدفوع (د.ع)', type: 'money' }, { header: 'المتبقي (د.ع)', type: 'money' }],
+                    total: ['المجموع', rows.length + ' فاتورة', '', sum(rows, 3), sum(rows, 4), sum(rows, 5)],
+                    note: 'كل الديون المستحقة حتى اليوم، بغض النظر عن الفترة المختارة.' };
+            }
+            if (key === 'suppliers') {
+                const rows = Object.entries(d.bySupplier)
+                    .sort((a, b) => b[1].total - a[1].total)
+                    .map(([k, v]) => [k, v.count, v.total, v.unpaid]);
+                return { ...base, name: 'الموردون', rows,
+                    columns: [{ header: 'المورد' }, { header: 'عدد الفواتير', type: 'int' }, { header: 'إجمالي المشتريات (د.ع)', type: 'money' }, { header: 'غير المدفوع (د.ع)', type: 'money' }],
+                    total: ['المجموع', sum(rows, 1), sum(rows, 2), sum(rows, 3)] };
+            }
+        }
 
-            const REPORT_TITLES = {
-                payment: 'المبيعات حسب طريقة الدفع',
-                category: 'المبيعات حسب الفئة',
-                employee: 'المبيعات حسب الموظف',
-                customers: 'أعلى الزبائن',
-                products: 'المنتجات الأكثر مبيعًا',
-                stock: 'تنبيهات المخزن',
-                debts: 'الديون المستحقة',
-                suppliers: 'المشتريات حسب المورد'
+        // كل فواتير الفترة، الأحدث أولًا
+        function invoicesSheet() {
+            const rows = cache.salesInv
+                .slice()
+                .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number)))
+                .map(inv => [
+                    inv.number, inv.date, (inv.customer || '').trim(), inv.employee || '', inv.payment || '',
+                    Array.isArray(inv.items) ? inv.items.reduce((s, it) => s + Number(it.qty || 0), 0) : 0,
+                    Number(inv.discount || 0), invoiceTotal(inv)
+                ]);
+            return {
+                name: 'الفواتير', title: 'فواتير البيع', subtitle: subtitle(), rows,
+                columns: [{ header: 'رقم الفاتورة' }, { header: 'التاريخ', type: 'date' }, { header: 'الزبون' }, { header: 'الموظف' }, { header: 'طريقة الدفع' }, { header: 'عدد القطع', type: 'int' }, { header: 'الخصم (د.ع)', type: 'money' }, { header: 'الإجمالي (د.ع)', type: 'money' }],
+                total: ['المجموع', rows.length + ' فاتورة', '', '', '', sum(rows, 5), sum(rows, 6), sum(rows, 7)]
             };
+        }
 
-            // تصدير تقرير واحد
-            document.querySelectorAll('[data-export]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const key = btn.dataset.export;
-                    const title = REPORT_TITLES[key];
-                    const html = buildSheetHtml(`${title} — ${periodLabel()}`, reportSections(key));
-                    downloadExcel(title, html);
-                });
-            });
+        function summarySheet() {
+            const d = cache;
+            return {
+                name: 'الملخص', title: 'التقرير الشامل', subtitle: subtitle(),
+                columns: [{ header: 'البيان', width: 34 }, { header: 'القيمة', width: 24 }],
+                kpis: [
+                    { label: 'إجمالي المبيعات (د.ع)', value: d.salesTotal },
+                    { label: 'عدد الفواتير', value: d.salesCount, type: 'int' },
+                    { label: 'متوسط الفاتورة (د.ع)', value: d.salesCount ? Math.round(d.salesTotal / d.salesCount) : 0 },
+                    { label: 'تكلفة المباع (د.ع)', value: Math.round(d.cogs) },
+                    { label: 'الربح التقديري (د.ع)', value: Math.round(d.profit) },
+                    { label: 'إجمالي المشتريات (د.ع)', value: d.purchTotal },
+                    { label: 'التسديدات المستلمة (د.ع)', value: d.byDebtPaid },
+                    { label: 'الديون المستحقة حتى اليوم (د.ع)', value: d.debtTotal }
+                ],
+                note: 'الربح التقديري = المبيعات − تكلفة المنتجات المباعة. كل تقرير في ورقة منفصلة (الأوراق أسفل الملف).'
+            };
+        }
 
-            // تصدير تقرير شامل في ملف واحد
-            document.getElementById('exportAll').addEventListener('click', () => {
-                const d = cache;
-                const summary = {
-                    title: 'ملخص الفترة',
-                    headers: ['البيان', 'القيمة'],
-                    rows: [
-                        ['إجمالي المبيعات (د.ع)', d.salesTotal],
-                        ['عدد الفواتير', d.salesCount],
-                        ['تكلفة المباع (د.ع)', d.cogs],
-                        ['الربح التقديري (د.ع)', d.profit],
-                        ['إجمالي المشتريات (د.ع)', d.purchTotal],
-                        ['التسديدات المستلمة (د.ع)', d.byDebtPaid],
-                        ['الديون المستحقة (د.ع)', d.debtTotal]
-                    ]
-                };
-                const sections = [summary, ...Object.keys(REPORT_TITLES).flatMap(reportSections)];
-                const html = buildSheetHtml(`التقرير الشامل — ${periodLabel()}`, sections);
-                downloadExcel('تقرير_شامل', html);
+        const REPORT_TITLES = {
+            payment: 'المبيعات حسب طريقة الدفع',
+            category: 'المبيعات حسب الفئة',
+            employee: 'المبيعات حسب الموظف',
+            customers: 'أعلى الزبائن',
+            products: 'المنتجات الأكثر مبيعًا',
+            stock: 'تنبيهات المخزن',
+            debts: 'الديون المستحقة',
+            suppliers: 'المشتريات حسب المورد'
+        };
+
+        const fileDate = () => isoDay(new Date());
+
+        // تصدير تقرير واحد
+        document.querySelectorAll('[data-export]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.export;
+                StoreXlsx.download(`${REPORT_TITLES[key]}_${fileDate()}`, [reportSheet(key)]);
             });
+        });
+
+        // التقرير الشامل: ملخص، ثم الفواتير، ثم ورقة لكل تقرير
+        document.getElementById('exportAll').addEventListener('click', () => {
+            StoreXlsx.download(`تقرير_شامل_${fileDate()}`, [
+                summarySheet(),
+                invoicesSheet(),
+                ...Object.keys(REPORT_TITLES).map(reportSheet)
+            ]);
+        });
 
         // ===== الفترة =====
         document.getElementById('rangeChips').addEventListener('click', event => {

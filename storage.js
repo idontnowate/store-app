@@ -10,6 +10,12 @@
  * - الحفظ يتم بشرط ألا يكون الصف قد تغيّر منذ قراءته (updated_at)، وإلا نعيد الدمج.
  * - الحذف يكتب علامة حذف بدل حذف الصف، حتى يعرف كل جهاز أن المفتاح حُذف ولا يعيد رفعه.
  * - السحب يقارن updated_at لكل مفتاح مع آخر نسخة عرفها الجهاز، فلا يعتمد على ساعة الجهاز.
+ *
+ * الشبكة لا توقف الصفحة أبدًا:
+ * - الحفظ يُكتب على الجهاز فورًا، والرفع يتم في الخلفية بطلبات غير متزامنة لكل منها مهلة.
+ * - كل عمليات المزامنة تمر بطابور واحد بالترتيب، فلا تتداخل عمليتا دمج على نفس البيانات.
+ * - قبل الرفع يُسجَّل المفتاح "بانتظار الرفع" (Pending)؛ إن أُغلقت الصفحة قبل اكتمال الرفع
+ *   تكمله الصفحة التالية، ولا يكتب السحب فوق تغيير لم يُرفع بعد.
  */
 (function () {
     const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
@@ -25,6 +31,10 @@
     // علامة الحذف تُكتب مكان القيمة
     const DELETED = '__deleted__';
     const MAX_RETRIES = 5;
+    // مهلة كل طلب للسحابة: اتصال ضعيف لا يُبقي المزامنة معلقة
+    const REQUEST_TIMEOUT = 15000;
+    // مزامنة دورية أثناء فتح الصفحة، حتى يظهر ما يسجله الجهاز الآخر (الهاتف والكمبيوتر معًا)
+    const SYNC_EVERY = 60000;
 
     // القوائم المقسّمة في السحابة حسب تاريخ السجل (date): day أو month
     const CHUNKED = {
@@ -219,26 +229,26 @@
     }
 
     // ===== الاتصال بالسحابة =====
-    // طلب متزامن: يكتمل قبل أن تنتقل الصفحة إلى غيرها
-    function request(method, url, body, extraHeaders) {
-        // بدون إنترنت: لا ننتظر الشبكة، والتغيير يُحفظ على الجهاز ويُرفع عند عودة الاتصال
+    // يعيد { status, responseText }، أو null عند انقطاع الاتصال أو انتهاء المهلة
+    async function request(method, url, body, extraHeaders) {
+        // بدون إنترنت: لا ننتظر الشبكة، والتغيير يبقى على الجهاز ويُرفع عند عودة الاتصال
         if (navigator.onLine === false) return null;
-        const xhr = new XMLHttpRequest();
-        xhr.open(method, url, false);
-        xhr.setRequestHeader('apikey', KEY);
-        xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken());
-        if (body !== undefined) xhr.setRequestHeader('Content-Type', 'application/json');
-        if (extraHeaders) {
-            Object.entries(extraHeaders).forEach(([h, v]) => xhr.setRequestHeader(h, v));
-        }
+        const headers = { apikey: KEY, Authorization: 'Bearer ' + accessToken() };
+        if (body !== undefined) headers['Content-Type'] = 'application/json';
+        if (extraHeaders) Object.assign(headers, extraHeaders);
+        const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT) : null;
         try {
-            xhr.send(body);
+            const res = await fetch(url, { method, headers, body, cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+            const text = await res.text();
+            if (res.status >= 300) console.warn('خطأ من السحابة:', method, res.status, text);
+            return { status: res.status, responseText: text };
         } catch (err) {
-            console.warn('تعذر الاتصال بالسحابة:', err);
+            console.warn('تعذر الاتصال بالسحابة:', err && err.name === 'AbortError' ? 'انتهت المهلة' : err);
             return null;
+        } finally {
+            if (timer) clearTimeout(timer);
         }
-        if (xhr.status >= 300) console.warn('خطأ من السحابة:', method, xhr.status, xhr.responseText);
-        return xhr;
     }
 
     function ok(xhr) {
@@ -254,8 +264,8 @@
     }
 
     // يعيد { value, updated_at } أو null إن لم يوجد الصف، أو undefined عند فشل الاتصال
-    function fetchRow(storeId, key) {
-        const xhr = request('GET', API + '?select=value,updated_at&' + rowFilter(storeId, key));
+    async function fetchRow(storeId, key) {
+        const xhr = await request('GET', API + '?select=value,updated_at&' + rowFilter(storeId, key));
         if (!ok(xhr)) return undefined;
         const rows = JSON.parse(xhr.responseText);
         return rows[0] || null;
@@ -271,16 +281,16 @@
     // كتابة مشروطة: تنجح فقط إذا لم يتغير الصف منذ قراءته.
     // تعيد { updatedAt } عند النجاح، أو { retry } للتعارض، أو { denied } إذا رفضتها قواعد الحماية،
     // أو { failed } عند انقطاع الاتصال أو انتهاء الجلسة (يُعاد لاحقًا)
-    function writeRow(storeId, key, value, row) {
+    async function writeRow(storeId, key, value, row) {
         const updated_at = nextTimestamp(row && row.updated_at);
         const xhr = row
-            ? request(
+            ? await request(
                 'PATCH',
                 API + '?' + rowFilter(storeId, key) + '&updated_at=eq.' + encodeURIComponent(row.updated_at),
                 JSON.stringify({ value, updated_at }),
                 { Prefer: 'return=representation' }
             )
-            : request(
+            : await request(
                 'POST',
                 API,
                 JSON.stringify({ store_id: storeId, key, value, updated_at }),
@@ -353,6 +363,44 @@
         saveState('Dirty', storeId, dirty);
     }
 
+    // ===== بانتظار الرفع =====
+    // يُسجَّل المفتاح هنا لحظة الحفظ، ويُمسح بعد اكتمال رفعه. ما يبقى هنا عند فتح صفحة جديدة
+    // (أُغلقت الصفحة السابقة أثناء الرفع) يُنقل إلى Dirty فيُرفع بالطريقة نفسها
+    const inFlight = {}; // المفتاح -> عدد عمليات الرفع المنتظرة له في هذه الصفحة
+
+    function markPending(storeId, key, knownSet) {
+        const pend = loadState('Pending', storeId);
+        if (key in pend) return;
+        pend[key] = [...(knownSet || new Set())];
+        saveState('Pending', storeId, pend);
+    }
+
+    function clearPending(storeId, key) {
+        const pend = loadState('Pending', storeId);
+        if (!(key in pend)) return;
+        delete pend[key];
+        saveState('Pending', storeId, pend);
+    }
+
+    function recoverPending(storeId) {
+        const pend = loadState('Pending', storeId);
+        const keys = Object.keys(pend);
+        if (!keys.length) return;
+        keys.forEach(k => markDirty(storeId, k, new Set(pend[k] || [])));
+        saveState('Pending', storeId, {});
+    }
+
+    // لا يكتب السحب فوق مفتاح تغيّر على الجهاز ولم يُرفع بعد (ولا فوق صفوف قائمته المقسّمة).
+    // تقرأ الحالة مرة واحدة؛ تُستدعى من جديد بعد كل انتظار لأن الصفحة قد تحفظ أثناءه
+    function heldBack(storeId) {
+        const dirty = loadState('Dirty', storeId);
+        const pend = loadState('Pending', storeId);
+        return key => {
+            const base = chunkBase(key);
+            return key in dirty || key in pend || (!!base && (base in dirty || base in pend)) || !!inFlight[base || key];
+        };
+    }
+
     // قواعد الحماية رفضت التعديل (مثل موظف يعدّل إعدادات المتجر):
     // نعيد قيمة السحابة إلى الجهاز ولا نحاول مجددًا
     function reject(storeId, key, row, versions) {
@@ -371,7 +419,7 @@
      * synced: قيمة الصف كما كانت على الجهاز قبل هذا الحفظ، وهي نسخة السحابة الأخيرة التي عرفها الجهاز.
      * معها نكتب مباشرة دون قراءة الصف أولًا (ندمج عليها، فلا يُحذف ما لم تره الصفحة)،
      * وإن تغيّر الصف في السحابة منذها ترجع الكتابة بلا صفوف فنقرأ وندمج */
-    function pushKey(storeId, key, localValue, knownSet, synced) {
+    async function pushKey(storeId, key, localValue, knownSet, synced) {
         const localArr = parseArray(localValue);
         const versions = loadState('Versions', storeId);
         const canSkipRead = key in versions && (localValue === DELETED || synced !== undefined) &&
@@ -389,7 +437,7 @@
                     if (base) value = JSON.stringify(mergeArrays(base, localArr, knownSet));
                 }
             } else {
-                row = fetchRow(storeId, key);
+                row = await fetchRow(storeId, key);
                 if (row === undefined) break;
 
                 // التعديل السابق لم يُطبَّق مع أن الصف لم يتغير: قواعد الحماية تمنعه
@@ -405,9 +453,9 @@
                 }
             }
 
-            const res = writeRow(storeId, key, value, row);
+            const res = await writeRow(storeId, key, value, row);
             if (res.denied) {
-                reject(storeId, key, fetchRow(storeId, key), versions);
+                reject(storeId, key, await fetchRow(storeId, key), versions);
                 return false;
             }
             if (res.failed) break;
@@ -420,8 +468,10 @@
             saveState('Versions', storeId, versions);
             clearDirty(storeId, key);
 
-            // الدمج أضاف ما غيّرته الأجهزة الأخرى: نحدّث الجهاز ونبلغ الصفحة لتعيد التحميل
-            if (value !== localValue && value !== DELETED) applyRemote(key, value, true);
+            // الدمج أضاف ما غيّرته الأجهزة الأخرى: نحدّث الجهاز ونبلغ الصفحة لتعيد التحميل.
+            // إذا حفظت الصفحة المفتاح نفسه مرة أخرى بعد هذا الرفع نتركه، فرفعها القادم يدمج من جديد
+            const target = chunkBase(key) || key;
+            if (value !== localValue && value !== DELETED && (inFlight[target] || 0) <= 1) applyRemote(key, value, true);
             return true;
         }
 
@@ -431,18 +481,19 @@
     }
 
     /* يرفع مفتاحًا كما تراه الصفحة. القوائم المقسّمة: نرفع فقط الصفوف التي تغيّر فيها شيء.
-     * previous: قيمة المفتاح على الجهاز قبل هذا الحفظ (إن عُرفت) */
-    function push(storeId, key, localValue, knownSet, previous) {
+     * previous: قيمة المفتاح على الجهاز قبل هذا الحفظ (إن عُرفت)
+     * live: مجموعة ما تعرفه الصفحة الآن، نحذف منها ما رُفع حذفه */
+    async function push(storeId, key, localValue, knownSet, previous, live) {
         if (!isChunked(key)) return pushKey(storeId, key, localValue, knownSet, previous === undefined ? undefined : (previous === null ? '[]' : previous));
 
         if (localValue === DELETED) {
             // تصفير القائمة: علامة حذف لكل صفوفها، وللصف القديم غير المقسّم إن وُجد
             const versions = loadState('Versions', storeId);
             let all = true;
-            Object.keys(versions)
-                .filter(k => chunkBase(k) === key)
-                .forEach(k => { all = pushKey(storeId, k, DELETED, null) && all; });
-            if (key in versions) all = pushKey(storeId, key, DELETED, null) && all;
+            for (const k of Object.keys(versions).filter(k => chunkBase(k) === key)) {
+                all = (await pushKey(storeId, k, DELETED, null)) && all;
+            }
+            if (key in versions) all = (await pushKey(storeId, key, DELETED, null)) && all;
             return all;
         }
 
@@ -481,60 +532,74 @@
         }
 
         let all = true;
-        changed.forEach(b => {
+        for (const b of changed) {
             const items = local.get(b) || [];
             const synced = prevBy ? JSON.stringify(prevBy.get(b) || []) : undefined;
-            const ok = pushKey(storeId, chunkKey(key, b), JSON.stringify(items), knownBy.get(b) || new Set(), synced);
+            const done = await pushKey(storeId, chunkKey(key, b), JSON.stringify(items), knownBy.get(b) || new Set(), synced);
             // بعد رفع الحذف لا داعي لتذكّر السجلات المحذوفة، وإلا يُعاد رفع صفها مع كل حفظ
-            if (ok && knownSet && knownBy.has(b)) knownBy.get(b).forEach(s => { if (!localStrings.has(s)) knownSet.delete(s); });
-            all = ok && all;
-        });
+            if (done && knownBy.has(b)) {
+                knownBy.get(b).forEach(s => {
+                    if (localStrings.has(s)) return;
+                    if (knownSet) knownSet.delete(s);
+                    if (live) live.delete(s);
+                });
+            }
+            all = done && all;
+        }
         return all;
     }
 
     // ===== السحب =====
     // يجلب updated_at لكل المفاتيح، ثم قيم المفاتيح التي تغيّرت فقط. يعيد قائمة المفاتيح التي تغيّرت محليًا
-    function pull(storeId) {
-        const xhr = request('GET', API + '?select=key,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=like.store*');
+    async function pull(storeId) {
+        const xhr = await request('GET', API + '?select=key,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=like.store*');
         if (!ok(xhr)) return null;
         const remote = JSON.parse(xhr.responseText).filter(r => isSyncKey(r.key));
 
         const versions = loadState('Versions', storeId);
-        const dirty = loadState('Dirty', storeId);
-        const changed = remote.filter(r => versions[r.key] !== r.updated_at && !(r.key in dirty)).map(r => r.key);
+        const held = heldBack(storeId);
+        const changed = remote.filter(r => versions[r.key] !== r.updated_at && !held(r.key)).map(r => r.key);
+
+        // نجلب كل القيم أولًا، ثم نطبقها على الجهاز دفعة واحدة دون انتظار بينها
+        const rows = [];
+        for (let i = 0; i < changed.length; i += 50) {
+            const part = changed.slice(i, i + 50);
+            const res = await request('GET', API + '?select=key,value,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=in.' + inList(part));
+            if (!ok(res)) return null;
+            JSON.parse(res.responseText).forEach(r => rows.push(r));
+        }
 
         const before = {};
         const chunks = new Map(); // القائمة -> (الصف -> سجلاته)
         const legacy = []; // صفوف كاملة قديمة لقوائم صارت مقسّمة
         const snapshot = key => { if (!(key in before)) before[key] = getLocal(key); };
+        const latest = loadState('Versions', storeId);
+        const heldNow = heldBack(storeId);
 
-        for (let i = 0; i < changed.length; i += 50) {
-            const part = changed.slice(i, i + 50);
-            const res = request('GET', API + '?select=key,value,updated_at&store_id=eq.' + encodeURIComponent(storeId) + '&key=in.' + inList(part));
-            if (!ok(res)) return null;
-            JSON.parse(res.responseText).forEach(r => {
-                const value = r.value === null || r.value === undefined ? DELETED : String(r.value);
-                const base = chunkBase(r.key);
-                if (base) {
-                    snapshot(base);
-                    if (!chunks.has(base)) chunks.set(base, new Map());
-                    chunks.get(base).set(r.key.slice(base.length + 1), parseArray(value) || []);
-                } else if (isChunked(r.key)) {
-                    // جهاز بنسخة قديمة كتب القائمة كاملة: ندمجها في الصفوف المقسّمة بعد السحب
-                    if (parseArray(value)) legacy.push({ key: r.key, row: { value, updated_at: r.updated_at } });
-                } else {
-                    snapshot(r.key);
-                    const old = getLocal(r.key);
-                    if (value === DELETED) {
-                        if (old !== null) removeLocal(r.key);
-                    } else if (old !== value) {
-                        setLocal(r.key, value);
-                    }
+        rows.forEach(r => {
+            // حفظت الصفحة هذا المفتاح أثناء السحب: نتركه لرفعها
+            if (heldNow(r.key)) return;
+            const value = r.value === null || r.value === undefined ? DELETED : String(r.value);
+            const base = chunkBase(r.key);
+            if (base) {
+                snapshot(base);
+                if (!chunks.has(base)) chunks.set(base, new Map());
+                chunks.get(base).set(r.key.slice(base.length + 1), parseArray(value) || []);
+            } else if (isChunked(r.key)) {
+                // جهاز بنسخة قديمة كتب القائمة كاملة: ندمجها في الصفوف المقسّمة بعد السحب
+                if (parseArray(value)) legacy.push({ key: r.key, row: { value, updated_at: r.updated_at } });
+            } else {
+                snapshot(r.key);
+                const old = getLocal(r.key);
+                if (value === DELETED) {
+                    if (old !== null) removeLocal(r.key);
+                } else if (old !== value) {
+                    setLocal(r.key, value);
                 }
-                versions[r.key] = r.updated_at;
-            });
-        }
-        saveState('Versions', storeId, versions);
+            }
+            latest[r.key] = r.updated_at;
+        });
+        saveState('Versions', storeId, latest);
 
         chunks.forEach((map, base) => {
             const arr = parseArray(getLocal(base)) || [];
@@ -544,7 +609,7 @@
             lastSeenRaw[base] = undefined;
         });
 
-        legacy.forEach(({ key, row }) => absorbLegacy(storeId, key, row, snapshot));
+        for (const { key, row } of legacy) await absorbLegacy(storeId, key, row, snapshot);
 
         const applied = [];
         Object.keys(before).forEach(k => {
@@ -556,7 +621,7 @@
 
     // نقل قائمة من صفها القديم الكامل إلى الصفوف المقسّمة، ثم وضع علامة حذف مكانه.
     // يحدث مرة عند الترقية، وكلما كتب جهاز ما زالت عليه النسخة القديمة. لا يحذف شيئًا: يضيف فقط
-    function absorbLegacy(storeId, key, row, snapshot) {
+    async function absorbLegacy(storeId, key, row, snapshot) {
         const legacyArr = parseArray(row.value) || [];
         snapshot(key);
         const localArr = parseArray(getLocal(key)) || [];
@@ -566,8 +631,8 @@
         setLocal(key, raw);
         lastSeenRaw[key] = undefined;
         // نرفع كل صفوف القائمة دون حذف شيء منها، ثم نعلّم الصف القديم محذوفًا
-        if (!push(storeId, key, raw, new Set())) return;
-        const res = writeRow(storeId, key, DELETED, row);
+        if (!(await push(storeId, key, raw, new Set()))) return;
+        const res = await writeRow(storeId, key, DELETED, row);
         if (res.updatedAt) {
             const versions = loadState('Versions', storeId);
             versions[key] = res.updatedAt;
@@ -576,101 +641,160 @@
     }
 
     // يرفع ما فشل رفعه سابقًا (انقطاع الإنترنت مثلًا)
-    function pushDirty(storeId) {
+    async function pushDirty(storeId) {
         const dirty = loadState('Dirty', storeId);
-        Object.keys(dirty).forEach(key => {
+        for (const key of Object.keys(dirty)) {
+            // حفظته الصفحة الآن وسيُرفع من الطابور
+            if (inFlight[chunkBase(key) || key]) continue;
             const knownSet = new Set(dirty[key] || []);
             const base = chunkBase(key);
             if (base) {
-                pushKey(storeId, key, JSON.stringify(localChunk(base, key.slice(base.length + 1))), knownSet);
-                return;
+                await pushKey(storeId, key, JSON.stringify(localChunk(base, key.slice(base.length + 1))), knownSet);
+                continue;
             }
             const value = getLocal(key);
-            // قائمة مقسّمة فشل رفعها بالنسخة السابقة: تُرفع الآن مقسّمة
+            // قائمة مقسّمة سُجلت كاملة: تُرفع الآن مقسّمة (الصفوف التي تفشل تُسجَّل وحدها)
             if (isChunked(key)) clearDirty(storeId, key);
-            push(storeId, key, value === null ? DELETED : value, knownSet);
-        });
+            await push(storeId, key, value === null ? DELETED : value, knownSet);
+        }
     }
 
-    function sync(storeId, notify) {
-        pushDirty(storeId);
-        const result = pull(storeId);
+    async function sync(storeId, notify) {
+        await pushDirty(storeId);
+        const result = await pull(storeId);
         if (!result) return false;
         setLocal(stateKey('Last', storeId), new Date().toISOString());
         if (notify) result.applied.forEach(([k, o, n]) => notifyPage(k, o, n));
         return result;
     }
 
-    // ===== 1) قبل تحميل الصفحة: عزل المتجر ثم مزامنته =====
-    // تعيد true عند النجاح. notify: إبلاغ الصفحة بما تغيّر (عند الإعادة بعد ظهورها)
-    function startupSync(storeId, notify) {
-        // البيانات المحلية لا تُستخدم إلا إذا كان مؤكدًا أنها لهذا المتجر.
-        // إن كانت لمتجر آخر أو مجهولة المصدر نمسحها ولا نرفعها، ثم نحمّل المتجر من السحابة
+    // ===== الطابور: عملية مزامنة واحدة في كل لحظة وبالترتيب =====
+    let queue = Promise.resolve();
+    let busy = 0;
+
+    function setBusy(delta) {
+        busy += delta;
+        try { window.dispatchEvent(new CustomEvent('storesync', { detail: { busy: busy > 0 } })); } catch (e) { }
+    }
+
+    function enqueue(task) {
+        setBusy(1);
+        const run = queue.then(task).catch(err => {
+            console.warn('تعذرت المزامنة:', err);
+            return false;
+        }).finally(() => setBusy(-1));
+        queue = run;
+        return run;
+    }
+
+    // ===== 1) عند فتح الصفحة: عزل المتجر فورًا، ثم المزامنة في الخلفية =====
+    // البيانات المحلية لا تُستخدم إلا إذا كان مؤكدًا أنها لهذا المتجر.
+    // إن كانت لمتجر آخر أو مجهولة المصدر نمسحها قبل أن تقرأها الصفحة، ثم نحمّل المتجر من السحابة
+    function isolate(storeId) {
         const owner = getLocal(OWNER_KEY) || getLocal(SYNCED_STORE_KEY);
         const ownedHere = owner === storeId;
         if (!ownedHere) {
             wipeLocal();
             setLocal(OWNER_KEY, storeId);
         }
+        return ownedHere;
+    }
 
+    // تعيد true عند النجاح. ما يتغير يُبلَّغ للصفحة لتعيد العرض
+    async function startupSync(storeId, ownedHere) {
         // أجهزة النسخة القديمة: نرفع مرة واحدة بيانات هذا المتجر المحلية التي ليست في السحابة
         const firstSync = ownedHere && getLocal(stateKey('Versions', storeId)) === null;
 
-        const result = sync(storeId, notify);
+        const result = await sync(storeId, true);
         if (!result) return false;
 
         // القائمة المقسّمة موجودة في السحابة إن وُجد أي صف من صفوفها
         const remoteBases = new Set(result.remoteKeys);
         result.remoteKeys.forEach(k => { const b = chunkBase(k); if (b) remoteBases.add(b); });
 
-        const dirty = loadState('Dirty', storeId);
-        const dirtyBases = new Set(Object.keys(dirty).map(k => chunkBase(k) || k));
-        Object.keys(localStorage)
-            .filter(k => isSyncKey(k) && !chunkBase(k) && !remoteBases.has(k) && !dirtyBases.has(k))
-            .forEach(k => {
-                if (firstSync) {
-                    push(storeId, k, getLocal(k), new Set());
-                } else {
-                    // حُذف من السحابة بالطريقة القديمة
-                    const old = getLocal(k);
-                    removeLocal(k);
-                    if (notify) notifyPage(k, old, null);
-                }
-            });
+        const held = heldBack(storeId);
+        const localOnly = Object.keys(localStorage)
+            .filter(k => isSyncKey(k) && !chunkBase(k) && !remoteBases.has(k) && !held(k));
+        for (const k of localOnly) {
+            if (firstSync) {
+                await push(storeId, k, getLocal(k), new Set());
+            } else {
+                // حُذف من السحابة بالطريقة القديمة
+                const old = getLocal(k);
+                removeLocal(k);
+                notifyPage(k, old, null);
+            }
+        }
         setLocal(SYNCED_STORE_KEY, storeId);
         return true;
     }
 
     // إذا فشلت مزامنة البداية (جلسة منتهية بعد غياب طويل أو انقطاع) يعيدها auth.js بعد تجديد الجلسة
     let startupFailed = false;
+    let startupOwned = false;
+    let ready = Promise.resolve(true);
+
+    // مزامنة في الخلفية، دون تكديس طلبات متكررة في الطابور
+    let syncQueued = null;
+    function scheduleSync() {
+        const sid = currentStoreId();
+        if (!sid) return Promise.resolve(false);
+        if (syncQueued) return syncQueued;
+        syncQueued = enqueue(async () => {
+            syncQueued = null;
+            if (startupFailed) {
+                startupFailed = !(await startupSync(sid, startupOwned));
+                return !startupFailed;
+            }
+            return !!(await sync(sid, true));
+        });
+        return syncQueued;
+    }
 
     const storeId = currentStoreId();
     if (storeId) {
-        try {
-            startupFailed = !startupSync(storeId, false);
-        } catch (err) {
-            startupFailed = true;
-            console.warn('تعذر تحميل البيانات من السحابة:', err);
-        }
+        startupOwned = isolate(storeId);
+        recoverPending(storeId);
+        startupFailed = true;
+        ready = scheduleSync();
 
-        // عند الرجوع إلى الصفحة نجلب ما تغيّر من الأجهزة الأخرى قبل أن تعيد الصفحة العرض
+        // عند الرجوع إلى الصفحة، وكل دقيقة أثناء فتحها، نجلب ما تغيّر من الأجهزة الأخرى
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) return;
-            try {
-                const sid = currentStoreId();
-                if (sid) sync(sid, true);
-            } catch (err) {
-                console.warn('تعذر تحديث البيانات من السحابة:', err);
-            }
+            if (!document.hidden) scheduleSync();
         });
+        setInterval(() => {
+            if (!document.hidden && navigator.onLine !== false) scheduleSync();
+        }, SYNC_EVERY);
     }
 
-    // ===== 2) تتبّع القراءة، ورفع كل تغيير فور حدوثه =====
+    // ===== 2) تتبّع القراءة، ورفع كل تغيير في الخلفية فور حدوثه =====
     Storage.prototype.getItem = function (key) {
         const value = originalGet.call(this, key);
         if (this === localStorage && isSyncKey(key)) remember(key, value);
         return value;
     };
+
+    // يسجل المفتاح "بانتظار الرفع" على الجهاز فورًا، ثم يرفعه من الطابور
+    function queuePush(sid, key, raw, previous) {
+        const live = known[key];
+        const knownCopy = new Set(live || []);
+        markPending(sid, key, knownCopy);
+        inFlight[key] = (inFlight[key] || 0) + 1;
+        enqueue(async () => {
+            let done = false;
+            try {
+                done = await push(sid, key, raw, raw === DELETED ? null : knownCopy, previous, live);
+            } finally {
+                inFlight[key]--;
+                // الرفع الأخير لهذا المفتاح انتهى: إن فشل فهو مسجل في Dirty ويُعاد لاحقًا
+                if (!inFlight[key]) {
+                    delete inFlight[key];
+                    clearPending(sid, key);
+                }
+            }
+            return done;
+        });
+    }
 
     Storage.prototype.setItem = function (key, value) {
         const tracked = this === localStorage && isSyncKey(key) && !chunkBase(key);
@@ -679,7 +803,7 @@
         const sid = currentStoreId();
         if (tracked && sid) {
             const raw = String(value);
-            push(sid, key, raw, known[key], previous);
+            queuePush(sid, key, raw, previous);
             // نتذكر ما كتبته الصفحة فقط، لا ما أضافه الدمج، لأن الصفحة لم تره بعد
             remember(key, raw);
         }
@@ -689,58 +813,54 @@
         originalRemove.call(this, key);
         const sid = currentStoreId();
         if (this === localStorage && isSyncKey(key) && !chunkBase(key) && sid) {
-            push(sid, key, DELETED, null);
+            queuePush(sid, key, DELETED, undefined);
             delete known[key];
             delete lastSeenRaw[key];
         }
     };
 
-    // تستدعيها الصفحات قبل عمليات تحتاج أحدث البيانات (مثل ترقيم الفواتير)
+    function pendingCount(sid) {
+        const keys = new Set([...Object.keys(loadState('Dirty', sid)), ...Object.keys(loadState('Pending', sid))]);
+        return keys.size;
+    }
+
     window.StoreSync = {
-        // يحاول رفع ما لم يُرفع؛ يعيد عدد المفاتيح التي بقيت دون رفع
-        flush() {
+        // تنتهي بعد أول مزامنة للصفحة (أو فشلها)
+        ready,
+        // يرفع كل ما لم يُرفع وينتظر انتهاءه؛ يعيد عدد المفاتيح التي بقيت دون رفع
+        async flush(timeoutMs) {
             const sid = currentStoreId();
             if (!sid) return 0;
-            try {
-                pushDirty(sid);
-            } catch (err) {
-                console.warn(err);
-            }
-            return Object.keys(loadState('Dirty', sid)).length;
+            const work = enqueue(() => pushDirty(sid));
+            if (timeoutMs) await Promise.race([work, new Promise(r => setTimeout(r, timeoutMs))]);
+            else await work;
+            return pendingCount(sid);
         },
         // عند تسجيل الخروج: لا تبقى بيانات المتجر على الجهاز للمستخدم التالي
         clearLocal: wipeLocal,
         // يعيد مزامنة البداية إن كانت قد فشلت؛ يستدعيه auth.js بعد التحقق من الجلسة وتجديدها
-        retryIfFailed() {
-            const sid = currentStoreId();
-            if (!startupFailed || !sid) return false;
-            try {
-                startupFailed = !startupSync(sid, true);
-            } catch (err) {
-                console.warn('تعذر تحميل البيانات من السحابة:', err);
-            }
-            return !startupFailed;
+        async retryIfFailed() {
+            if (!startupFailed || !currentStoreId()) return false;
+            return scheduleSync();
         },
-        // حالة المزامنة لصفحة الإعدادات: عدد التغييرات التي لم تُرفع، ووقت آخر مزامنة ناجحة
+        // حالة المزامنة: pending = تغييرات فشل رفعها أو ما زالت ترفع، busy = مزامنة جارية الآن
         status() {
             const sid = currentStoreId();
             const offline = navigator.onLine === false;
-            if (!sid) return { pending: 0, lastSync: null, offline };
+            if (!sid) return { pending: 0, failed: 0, lastSync: null, offline, busy: false };
             return {
-                pending: Object.keys(loadState('Dirty', sid)).length,
+                pending: pendingCount(sid),
+                failed: Object.keys(loadState('Dirty', sid)).length,
                 lastSync: getLocal(stateKey('Last', sid)),
-                offline
+                offline,
+                busy: busy > 0
             };
         },
-        refresh() {
-            const sid = currentStoreId();
-            if (!sid) return false;
-            try {
-                return !!sync(sid, true);
-            } catch (err) {
-                console.warn('تعذر تحديث البيانات من السحابة:', err);
-                return false;
-            }
+        // يجلب أحدث البيانات؛ timeoutMs: لا ننتظر أكثر منها (تكمل المزامنة في الخلفية)
+        async refresh(timeoutMs) {
+            const work = scheduleSync();
+            if (!timeoutMs) return work;
+            return Promise.race([work, new Promise(r => setTimeout(() => r(false), timeoutMs))]);
         }
     };
 })();

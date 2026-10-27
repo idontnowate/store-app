@@ -21,6 +21,7 @@ VIAddVersionKey "ProductName" "${APPNAME}"
 VIAddVersionKey "CompanyName" "${COMPANY}"
 VIAddVersionKey "FileDescription" "${APPNAME} Setup"
 VIAddVersionKey "FileVersion" "${VERSION}"
+VIAddVersionKey "LegalCopyright" "© ${COMPANY}"
 
 !define MUI_ICON "icon.ico"
 !define MUI_UNICON "icon.ico"

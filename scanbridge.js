@@ -47,17 +47,24 @@
         };
     }
 
+    // طلب معلق (اتصال ضعيف) لا يوقف الاستقبال: لكل طلب مهلة
+    function fetchWithin(url, options, ms = 8000) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
+        return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+    }
+
     async function poll() {
-        if (document.hidden || busy) return;
+        if (document.hidden || busy || navigator.onLine === false) return;
         busy = true;
         try {
             const ctx = await context();
             if (!ctx) return;
-            const res = await fetch(`${API}?${ctx.store}&key=like.scan-*&select=key,value&order=updated_at.asc`, { headers: ctx.headers });
+            const res = await fetchWithin(`${API}?${ctx.store}&key=like.scan-*&select=key,value&order=updated_at.asc`, { headers: ctx.headers });
             if (!res.ok) return;
             const rows = await res.json();
             for (const r of rows) {
-                const del = await fetch(`${API}?${ctx.store}&key=eq.${encodeURIComponent(r.key)}`, {
+                const del = await fetchWithin(`${API}?${ctx.store}&key=eq.${encodeURIComponent(r.key)}`, {
                     method: 'DELETE',
                     headers: { ...ctx.headers, Prefer: 'return=representation' }
                 });

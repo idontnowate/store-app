@@ -20,17 +20,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الإعدادات</title>
-    <script src="storage.js?v=202610270"></script>
-    <script src="rates.js?v=202610241"></script>
+    <script src="storage.js?v=202610310"></script>
+    <script src="rates.js?v=202610310"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
     <script src="i18n-en.js?v=202610300"></script>
-    <script src="theme.js?v=202610280"></script>
-    <script src="pwa.js?v=202610260"></script>
+    <script src="theme.js?v=202610310"></script>
+    <script src="pwa.js?v=202610310"></script>
     <script src="print.js?v=202610252"></script>
-    <script src="auth.js?v=202610271"></script>
+    <script src="auth.js?v=202610310"></script>
     <script src="layout.js?v=202610260"></script>
-    <script src="storefront.js?v=202610242"></script>
+    <script src="storefront.js?v=202610310"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610251"></script>
     <script src="reminders.js?v=202610254"></script>
@@ -1730,9 +1730,12 @@
                 el.textContent = st.pending > 0
                     ? `بدون إنترنت — ${st.pending} تغييرات محفوظة على الجهاز وستُرفع تلقائيًا عند عودة الاتصال.`
                     : 'بدون إنترنت — ما تسجله يُحفظ على الجهاز ويُرفع تلقائيًا عند عودة الاتصال.';
-            } else if (st.pending > 0) {
+            } else if (st.failed > 0) {
                 el.className = 'sync-status warn';
-                el.textContent = `توجد ${st.pending} تغييرات لم تُرفع بعد. تحقق من الإنترنت ثم اضغط "مزامنة الآن".`;
+                el.textContent = `توجد ${st.failed} تغييرات لم تُرفع بعد. تحقق من الإنترنت ثم اضغط "مزامنة الآن".`;
+            } else if (st.busy || st.pending > 0) {
+                el.className = 'sync-status busy';
+                el.textContent = 'جارِ المزامنة…';
             } else {
                 el.className = 'sync-status';
                 el.textContent = 'كل التغييرات محفوظة في السحابة' + (st.lastSync ? ' — آخر مزامنة ' + formatSyncTime(st.lastSync) : '');
@@ -1766,15 +1769,14 @@
             const el = $('syncStatus');
             el.className = 'sync-status busy';
             el.textContent = 'جارِ المزامنة…';
-            // نترك المتصفح يرسم حالة الانتظار قبل طلبات المزامنة
-            setTimeout(() => {
-                const left = StoreSync.flush();
-                const ok = StoreSync.refresh();
+            (async () => {
+                const left = await StoreSync.flush();
+                const ok = await StoreSync.refresh();
                 renderSync();
                 btn.disabled = false;
                 if (ok && left === 0) flash('تمت المزامنة');
                 else flash('تعذر الاتصال بالسحابة، حاول مرة أخرى', true);
-            }, 50);
+            })();
         });
 
         // ===== بيانات المتجر =====

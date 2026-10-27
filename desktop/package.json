@@ -1,7 +1,7 @@
 {
   "name": "store-desktop",
   "productName": "إدارة المتجر",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "برنامج إدارة المتجر لويندوز",
   "author": "IP TECH WORLD",
   "main": "main.js",

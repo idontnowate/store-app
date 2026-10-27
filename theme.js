@@ -92,9 +92,12 @@
     function translate(root, lang) {
         if (!root) return;
 
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         const nodes = [];
-        while (walker.nextNode()) nodes.push(walker.currentNode);
+        if (root.nodeType === Node.TEXT_NODE) nodes.push(root);
+        else {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+        }
 
         nodes.forEach(node => {
             const parent = node.parentNode;
@@ -112,6 +115,7 @@
             if (node.nodeValue !== next) node.nodeValue = next;
         });
 
+        if (!root.querySelectorAll) return;
         const els = root.querySelectorAll(ATTRS.map(a => `[${a}]`).join(','));
         [root, ...els].forEach(el => {
             if (!el.getAttribute) return;
@@ -135,7 +139,9 @@
     // ونتنقل بالكود، فلا يظهر شيء. (شريط العنوان أعلى المتصفح يبقى كما هو في كل المواقع)
     function hideLinks(root) {
         if (!root || !root.querySelectorAll) return;
-        root.querySelectorAll('a[href]').forEach(a => {
+        const links = [...root.querySelectorAll('a[href]')];
+        if (root.matches && root.matches('a[href]')) links.push(root);
+        links.forEach(a => {
             const href = a.getAttribute('href');
             if (!href || a.hasAttribute('download') || a.target || /^(https?:|mailto:|tel:|blob:|data:|javascript:)/i.test(href)) return;
             a.dataset.href = href;
@@ -179,9 +185,19 @@
     window.alert = msg => nativeAlert(tr(String(msg ?? ''), getPrefs().lang));
     window.confirm = msg => nativeConfirm(tr(String(msg ?? ''), getPrefs().lang));
 
-    const observer = new MutationObserver(() => {
-        translate(document.body, getPrefs().lang);
-        hideLinks(document.body);
+    // نعالج ما أُضيف إلى الصفحة فقط، لا الصفحة كلها مع كل تغيير، حتى لا تبطؤ الجداول الكبيرة
+    const observer = new MutationObserver(mutations => {
+        const lang = getPrefs().lang;
+        const added = new Set();
+        mutations.forEach(m => m.addedNodes.forEach(n => {
+            if (n.isConnected && (n.nodeType === Node.ELEMENT_NODE || n.nodeType === Node.TEXT_NODE)) added.add(n);
+        }));
+        added.forEach(n => {
+            // داخل عنصر أُضيف هو الآخر: يُعالج معه
+            for (let a = n.parentNode; a; a = a.parentNode) if (added.has(a)) return;
+            if (lang === 'en') translate(n, lang);
+            if (n.nodeType === Node.ELEMENT_NODE) hideLinks(n);
+        });
     });
 
     function init() {

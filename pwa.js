@@ -148,7 +148,8 @@
         if (!document.body) return;
         const st = window.StoreSync ? StoreSync.status() : { pending: 0 };
         const offline = navigator.onLine === false;
-        const pending = st.pending || 0;
+        // ما يُرفع الآن في الخلفية لا يُعرض؛ نعرض فقط ما تأخر رفعه أو فشل
+        const pending = offline ? (st.pending || 0) : (st.failed || 0);
         let text = '';
         let mode = '';
 

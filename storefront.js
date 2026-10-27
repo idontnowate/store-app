@@ -4,6 +4,9 @@
  * كلما تغيّرت: الاسم، الفئة، سعر البيع بالدينار، الصورة، ومتوفر/نفد. لا تُنشر التكلفة ولا الكميات.
  */
 (function () {
+    // مهلة لكل طلب: اتصال ضعيف لا يُبقي النشر معلقًا
+    const timeout = () => (AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined);
+
     const SUPABASE_URL = 'https://pxxgydllfustqkpkfiqn.supabase.co';
     const KEY = 'sb_publishable_I2L_KEOwIXjyuCOue4w_3g_MMhYImIU';
     const SESSION_TOKEN_KEY = 'sb-pxxgydllfustqkpkfiqn-auth-token';
@@ -124,6 +127,7 @@
         publishing = true;
         try {
             const res = await fetch(CATALOG + '?store_id=eq.' + encodeURIComponent(sid), {
+                signal: timeout(),
                 method: 'PATCH',
                 headers: headers({ Prefer: 'return=representation' }),
                 body: JSON.stringify({ data }),
@@ -153,6 +157,7 @@
         }
         const body = { store_id: sid, enabled: !!enabled, slug: slug || null, data: snapshot() };
         const res = await fetch(CATALOG + '?on_conflict=store_id', {
+            signal: timeout(),
             method: 'POST',
             headers: headers({ Prefer: 'resolution=merge-duplicates,return=representation' }),
             body: JSON.stringify(body)
@@ -172,7 +177,7 @@
 
     // ===== الطلبات =====
     async function request(url, init) {
-        const res = await fetch(url, { ...init, headers: headers(init && init.headers) }).catch(() => null);
+        const res = await fetch(url, { signal: timeout(), ...init, headers: headers(init && init.headers) }).catch(() => null);
         if (!res) throw new Error('تعذر الاتصال بالخادم. تحقق من الإنترنت');
         if (!res.ok) {
             const text = await res.text();

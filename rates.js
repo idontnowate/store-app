@@ -49,7 +49,9 @@
         loading = true;
         try {
             const res = await fetch(SUPABASE_URL + '/rest/v1/market_rates?select=rates,note,created_at&order=created_at.desc&limit=1', {
-                headers: { apikey: KEY, Authorization: 'Bearer ' + token() }
+                headers: { apikey: KEY, Authorization: 'Bearer ' + token() },
+                // طلب معلق لا يمنع التحديثات القادمة
+                signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined
             });
             if (!res.ok) return cached(); // الجدول غير موجود بعد أو الجلسة منتهية
             const rows = await res.json();

@@ -207,7 +207,7 @@
     async function logout() {
         if (DEMO) return exitDemo();
         // تغييرات لم تصل إلى السحابة ستضيع، لأننا نمسح بيانات المتجر من الجهاز عند الخروج
-        if (window.StoreSync && StoreSync.flush() > 0 &&
+        if (window.StoreSync && (await StoreSync.flush(10000)) > 0 &&
             !confirm('توجد تغييرات لم تُرفع إلى السحابة بعد (تحقق من الإنترنت). الخروج الآن سيحذفها من هذا الجهاز. هل تريد الخروج؟')) {
             return;
         }
@@ -444,7 +444,7 @@
     async function applyDevice(dev) {
         if (!dev || (dev.status !== 'revoked' && dev.status !== 'limit')) return;
         let pending = 0;
-        try { if (window.StoreSync) pending = StoreSync.flush(); } catch (e) { }
+        try { if (window.StoreSync) pending = await StoreSync.flush(10000); } catch (e) { }
         try { sessionStorage.setItem(FORCED_OUT_KEY, deviceBlockedMessage(dev)); } catch (e) { }
         try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { }
         membership = null;
@@ -763,7 +763,7 @@
             } catch (err) {
                 // نرفع بالرمز المحفوظ؛ إن كان منتهيًا تبقى التغييرات وتُعاد المحاولة لاحقًا
             }
-            if (!StoreSync.retryIfFailed()) StoreSync.refresh();
+            await StoreSync.refresh();
             window.dispatchEvent(new CustomEvent('storesync', { detail: { synced: true } }));
         } catch (err) {
             console.warn('تعذرت المزامنة بعد عودة الاتصال:', err);
@@ -774,7 +774,7 @@
     window.addEventListener('online', () => setTimeout(syncNow, 800));
     // إذا بقيت تغييرات لم تُرفع (اتصال ضعيف) نعيد المحاولة كل 30 ثانية
     setInterval(() => {
-        if (window.StoreSync && StoreSync.status().pending > 0) syncNow();
+        if (window.StoreSync && StoreSync.status().failed > 0) syncNow();
     }, 30000);
 
     // آخر نشاط للجهاز (يظهر للمدير «متصل الآن»)، ويخرج الجهاز إذا أوقفه المدير

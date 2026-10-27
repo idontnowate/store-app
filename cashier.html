@@ -20,21 +20,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الكاشير</title>
-    <script src="storage.js?v=202610270"></script>
-    <script src="rates.js?v=202610241"></script>
+    <script src="storage.js?v=202610310"></script>
+    <script src="rates.js?v=202610310"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
     <script src="i18n-en.js?v=202610300"></script>
-    <script src="theme.js?v=202610280"></script>
-    <script src="pwa.js?v=202610260"></script>
+    <script src="theme.js?v=202610310"></script>
+    <script src="pwa.js?v=202610310"></script>
     <script src="print.js?v=202610252"></script>
-    <script src="auth.js?v=202610271"></script>
+    <script src="auth.js?v=202610310"></script>
     <script src="layout.js?v=202610260"></script>
-    <script src="storefront.js?v=202610242"></script>
+    <script src="storefront.js?v=202610310"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="barcode-engine.js?v=202610242"></script>
     <script src="barcode-camera.js?v=202610242"></script>
-    <script src="scanbridge.js?v=202610231"></script>
+    <script src="scanbridge.js?v=202610310"></script>
     <style>
         :root {
             --page: #efede5;
@@ -1353,15 +1353,26 @@
         }
 
         // ===== إتمام البيع =====
-        function completeDraft(startNext) {
+        let saving = false;
+
+        async function completeDraft(startNext) {
+            if (saving) return;
             note(el.cartNote, '');
             if (!draft || !draft.lines.length) {
                 note(el.cartNote, 'أضف سلعة واحدة على الأقل', true);
                 return;
             }
 
-            // نجلب أحدث الفواتير والمخزون من الأجهزة الأخرى قبل الترقيم وفحص الكميات
-            if (window.StoreSync) StoreSync.refresh();
+            // نجلب أحدث الفواتير والمخزون من الأجهزة الأخرى قبل الترقيم وفحص الكميات،
+            // وننتظر ثانيتين ونصف على الأكثر حتى لا يبطئ الإنترنت الضعيف البيع
+            saving = true;
+            el.checkout.disabled = el.checkoutMore.disabled = true;
+            try {
+                if (window.StoreSync && navigator.onLine !== false) await StoreSync.refresh(2500);
+            } finally {
+                saving = false;
+            }
+            if (!draft || !draft.lines.length) return render();
             loadData();
 
             for (const l of draft.lines) {
@@ -1486,8 +1497,10 @@
             el.autoPrint.addEventListener('change', () => StoreTheme.set({ autoPrint: el.autoPrint.checked }));
         }
 
-        el.checkout.addEventListener('click', () => completeDraft(false));
-        el.checkoutMore.addEventListener('click', () => completeDraft(true));
+        // بعد أي رسالة خطأ ترجع الأزرار كما كانت
+        const checkout = startNext => completeDraft(startNext).finally(() => { if (!saving) render(); });
+        el.checkout.addEventListener('click', () => checkout(false));
+        el.checkoutMore.addEventListener('click', () => checkout(true));
 
         // ===== تحديث الشاشة عند تغيير البيانات من صفحات أخرى =====
         window.addEventListener('storage', e => {

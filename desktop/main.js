@@ -6,8 +6,9 @@
  * - طباعة مباشرة على الطابعة المختارة بدون نافذة الطابعة (preload.js يستبدل window.print)
  * - اختيار الطابعة، والتشغيل مع ويندوز، من قائمة البرنامج
  * - روابط الواتساب والمواقع الخارجية تفتح في المتصفح
+ * - تنبيه عند توفر إصدار جديد من التطبيق نفسه (desktop/latest.json على الموقع)
  */
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog, session } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog, session, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -68,7 +69,9 @@ function createWindow() {
         }
     });
     guard(win.webContents);
+    if (app.isPackaged) win.webContents.on('devtools-opened', () => win.webContents.closeDevTools());
     win.once('ready-to-show', () => { win.maximize(); win.show(); });
+    win.on('closed', () => { win = null; app.quit(); });
     win.loadURL(APP_URL);
 
     // أول تشغيل بدون إنترنت: صفحة تطلب الاتصال وتعيد المحاولة تلقائيًا
@@ -121,23 +124,29 @@ function printContents(contents, done) {
     });
 }
 
-// صفحة داخل إطار (مثل طباعة فاتورة من قائمة المبيعات): تُفتح في نافذة مخفية وتُطبع منها
-const hiddenPrints = new Set();
+// صفحة داخل إطار (مثل طباعة فاتورة من قائمة المبيعات): تُفتح في نافذة مخفية وتُطبع منها.
+// كل نافذة مخفية تُغلق بعد آخر نسخة تطبعها، أو بعد دقيقة كحد أقصى
+const hiddenPrints = new Map(); // webContents.id => { close, timer }
+
 function printFrameUrl(url) {
     const w = new BrowserWindow({
         show: false,
         width: 900,
         height: 1200,
-        webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: false, additionalArguments: ['--store-hidden-print'] }
+        webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: false }
     });
     // نحفظ الرقم الآن: بعد إغلاق النافذة لا يمكن قراءة webContents
     const id = w.webContents.id;
-    hiddenPrints.add(id);
-    const close = () => { hiddenPrints.delete(id); if (!w.isDestroyed()) w.destroy(); };
-    setTimeout(close, 60000);
-    w.on('closed', () => hiddenPrints.delete(id));
+    const entry = { timer: null };
+    entry.close = () => {
+        clearTimeout(entry.timer);
+        hiddenPrints.delete(id);
+        if (!w.isDestroyed()) w.destroy();
+    };
+    entry.timer = setTimeout(entry.close, 60000);
+    hiddenPrints.set(id, entry);
+    w.on('closed', () => { clearTimeout(entry.timer); hiddenPrints.delete(id); });
     w.loadURL(url.replace(/([?&])embed=1&?/, '$1').replace(/[?&]$/, ''));
-    w._closeAfterPrint = close;
 }
 
 // الإطار يطلب الطباعة مرة لكل نسخة؛ النافذة المخفية تطبع النسخ بنفسها، فنتجاهل التكرار
@@ -145,21 +154,19 @@ const recentFrames = new Map();
 ipcMain.on('store-print', e => {
     const contents = e.sender;
     const frame = e.senderFrame;
-    const isMain = frame && frame === contents.mainFrame;
-    if (!isMain && frame) {
+    if (frame && frame !== contents.mainFrame) {
         const now = Date.now();
-        if (now - (recentFrames.get(frame.url) || 0) < 5000) return;
+        for (const [u, t] of recentFrames) if (now - t > 5000) recentFrames.delete(u);
+        if (recentFrames.has(frame.url)) return;
         recentFrames.set(frame.url, now);
-        return printFrameUrl(frame.url);
-    }
-    const owner = BrowserWindow.fromWebContents(contents);
-    // النافذة المخفية تُغلق بعد آخر نسخة؛ النسخ المتتالية تصل خلال ثوانٍ
-    if (owner && hiddenPrints.has(contents.id)) {
-        clearTimeout(owner._closeTimer);
-        printContents(contents, () => { owner._closeTimer = setTimeout(() => owner._closeAfterPrint && owner._closeAfterPrint(), 4000); });
+        printFrameUrl(frame.url);
         return;
     }
-    printContents(contents);
+    const hidden = hiddenPrints.get(contents.id);
+    if (!hidden) return printContents(contents);
+    // النسخ المتتالية تصل خلال ثوانٍ، فنؤجل الإغلاق بعد كل نسخة
+    clearTimeout(hidden.timer);
+    printContents(contents, () => { hidden.timer = setTimeout(hidden.close, 4000); });
 });
 
 ipcMain.on('store-desktop-info', e => {
@@ -175,8 +182,56 @@ function testPrint() {
     const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
     const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>@page{size:80mm auto;margin:4mm}body{font-family:Tahoma,Arial;font-size:14px;text-align:center}</style></head>
         <body><h3>طباعة تجريبية</h3><p>إذا ظهرت هذه الورقة فالطابعة تعمل مع البرنامج.</p><p>${new Date().toLocaleString('ar-IQ')}</p></body></html>`;
+    const close = () => { if (!w.isDestroyed()) w.destroy(); };
+    setTimeout(close, 60000);
     w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    w.webContents.once('did-finish-load', () => printContents(w.webContents, () => { if (!w.isDestroyed()) w.destroy(); }));
+    w.webContents.once('did-finish-load', () => printContents(w.webContents, close));
+}
+
+// ===== تحديث التطبيق =====
+// الصفحات تتحدث وحدها من الموقع. هذا للتطبيق نفسه فقط: نقرأ latest.json من الموقع،
+// وإذا كان الإصدار أحدث نعرض رسالة فيها رابط ملف التثبيت الجديد
+const UPDATE_URL = APP_BASE + 'desktop/latest.json';
+const UPDATE_EVERY = 6 * 60 * 60 * 1000;
+let updateShown = '';
+
+const newer = (a, b) => {
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    return false;
+};
+
+async function checkForUpdate(manual) {
+    let info = null;
+    try {
+        const res = await net.fetch(UPDATE_URL + '?t=' + Date.now());
+        if (res.ok) info = await res.json();
+    } catch (e) { }
+    if (!win || win.isDestroyed()) return;
+    if (!info || !info.version) {
+        if (manual) dialog.showMessageBox(win, { type: 'warning', title: 'التحديث', message: 'تعذر البحث عن تحديث', detail: 'تحقق من الإنترنت ثم حاول مرة أخرى.' });
+        return;
+    }
+    if (!newer(info.version, app.getVersion())) {
+        if (manual) dialog.showMessageBox(win, { title: 'التحديث', message: 'أنت تستخدم آخر إصدار', detail: 'الإصدار ' + app.getVersion() });
+        return;
+    }
+    // نذكّر مرة واحدة لكل إصدار في كل تشغيل، إلا إذا بحث المستخدم بنفسه
+    if (!manual && updateShown === info.version) return;
+    updateShown = info.version;
+    const hasLink = /^https:\/\//i.test(info.url || '');
+    const { response } = await dialog.showMessageBox(win, {
+        type: 'info',
+        title: 'تحديث جديد',
+        message: 'يتوفر إصدار جديد من البرنامج: ' + info.version,
+        detail: (info.notes ? info.notes + '\n\n' : '') + (hasLink
+            ? 'حمّل ملف التثبيت وشغّله. بياناتك وإعدادات الطابعة تبقى كما هي.'
+            : 'تواصل مع المزود للحصول على ملف التثبيت الجديد. بياناتك تبقى كما هي.'),
+        buttons: hasLink ? ['تحميل التحديث', 'لاحقًا'] : ['حسنًا'],
+        defaultId: 0,
+        cancelId: hasLink ? 1 : 0
+    });
+    if (hasLink && response === 0) shell.openExternal(info.url);
 }
 
 // ===== القائمة =====
@@ -222,8 +277,8 @@ function buildMenu() {
         {
             label: 'مساعدة',
             submenu: [
-                { label: 'حول البرنامج', click: () => dialog.showMessageBox(win, { title: 'حول البرنامج', message: 'إدارة المتجر', detail: 'الإصدار ' + app.getVersion() + '\nIP TECH WORLD' }) },
-                { label: 'أدوات المطور', accelerator: 'Ctrl+Shift+I', click: () => win && win.webContents.toggleDevTools() }
+                { label: 'البحث عن تحديث', click: () => checkForUpdate(true) },
+                { label: 'حول البرنامج', click: () => dialog.showMessageBox(win, { title: 'حول البرنامج', message: 'إدارة المتجر', detail: 'الإصدار ' + app.getVersion() + '\nIP TECH WORLD' }) }
             ]
         }
     ];
@@ -252,6 +307,9 @@ app.whenReady().then(() => {
     createWindow();
     refreshPrinters();
     applyAutoStart();
+    setTimeout(() => checkForUpdate(false), 15000);
+    setInterval(() => checkForUpdate(false), UPDATE_EVERY);
 });
 
+// إغلاق النافذة الرئيسية يغلق البرنامج، حتى لو بقيت نافذة طباعة مخفية
 app.on('window-all-closed', () => app.quit());

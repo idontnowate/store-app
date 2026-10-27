@@ -16,6 +16,9 @@ function json(body: unknown, status = 200) {
 }
 
 // خطأ يظهر للمزود كما هو
+// النسخة الدائمية: تُباع مرة واحدة ولا تنتهي
+const LIFETIME_PLAN = "دائمي";
+
 class UserError extends Error {
     status: number;
     constructor(message: string, status = 400) {
@@ -243,7 +246,7 @@ const actions = {
             plan: str(b.plan) || "شهري",
             price: Number(b.price) || 0,
             starts_at: today(),
-            expires_at: expiresAt || null,
+            expires_at: str(b.plan) === LIFETIME_PLAN ? null : (expiresAt || null),
             notes: str(b.notes),
         });
         const { error: kvErr } = await admin.from("kv_store").insert({
@@ -279,7 +282,7 @@ const actions = {
             owner_email: str(b.ownerEmail).toLowerCase(),
             plan: str(b.plan) || "شهري",
             price: Number(b.price) || 0,
-            expires_at: expiresAt || null,
+            expires_at: str(b.plan) === LIFETIME_PLAN ? null : (expiresAt || null),
             suspended: !!b.suspended,
             notes: str(b.notes),
             updated_at: new Date().toISOString(),
@@ -298,6 +301,7 @@ const actions = {
         if (!(months >= 1 && months <= 36)) throw new UserError("عدد الأشهر من 1 إلى 36");
 
         const { data: sub } = await admin.from("store_subscriptions").select("*").eq("store_id", storeId).maybeSingle();
+        if (sub && sub.plan === LIFETIME_PLAN) throw new UserError("هذا المتجر نسخة دائمية ولا يحتاج تمديدًا");
         const base = sub?.expires_at && sub.expires_at > today() ? sub.expires_at : today();
         const expiresAt = addMonths(base, months);
         const { error } = await admin.from("store_subscriptions").upsert({

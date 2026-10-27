@@ -622,7 +622,7 @@
                     </label>
                 </div>
                 <div class="actions-bar">
-                    <div class="row">
+                    <div class="row" id="extendRow">
                         <span class="hint">تمديد سريع:</span>
                         <button class="btn secondary" type="button" data-extend="1">+ شهر</button>
                         <button class="btn secondary" type="button" data-extend="3">+ 3 أشهر</button>
@@ -890,6 +890,7 @@
     </dialog>
 
     <datalist id="plans">
+        <option value="دائمي"></option>
         <option value="شهري"></option>
         <option value="3 أشهر"></option>
         <option value="سنوي"></option>
@@ -946,7 +947,23 @@
             return new Date(iso).toISOString().slice(0, 10);
         }
 
+        // النسخة الدائمية: تُباع مرة واحدة ولا تنتهي (بلا تاريخ انتهاء)
+        const LIFETIME = 'دائمي';
+
+        // خانة الخطة «دائمي» تفرغ تاريخ الانتهاء وتقفله، وتخفي التمديد
+        function syncLifetime(form) {
+            const lifetime = form.elements.plan.value.trim() === LIFETIME;
+            const exp = form.elements.expiresAt;
+            if (lifetime) exp.value = '';
+            exp.disabled = lifetime;
+            exp.closest('.field').querySelector('.lifetime-note')?.remove();
+            if (lifetime) exp.insertAdjacentHTML('afterend', '<small class="hint lifetime-note">نسخة دائمية: لا تنتهي</small>');
+            const row = form.querySelector('#extendRow');
+            if (row) row.hidden = lifetime;
+        }
+
         function daysText(s) {
+            if (s.subscription && s.subscription.plan === LIFETIME) return 'بدون انتهاء';
             if (s.daysLeft === null || s.daysLeft === undefined) return '';
             if (s.daysLeft > 0) return `بعد ${s.daysLeft} يوم`;
             if (s.daysLeft === 0) return 'اليوم';
@@ -1080,7 +1097,7 @@
                     <td>${admins.map(a => esc(a.display_name)).join('، ') || '—'}<small dir="ltr">${admins.map(a => '@' + esc(a.username)).join(' ')}</small></td>
                     <td>${num(s.members.length)}</td>
                     <td>${esc(sub.plan || '—')}<small>${sub.price ? num(sub.price) : ''}</small></td>
-                    <td>${esc(sub.expires_at || '—')}<small>${esc(daysText(s))}</small></td>
+                    <td>${sub.plan === LIFETIME ? '<b>دائمي</b>' : esc(sub.expires_at || '—')}<small>${esc(daysText(s))}</small></td>
                     <td><span class="status ${cls}">${label}</span></td>
                     <td>${esc(ago(s.last_activity))}</td>
                     <td><button class="btn secondary" type="button" data-open="${esc(s.store_id)}">إدارة</button></td>
@@ -1462,7 +1479,7 @@
             const sub = s.subscription || {};
             const [label] = STATUS[s.status] || STATUS.none;
             $('sdTitle').textContent = s.name || 'بدون اسم';
-            $('sdSub').textContent = label + (s.subscription && sub.expires_at ? ' — ينتهي في ' + sub.expires_at : '');
+            $('sdSub').textContent = label + (sub.plan === LIFETIME ? ' — نسخة دائمية' : s.subscription && sub.expires_at ? ' — ينتهي في ' + sub.expires_at : '');
             const f = $('subForm').elements;
             f.storeName.value = s.name || sub.store_name || '';
             f.ownerPhone.value = sub.owner_phone || s.phone || '';
@@ -1470,6 +1487,7 @@
             f.plan.value = sub.plan || 'شهري';
             f.price.value = sub.price || '';
             f.expiresAt.value = sub.expires_at || '';
+            syncLifetime($('subForm'));
             f.notes.value = sub.notes || '';
             f.suspended.checked = !!sub.suspended;
 
@@ -1603,6 +1621,8 @@
             if (out) e.target.reset();
         });
 
+        ['subForm', 'newForm'].forEach(id => $(id).elements.plan.addEventListener('input', () => syncLifetime($(id))));
+
         $('deleteStoreForm').addEventListener('submit', async e => {
             e.preventDefault();
             const typed = e.target.elements.confirm.value.trim();
@@ -1646,6 +1666,7 @@
             $('newCreds').hidden = true;
             $('newMsg').textContent = '';
             $('newForm').elements.expiresAt.value = addMonthsLocal(1);
+            syncLifetime($('newForm'));
             $('newForm').elements.adminPassword.value = generatePassword();
             $('newDialog').showModal();
         });

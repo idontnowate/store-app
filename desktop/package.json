@@ -1,0 +1,41 @@
+{
+  "name": "store-desktop",
+  "productName": "إدارة المتجر",
+  "version": "1.0.0",
+  "description": "برنامج إدارة المتجر لويندوز",
+  "author": "IP TECH WORLD",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win dir --x64",
+    "dist": "npm run pack && node build/finish.js && makensis -V2 build/installer.nsi"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8",
+    "resedit": "^2.0.2"
+  },
+  "build": {
+    "appId": "com.iptechworld.store",
+    "productName": "إدارة المتجر",
+    "artifactName": "store-setup-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "offline.html",
+      "config.json",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "executableName": "IPStore"
+    }
+  }
+}

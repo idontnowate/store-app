@@ -440,6 +440,8 @@ window.STORE_I18N_EN = {
         "رسالة القسط المتأخر": "Late installment message",
         "إرجاع النص الأصلي": "Restore original text",
         "ابدأ بمتجرك": "Get your store ready",
+        "تطبيق الكمبيوتر يطبع مباشرة بدون نافذة الطابعة. اختر الطابعة من قائمة «الطباعة» أعلى النافذة.": "The desktop app prints directly without the print dialog. Choose the printer from the «الطباعة» menu at the top of the window.",
+        "الطباعة المباشرة مطفأة في تطبيق الكمبيوتر. فعّلها من قائمة «الطباعة» أعلى النافذة.": "Direct printing is off in the desktop app. Turn it on from the «الطباعة» menu at the top of the window.",
         "تسجيل الخروج من هذا الجهاز": "Sign out of this device",
         "يخرجك من حسابك على هذا الجهاز فقط. بياناتك تبقى محفوظة في السحابة.": "Signs you out on this device only. Your data stays saved in the cloud.",
         "بحث ·": "Search ·",

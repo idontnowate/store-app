@@ -1435,6 +1435,15 @@
                 : 'غير مفعّلة على هذا الجهاز: تظهر نافذة الطابعة عند كل طباعة. اتبع الخطوات أدناه مرة واحدة.';
             $('silentStatus').classList.toggle('ok-text', !!p.silentPrint);
             $('silentSteps').hidden = !!p.silentPrint;
+            // تطبيق الكمبيوتر يتحكم بالطباعة المباشرة والطابعة من قائمته، فلا حاجة للخطوات ولا للمفتاح
+            const desktop = window.StoreDesktop && window.StoreDesktop.desktop;
+            $('silentToggle').closest('.set-toggle').hidden = !!desktop;
+            if (desktop) {
+                $('silentSteps').hidden = true;
+                $('silentStatus').textContent = p.silentPrint
+                    ? 'تطبيق الكمبيوتر يطبع مباشرة بدون نافذة الطابعة. اختر الطابعة من قائمة «الطباعة» أعلى النافذة.'
+                    : 'الطباعة المباشرة مطفأة في تطبيق الكمبيوتر. فعّلها من قائمة «الطباعة» أعلى النافذة.';
+            }
             $('macCmd').textContent = StorePrint.macCommand($('shortcutPage').value);
         }
         loadPrintForm();

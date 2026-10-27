@@ -1994,6 +1994,50 @@ html[data-motion="off"] ::backdrop {
 
 /* مؤشر الاتصال: بدون إنترنت / تغييرات تنتظر الرفع (يتحكم به pwa.js) */
 @media screen {
+    /* شريط "يتوفر تحديث جديد" أعلى الصفحة (pwa.js) */
+    .update-bar {
+        position: fixed;
+        z-index: 95;
+        top: 12px;
+        inset-inline-start: 50%;
+        translate: 50% 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        max-width: calc(100vw - 32px);
+        padding: 8px;
+        padding-inline-start: 16px;
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    [dir="ltr"] .update-bar {
+        translate: -50% 0;
+    }
+
+    .update-bar button {
+        flex: none;
+        height: 34px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .update-bar button:disabled {
+        opacity: .7;
+        cursor: default;
+    }
+
     .net-pill {
         position: fixed;
         z-index: 90;

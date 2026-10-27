@@ -4,8 +4,9 @@
  * - ملفات js و css: كل نسخة (?v=) تُحفظ باسمها، فلا تختلط ملفات قديمة بصفحة جديدة.
  * - المكتبات والخطوط من الإنترنت تُحفظ عند أول تحميل.
  * - طلبات Supabase (البيانات وتسجيل الدخول) لا تمر من هنا؛ المزامنة تتكفل بها.
+ * - version.json لا يُحفظ: به يعرف البرنامج أن على الموقع نسخة أحدث (pwa.js).
  */
-const CACHE = 'store-app-v3';
+const CACHE = 'store-app-v4';
 const PAGES = [
     'index.html', 'home.html', 'cashier.html', 'sales-new_1.html', 'add-invoice.html',
     'inventory.html', 'purchases.html', 'debts.html', 'customers.html', 'orders.html', 'shop.html', 'cashbox.html', 'reports.html',
@@ -98,6 +99,8 @@ self.addEventListener('fetch', e => {
     const url = new URL(req.url);
     if (NO_CACHE_HOSTS.test(url.hostname)) return;
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+    // رقم النسخة يُقرأ من الموقع دائمًا (pwa.js)
+    if (url.origin === location.origin && url.pathname.endsWith('/version.json')) return;
 
     if (req.mode === 'navigate') {
         e.respondWith(page(req));

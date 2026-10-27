@@ -92,6 +92,52 @@
         });
     }
 
+    // ===== وصول التحديثات =====
+    // رقم نسخة هذه الملفات. يُرفع مع version.json في كل تحديث للبرنامج.
+    // إذا وجد الجهاز على الموقع نسخة أحدث من التي فتحها (صفحة محفوظة قديمة) يعرض زر "تحديث الآن"
+    const BUILD = 202610320;
+    let updateBar = null;
+
+    async function checkVersion() {
+        if (navigator.onLine === false || location.protocol === 'file:') return;
+        try {
+            const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined });
+            if (!res.ok) return;
+            const remote = Number((await res.json()).build) || 0;
+            if (remote > BUILD) showUpdateBar();
+            return remote;
+        } catch (e) { }
+    }
+
+    function showUpdateBar() {
+        if (updateBar || !document.body) return;
+        updateBar = document.createElement('div');
+        updateBar.className = 'update-bar';
+        updateBar.setAttribute('role', 'status');
+        updateBar.innerHTML = '<span>يتوفر تحديث جديد للبرنامج</span><button type="button">تحديث الآن</button>';
+        updateBar.querySelector('button').addEventListener('click', applyUpdate);
+        document.body.appendChild(updateBar);
+    }
+
+    // نحذف النسخ المحفوظة على الجهاز ونعيد التحميل من الموقع. بيانات المتجر لا تُمس (localStorage)
+    async function applyUpdate() {
+        const btn = updateBar && updateBar.querySelector('button');
+        if (btn) { btn.disabled = true; btn.textContent = 'جارِ التحديث…'; }
+        try {
+            if (window.StoreSync && StoreSync.flush) await StoreSync.flush(8000);
+        } catch (e) { }
+        try {
+            if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+            const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+            if (reg) await reg.update();
+        } catch (e) { }
+        location.reload();
+    }
+
+    window.addEventListener('load', () => setTimeout(checkVersion, 3000));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
+    setInterval(checkVersion, 30 * 60 * 1000);
+
     // ===== التثبيت =====
     let installEvent = null;
     const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -108,6 +154,8 @@
     });
 
     window.StoreApp = {
+        build: BUILD,
+        checkVersion,
         installed,
         // 'installed' | 'ready' (زر التثبيت يعمل) | 'ios' (من زر المشاركة) | 'unavailable'
         installState() {

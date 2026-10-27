@@ -24,9 +24,9 @@
     <script src="rates.js?v=202610310"></script>
     <script src="products.js?v=202610243"></script>
     <script src="log.js?v=202610231"></script>
-    <script src="i18n-en.js?v=202610300"></script>
+    <script src="i18n-en.js?v=202610320"></script>
     <script src="theme.js?v=202610310"></script>
-    <script src="pwa.js?v=202610310"></script>
+    <script src="pwa.js?v=202610320"></script>
     <script src="print.js?v=202610252"></script>
     <script src="auth.js?v=202610310"></script>
     <script src="layout.js?v=202610260"></script>
@@ -825,7 +825,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610290">
+    <link rel="stylesheet" href="design.css?v=202610320">
     <link rel="stylesheet" href="glass.css?v=202610290">
 </head>
 
@@ -1304,6 +1304,13 @@
                     </div>
                     <div class="set-row">
                         <div>
+                            <strong>إصدار البرنامج</strong>
+                            <span class="hint" id="appBuild"></span>
+                        </div>
+                        <button class="btn secondary" type="button" id="checkUpdate">البحث عن تحديث</button>
+                    </div>
+                    <div class="set-row">
+                        <div>
                             <strong>عند انقطاع الإنترنت</strong>
                             <span class="hint">الكاشير والمخزن وباقي الصفحات تبقى تعمل، وكل ما تسجله يُحفظ على الجهاز ثم يُرفع تلقائيًا عند عودة الاتصال. أول تسجيل دخول يحتاج إنترنت. لا تسجّل الخروج وأنت بدون إنترنت حتى لا تضيع التغييرات التي لم تُرفع.</span>
                         </div>
@@ -1762,6 +1769,15 @@
             renderInstall();
         });
         renderInstall();
+
+        // رقم الإصدار يساعد على معرفة هل وصل آخر تحديث لهذا الجهاز
+        const desktopVer = window.StoreDesktop && window.StoreDesktop.version ? ` — تطبيق الكمبيوتر ${window.StoreDesktop.version}` : '';
+        $('appBuild').textContent = (window.StoreApp ? String(StoreApp.build) : '—') + desktopVer;
+        $('checkUpdate').addEventListener('click', async () => {
+            if (!window.StoreApp) return;
+            await StoreApp.checkVersion();
+            if (!document.querySelector('.update-bar')) flash('أنت تستخدم آخر إصدار');
+        });
 
         $('syncNow').addEventListener('click', event => {
             const btn = event.currentTarget;

@@ -210,7 +210,12 @@
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    function setPrefs(changes) {
+    // آخر نقطة ضغط: منها تنتشر دائرة المظهر الجديد
+    let lastPoint = null;
+    document.addEventListener('pointerdown', e => { lastPoint = { x: e.clientX, y: e.clientY }; }, true);
+
+    // origin: نقطة بداية الدائرة {x, y}؛ بدونها آخر نقطة ضغط، أو وسط أعلى الشاشة
+    function setPrefs(changes, origin) {
         const prev = getPrefs();
         const next = { ...prev, ...changes };
         localStorage.setItem(PREFS_KEY, JSON.stringify(next));
@@ -219,10 +224,29 @@
             applyRoot(next);
             translate(document.body, next.lang);
         };
-        // تبديل الوضع أو اللغة بتلاشٍ ناعم بين الشكلين
         const visual = prev.theme !== next.theme || prev.lang !== next.lang;
-        if (visual && document.startViewTransition && !motionOff(next)) document.startViewTransition(apply);
-        else apply();
+        if (!visual || !document.startViewTransition || motionOff(next)) return apply();
+
+        // تغيير المظهر: المظهر الجديد ينتشر بدائرة من نقطة الضغط. اللغة: تلاشٍ ناعم
+        const root = document.documentElement;
+        const circle = prev.theme !== next.theme;
+        if (circle) {
+            const p = origin || lastPoint || { x: innerWidth / 2, y: 0 };
+            const r = Math.hypot(Math.max(p.x, innerWidth - p.x), Math.max(p.y, innerHeight - p.y));
+            root.style.setProperty('--vt-x', p.x + 'px');
+            root.style.setProperty('--vt-y', p.y + 'px');
+            root.style.setProperty('--vt-r', Math.ceil(r) + 'px');
+            root.classList.add('vt-circle');
+        }
+        const vt = document.startViewTransition(apply);
+        vt.finished.finally(() => root.classList.remove('vt-circle'));
+    }
+
+    // زر التبديل السريع بين الفاتح والداكن: يعود للمظهر الداكن الذي اختاره المستخدم آخر مرة (داكن، زجاج، زجاجي ملوّن)
+    function toggleTheme(origin) {
+        const p = getPrefs();
+        const dark = p.theme !== 'light';
+        setPrefs(dark ? { theme: 'light', darkTheme: p.theme } : { theme: p.darkTheme || 'dark' }, origin);
     }
 
     // هل يدعم المتصفح الضبابية؟ (بدونها يظهر الزجاج بطبقات معتمة)، وتقدير قوة الجهاز
@@ -234,7 +258,7 @@
         return { blur, weak };
     }
 
-    window.StoreTheme = { get: getPrefs, set: setPrefs, motionOff, glassSupport };
+    window.StoreTheme = { get: getPrefs, set: setPrefs, toggle: toggleTheme, motionOff, glassSupport };
 
     applyRoot(getPrefs());
     if (document.readyState === 'loading') {

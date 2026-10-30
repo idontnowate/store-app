@@ -150,19 +150,6 @@
         background: rgba(34, 211, 238, .06) !important;
     }
 
-    /* ===== شريط التبويب للهاتف ===== */
-    @media (max-width: 650px) {
-        html[data-aurora="on"] .glass-tabbar {
-            background: linear-gradient(180deg, rgba(255, 255, 255, .12) 0%, rgba(255, 255, 255, 0) 60%), rgba(14, 18, 36, .7) !important;
-        }
-
-        html[data-aurora="on"] .glass-tabbar [aria-current="page"] {
-            color: #67e8f9;
-            background: linear-gradient(135deg, rgba(34, 211, 238, .22), rgba(139, 92, 246, .22));
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 18px rgba(34, 211, 238, .2);
-        }
-    }
-
     /* ===== صفحة الدخول ===== */
     html[data-aurora="on"] .login-card {
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 30px 80px rgba(0, 0, 0, .6), 0 0 60px rgba(139, 92, 246, .15) !important;
@@ -177,7 +164,7 @@
             --glass-strong: #141a30;
         }
 
-        html[data-aurora="on"] .glass-tabbar {
+        html[data-aurora="on"] .tabbar .tab-bg {
             background: #141a30 !important;
         }
     }
@@ -188,7 +175,7 @@
             --glass-strong: #141a30;
         }
 
-        html[data-aurora="on"] .glass-tabbar {
+        html[data-aurora="on"] .tabbar .tab-bg {
             background: #141a30 !important;
         }
     }

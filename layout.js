@@ -86,6 +86,230 @@
         localStorage.setItem(UI_KEY, collapsed ? 'collapsed' : 'open');
     }
 
+    // ===== شريط التبويب للهاتف: فقاعة ملوّنة ترتفع فوق التبويب الحالي، والشريط ينحني تحتها =====
+    const TABS = [
+        ['home.html', 'الرئيسية', '#a3e635'],
+        ['cashier.html', 'الكاشير', '#facc15'],
+        ['sales-new_1.html', 'المبيعات', '#fb923c'],
+        ['inventory.html', 'المخزن', '#f472b6']
+    ];
+    const TAB_KEY = 'uiTabFrom'; // التبويب السابق، لتنتقل الفقاعة منه عند فتح الصفحة الجديدة
+
+    // شكل الشريط: مستطيل بزوايا دائرية وتجويف ناعم حول الفقاعة عند x (0 = بلا تجويف)
+    function tabbarPath(w, h, x, depth) {
+        const r = Math.min(18, h / 2);
+        let top = `M${r},0`;
+        if (depth > 0) {
+            const half = 32, d = depth;
+            // التجويف لا يتجاوز الزوايا الدائرية للتبويب الأول والأخير (الفرق بضع بكسلات لا تُرى)
+            x = Math.min(Math.max(x, r + half + 8), w - r - half - 8);
+            top += ` L${x - half - 8},0 C${x - half + 4},0 ${x - half + 4},${d} ${x},${d} C${x + half - 4},${d} ${x + half - 4},0 ${x + half + 8},0`;
+        }
+        return top + ` L${w - r},0 A${r},${r} 0 0 1 ${w},${r} L${w},${h - r} A${r},${r} 0 0 1 ${w - r},${h} L${r},${h} A${r},${r} 0 0 1 0,${h - r} L0,${r} A${r},${r} 0 0 1 ${r},0 Z`;
+    }
+
+    function buildTabbar() {
+        const page = (location.pathname.split('/').pop() || 'home.html').toLowerCase();
+        const current = TABS.findIndex(t => t[0] === page);
+        const bar = document.createElement('nav');
+        bar.className = 'tabbar';
+        bar.setAttribute('aria-label', 'التبويبات');
+        bar.innerHTML = '<div class="tab-glow" aria-hidden="true"></div>' +
+            '<div class="tab-bg" aria-hidden="true"></div>' +
+            '<svg class="tab-edge" aria-hidden="true"><path/></svg>' +
+            '<span class="tab-bubble" aria-hidden="true"></span>' +
+            TABS.map(([href, label, color], i) =>
+                `<a href="${href}" style="--tab:${color}"${i === current ? ' aria-current="page"' : ''}>${svg(ICONS[href])}<span>${label}</span></a>`
+            ).join('') +
+            `<button type="button" data-more>${svg('<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>')}<span>المزيد</span></button>`;
+        bar.querySelector('[data-more]').addEventListener('click', () => document.body.classList.add('nav-open'));
+        bar.addEventListener('click', e => {
+            const a = e.target.closest('a');
+            if (a && current >= 0) try { sessionStorage.setItem(TAB_KEY, String(current)); } catch (err) { }
+        }, true);
+        document.body.appendChild(bar);
+        document.body.classList.add('has-tabbar');
+
+        const bg = bar.querySelector('.tab-bg');
+        const edge = bar.querySelector('.tab-edge');
+        const bubble = bar.querySelector('.tab-bubble');
+        const items = [...bar.querySelectorAll('a, button')];
+        let pos = null; // مركز الفقاعة الحالي
+
+        function centerOf(i) {
+            const b = bar.getBoundingClientRect(), r = items[i].getBoundingClientRect();
+            return r.left - b.left + r.width / 2;
+        }
+
+        function draw(x) {
+            const w = bar.clientWidth, h = bar.clientHeight;
+            if (!w) return;
+            const d = tabbarPath(w, h, x, x === null ? 0 : 20);
+            bg.style.clipPath = `path('${d}')`;
+            edge.setAttribute('viewBox', `0 0 ${w} ${h}`);
+            edge.firstChild.setAttribute('d', d);
+            if (x !== null) bubble.style.transform = `translateX(${x}px)`;
+        }
+
+        // at: موضع الفقاعة إن لم تكن فوق التبويب (بداية الانتقال)
+        function show(i, at) {
+            if (i < 0) return draw(null);
+            const tab = items[i];
+            bar.style.setProperty('--active', TABS[i][2]);
+            bubble.innerHTML = tab.querySelector('svg').outerHTML;
+            pos = at === undefined ? centerOf(i) : at;
+            draw(pos);
+        }
+
+        // من التبويب السابق إلى الحالي بحركة ناعمة
+        function slide(from, to) {
+            const a = centerOf(from), b = centerOf(to);
+            const start = performance.now(), dur = 420;
+            bar.classList.add('moving');
+            const step = now => {
+                const t = Math.min(1, (now - start) / dur);
+                const e = 1 - Math.pow(1 - t, 3);
+                pos = a + (b - a) * e;
+                draw(pos);
+                if (t < 1) requestAnimationFrame(step);
+                else bar.classList.remove('moving');
+            };
+            requestAnimationFrame(step);
+        }
+
+        function start() {
+            if (!MOBILE.matches) return;
+            let from = -1;
+            try { from = Number(sessionStorage.getItem(TAB_KEY) ?? -1); sessionStorage.removeItem(TAB_KEY); } catch (err) { }
+            const still = window.StoreTheme && StoreTheme.motionOff();
+            if (current >= 0 && from >= 0 && from < items.length && from !== current && !still) {
+                show(current, centerOf(from));
+                slide(from, current);
+            } else {
+                show(current);
+            }
+        }
+
+        requestAnimationFrame(start);
+        window.addEventListener('resize', () => { if (MOBILE.matches) show(current); });
+        MOBILE.addEventListener('change', start);
+    }
+
+    // ===== زر الفاتح/الداكن بجانب زر الخروج: المظهر الجديد ينتشر بدائرة من الزر =====
+    const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>';
+    const MOON = '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>';
+
+    function addThemeButton() {
+        const box = document.getElementById('userBox');
+        if (!box || !window.StoreTheme || document.getElementById('themeBtn')) return;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.id = 'themeBtn';
+        const paint = () => {
+            const dark = StoreTheme.get().theme !== 'light';
+            b.innerHTML = svg(dark ? SUN : MOON);
+            b.title = dark ? 'المظهر الفاتح' : 'المظهر الداكن';
+            b.setAttribute('aria-label', b.title);
+        };
+        paint();
+        b.addEventListener('click', () => {
+            const r = b.getBoundingClientRect();
+            StoreTheme.toggle({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            paint();
+        });
+        const logout = document.getElementById('logoutBtn');
+        box.insertBefore(b, logout || null);
+    }
+
+    // ===== إضاءة تتبع المؤشر فوق البطاقات (الكمبيوتر فقط) =====
+    const SPOT = '.stat, .summary-card, .card, .panel, .sum-card';
+    function initSpotlight() {
+        if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+        let frame = 0, last = null;
+        document.addEventListener('pointermove', e => {
+            last = e;
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                frame = 0;
+                const card = last.target.closest && last.target.closest(SPOT);
+                if (!card || (window.StoreTheme && StoreTheme.motionOff())) return;
+                if (!card.querySelector(':scope > .spot')) {
+                    const s = document.createElement('span');
+                    s.className = 'spot';
+                    s.setAttribute('aria-hidden', 'true');
+                    card.appendChild(s);
+                }
+                const r = card.getBoundingClientRect();
+                card.style.setProperty('--mx', (last.clientX - r.left) + 'px');
+                card.style.setProperty('--my', (last.clientY - r.top) + 'px');
+            });
+        }, { passive: true });
+    }
+
+    // ===== الأرقام تعدّ حتى قيمتها عند الظهور، ومن القيمة السابقة عند تغيّرها =====
+    const COUNT = '.stat .value, .summary-card .value';
+    const NUM = /-?[\d٠-٩][\d٠-٩,٬]*(?:[.٫][\d٠-٩]+)?/;
+    const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+    const counted = new Map(); // عنوان البطاقة -> آخر قيمة
+    const loadedAt = performance.now();
+
+    function readNumber(token) {
+        const latin = token.replace(/[٠-٩]/g, d => AR_DIGITS.indexOf(d)).replace(/[,٬]/g, '').replace('٫', '.');
+        return Number(latin);
+    }
+
+    function writeNumber(n, token) {
+        const dec = (token.split(/[.٫]/)[1] || '').length;
+        let out = /[,٬]/.test(token)
+            ? n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+            : n.toFixed(dec);
+        if (/[٠-٩]/.test(token)) out = out.replace(/\d/g, d => AR_DIGITS[d]).replace(/,/g, '٬').replace('.', '٫');
+        return out;
+    }
+
+    function countUp(el) {
+        if (el.dataset.counting) return;
+        const node = [...el.childNodes].find(n => n.nodeType === 3 && NUM.test(n.nodeValue));
+        if (!node) return;
+        const token = node.nodeValue.match(NUM)[0];
+        const target = readNumber(token);
+        if (!isFinite(target)) return;
+        const card = el.closest('.stat, .summary-card');
+        const label = card && card.querySelector('.label, .title, h3, small');
+        const key = (label ? label.textContent : '') + '|' + [...document.querySelectorAll(COUNT)].indexOf(el);
+        const had = counted.has(key);
+        const from = had ? counted.get(key) : 0;
+        counted.set(key, target);
+        // أول ظهور بعد فتح الصفحة فقط، أو تغيّر القيمة لاحقًا
+        if (from === target || (!had && performance.now() - loadedAt > 4000)) return;
+        if (window.StoreTheme && StoreTheme.motionOff()) return;
+        const text = node.nodeValue, at = text.indexOf(token);
+        const start = performance.now(), dur = had ? 600 : 900;
+        el.dataset.counting = '1';
+        const step = now => {
+            if (!node.isConnected) return delete el.dataset.counting;
+            const t = Math.min(1, (now - start) / dur);
+            const e = 1 - Math.pow(1 - t, 4);
+            const v = t < 1 ? from + (target - from) * e : target;
+            const rounded = (token.split(/[.٫]/)[1] || '').length ? v : Math.round(v);
+            node.nodeValue = text.slice(0, at) + (t < 1 ? writeNumber(rounded, token) : token) + text.slice(at + token.length);
+            if (t < 1) requestAnimationFrame(step);
+            else delete el.dataset.counting;
+        };
+        requestAnimationFrame(step);
+    }
+
+    function initCounters() {
+        const scan = () => document.querySelectorAll(COUNT).forEach(countUp);
+        let queued = false;
+        new MutationObserver(() => {
+            if (queued) return;
+            queued = true;
+            requestAnimationFrame(() => { queued = false; scan(); });
+        }).observe(document.body, { childList: true, subtree: true });
+        scan();
+    }
+
     function init() {
         const btn = document.createElement('button');
         btn.className = 'nav-toggle';
@@ -98,23 +322,8 @@
         backdrop.className = 'nav-backdrop';
         document.body.appendChild(backdrop);
 
-        // شريط التبويب الزجاجي للهاتف (يظهر في ثيم «زجاج» فقط، انظر glass.css)
-        const page = (location.pathname.split('/').pop() || 'home.html').toLowerCase();
-        const tabs = [
-            ['home.html', 'الرئيسية'],
-            ['cashier.html', 'الكاشير'],
-            ['sales-new_1.html', 'المبيعات'],
-            ['inventory.html', 'المخزن']
-        ];
-        const bar = document.createElement('nav');
-        bar.className = 'glass-tabbar';
-        bar.setAttribute('aria-label', 'التبويبات');
-        bar.innerHTML = tabs.map(([href, label]) =>
-            `<a href="${href}"${href === page ? ' aria-current="page"' : ''}>${svg(ICONS[href])}<span>${label}</span></a>`
-        ).join('') + `<button type="button" data-more>${svg('<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>')}<span>المزيد</span></button>`;
-        bar.querySelector('[data-more]').addEventListener('click', () => document.body.classList.add('nav-open'));
-        document.body.appendChild(bar);
-        document.body.classList.add('has-tabbar');
+        buildTabbar();
+        addThemeButton();
 
         btn.addEventListener('click', toggle);
         backdrop.addEventListener('click', () => document.body.classList.remove('nav-open'));
@@ -137,6 +346,8 @@
         });
 
         applyDesktopState();
+        initSpotlight();
+        initCounters();
 
         // الحركات تبدأ بعد أول رسم فقط، فلا يتحرك شيء أثناء تحميل الصفحة
         requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('nav-ready')));

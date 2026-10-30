@@ -378,7 +378,8 @@ html[data-theme="dark"] {
         color: var(--muted);
     }
 
-    #logoutBtn {
+    #logoutBtn,
+    #themeBtn {
         flex: none;
         width: 34px;
         height: 34px;
@@ -398,7 +399,13 @@ html[data-theme="dark"] {
         color: var(--danger) !important;
     }
 
-    #logoutBtn svg {
+    #themeBtn:hover {
+        background: var(--surface-3) !important;
+        color: var(--text) !important;
+    }
+
+    #logoutBtn svg,
+    #themeBtn svg {
         width: 18px;
         height: 18px;
         stroke: currentColor;
@@ -2102,6 +2109,303 @@ html[data-motion="off"] ::backdrop {
 
 @media print {
     .net-pill {
+        display: none !important;
+    }
+}
+
+
+/* ===== تغيير المظهر: المظهر الجديد ينتشر بدائرة من نقطة الضغط (theme.js) ===== */
+@media screen {
+    html.vt-circle .sidebar,
+    html.vt-circle .nav-toggle,
+    html.vt-circle .tabbar {
+        view-transition-name: none;
+    }
+
+    html.vt-circle::view-transition-old(root) {
+        animation: none;
+    }
+
+    html.vt-circle::view-transition-new(root) {
+        animation: vt-circle 620ms cubic-bezier(.4, 0, .2, 1) both;
+    }
+
+    @keyframes vt-circle {
+        from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0)); }
+        to { clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 0)); }
+    }
+}
+
+/* ===== إضاءة تتبع المؤشر فوق البطاقات (layout.js يضيف .spot ويحدّث --mx و --my) ===== */
+@media screen and (hover: hover) and (pointer: fine) {
+    .stat,
+    .summary-card,
+    .card,
+    .panel,
+    .sum-card {
+        --spot: var(--accent);
+    }
+
+    html[data-aurora="on"] .stat,
+    html[data-aurora="on"] .summary-card {
+        --spot: rgb(var(--glow));
+    }
+
+    .stat:has(> .spot),
+    .summary-card:has(> .spot),
+    .card:has(> .spot),
+    .panel:has(> .spot),
+    .sum-card:has(> .spot) {
+        position: relative;
+        isolation: isolate;
+    }
+
+    .spot {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: inherit;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 350ms var(--ease-out);
+    }
+
+    /* توهج خفيف داخل البطاقة */
+    .spot::before,
+    .spot::after {
+        content: "";
+        position: absolute;
+        border-radius: inherit;
+    }
+
+    .spot::before {
+        inset: 0;
+        background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--spot) 24%, transparent), transparent 70%);
+    }
+
+    /* الحافة تضيء قرب المؤشر */
+    .spot::after {
+        inset: -1px;
+        padding: 1px;
+        background: radial-gradient(180px circle at calc(var(--mx, 50%) + 1px) calc(var(--my, 50%) + 1px), color-mix(in srgb, var(--spot) 85%, transparent), transparent 70%);
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    }
+
+    :is(.stat, .summary-card, .card, .panel, .sum-card):hover > .spot {
+        opacity: 1;
+    }
+
+    html[data-theme="light"] .spot::before {
+        background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--spot) 10%, transparent), transparent 70%);
+    }
+
+    html[data-motion="off"] .spot {
+        display: none;
+    }
+}
+
+/* ===== شريط التبويب للهاتف: فقاعة ملوّنة فوق التبويب الحالي (layout.js يرسم الشكل) ===== */
+.tabbar {
+    display: none;
+}
+
+@media screen and (max-width: 650px) {
+    .tabbar {
+        --bar-bg: rgba(255, 255, 255, .86);
+        --bar-edge: rgba(15, 23, 42, .14);
+        --bar-text: #5b6170;
+        --active: var(--accent);
+        display: flex;
+        position: fixed;
+        z-index: 60;
+        inset-inline: 10px;
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        height: 64px;
+        padding: 0 8px;
+        transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-3) var(--ease-out);
+    }
+
+    html[data-theme="dark"] .tabbar {
+        --bar-bg: rgba(24, 24, 32, .86);
+        --bar-edge: rgba(255, 255, 255, .16);
+        --bar-text: #a1a1b5;
+    }
+
+    html[data-glass="on"] .tabbar {
+        --bar-bg: linear-gradient(180deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, 0) 60%), rgba(30, 30, 36, .66);
+        --bar-edge: rgba(255, 255, 255, .26);
+    }
+
+    html[data-aurora="on"] .tabbar {
+        --bar-bg: linear-gradient(180deg, rgba(255, 255, 255, .12) 0%, rgba(255, 255, 255, 0) 60%), rgba(14, 18, 36, .7);
+    }
+
+    /* يختفي عند فتح القائمة، حتى لا يغطي زر الخروج أسفلها */
+    body.nav-open .tabbar {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(140%);
+    }
+
+    .tabbar .tab-bg,
+    .tabbar .tab-edge,
+    .tabbar .tab-glow {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+    }
+
+    .tabbar .tab-bg {
+        background: var(--bar-bg);
+        -webkit-backdrop-filter: blur(18px) saturate(170%);
+        backdrop-filter: blur(18px) saturate(170%);
+    }
+
+    .tabbar .tab-edge {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+    }
+
+    .tabbar .tab-edge path {
+        fill: none;
+        stroke: var(--bar-edge);
+        stroke-width: 1;
+    }
+
+    /* ظل ملوّن ناعم تحت الشريط بلون التبويب الحالي */
+    .tabbar .tab-glow {
+        inset: auto 12% -10px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--active);
+        opacity: .22;
+        filter: blur(22px);
+        transition: background 400ms var(--ease-out);
+    }
+
+    html[data-theme="light"] .tabbar .tab-glow {
+        opacity: .3;
+    }
+
+    .tabbar a,
+    .tabbar button {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border: 0;
+        background: transparent;
+        color: var(--bar-text);
+        font: inherit;
+        font-size: 11px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .tabbar svg {
+        width: 23px;
+        height: 23px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    /* التبويب الحالي: أيقونته ترتفع في الفقاعة، واسمه يظهر تحتها بلونه */
+    .tabbar a span {
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: opacity var(--dur-3) var(--ease-out);
+    }
+
+    .tabbar a[aria-current="page"] {
+        justify-content: flex-end;
+        padding-bottom: 9px;
+        color: var(--tab);
+    }
+
+    .tabbar a[aria-current="page"] svg {
+        visibility: hidden;
+    }
+
+    .tabbar a[aria-current="page"] span {
+        max-height: 20px;
+        opacity: 1;
+    }
+
+    .tabbar button span {
+        font-size: 11px;
+    }
+
+    .tabbar .tab-bubble {
+        position: absolute;
+        z-index: 2;
+        top: -22px;
+        left: -26px;
+        right: auto;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: none;
+        place-items: center;
+        background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, .55), transparent 55%), var(--active);
+        color: #14161c;
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--active) 45%, transparent), inset 0 -3px 8px rgba(0, 0, 0, .12);
+        pointer-events: none;
+        transition: background 380ms var(--ease-out), box-shadow 380ms var(--ease-out);
+    }
+
+    .tabbar:has(a[aria-current="page"]) .tab-bubble {
+        display: grid;
+    }
+
+    .tabbar .tab-bubble svg {
+        width: 24px;
+        height: 24px;
+        stroke-width: 2;
+    }
+
+    /* المحتوى لا يختفي تحت الشريط */
+    body.has-tabbar > main {
+        padding-bottom: calc(100px + env(safe-area-inset-bottom)) !important;
+    }
+
+    /* زر القائمة العلوي يُستبدل بـ «المزيد» في الشريط */
+    body.has-tabbar .nav-toggle {
+        display: none !important;
+    }
+
+    body.has-tabbar:not(.standalone) > header,
+    body.has-tabbar .topbar,
+    html[dir="ltr"] body.has-tabbar .topbar {
+        padding-inline-end: var(--gutter) !important;
+    }
+
+    body.has-tabbar .net-pill {
+        bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+    }
+
+    html[data-motion="off"] .tabbar,
+    html[data-motion="off"] .tabbar * {
+        transition: none !important;
+    }
+}
+
+@media print {
+    .tabbar,
+    #themeBtn {
         display: none !important;
     }
 }

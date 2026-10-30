@@ -5,11 +5,6 @@
  * إعدادات جهازه، يرون نفس الشكل بطبقات معتمة بدل الشفافة.
  */
 
-/* شريط التبويب للهاتف: مخفي إلا في ثيم الزجاج (layout.js ينشئه) */
-.glass-tabbar {
-    display: none;
-}
-
 @media screen {
     /* ===== الألوان ===== */
     html[data-glass="on"] {
@@ -390,83 +385,6 @@
             box-shadow: 0 -12px 20px rgba(0, 0, 0, .55) !important;
         }
 
-        html[data-glass="on"] body.nav-open .glass-tabbar {
-            opacity: 0;
-            pointer-events: none;
-            transform: translateY(140%);
-        }
-
-        html[data-glass="on"] .glass-tabbar {
-            display: flex;
-            position: fixed;
-            z-index: 60;
-            inset-inline: 14px;
-            bottom: calc(14px + env(safe-area-inset-bottom));
-            padding: 5px;
-            gap: 2px;
-            border-radius: 999px;
-            background: linear-gradient(180deg, rgba(255, 255, 255, .2) 0%, rgba(255, 255, 255, 0) 60%), rgba(44, 44, 46, .6);
-            -webkit-backdrop-filter: blur(18px) saturate(180%);
-            backdrop-filter: blur(18px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, .24);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 0 16px rgba(255, 255, 255, .06), 0 14px 32px rgba(0, 0, 0, .45);
-        }
-
-        html[data-glass="on"] .glass-tabbar a,
-        html[data-glass="on"] .glass-tabbar button {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            padding: 7px 0 6px;
-            border: 0;
-            border-radius: 999px;
-            background: transparent;
-            color: #e5e5ea;
-            font-size: 10.5px;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        html[data-glass="on"] .glass-tabbar svg {
-            width: 23px;
-            height: 23px;
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 1.8;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-
-        html[data-glass="on"] .glass-tabbar [aria-current="page"] {
-            color: #64a8ff;
-            background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .06));
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4);
-        }
-
-        /* المحتوى لا يختفي تحت الشريط */
-        html[data-glass="on"] body.has-tabbar > main {
-            padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
-        }
-
-        /* زر القائمة العلوي يُستبدل بـ «المزيد» في الشريط */
-        html[data-glass="on"] body.has-tabbar .nav-toggle {
-            display: none !important;
-        }
-
-        html[data-glass="on"] body:not(.standalone) > header,
-        html[data-glass="on"] .topbar {
-            padding-inline-end: var(--gutter) !important;
-        }
-
-        html[data-glass="on"] body.has-tabbar .net-pill {
-            bottom: calc(92px + env(safe-area-inset-bottom)) !important;
-        }
-
         /* القائمة الجانبية على الهاتف: لوح زجاجي */
         html[data-glass="on"] .sidebar {
             background: var(--glass-strong) !important;
@@ -482,7 +400,7 @@
             --glass-strong: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 60%), #242426;
         }
 
-        html[data-glass="on"] .glass-tabbar {
+        html[data-glass="on"] .tabbar .tab-bg {
             background: #242426 !important;
         }
     }
@@ -493,7 +411,7 @@
             --glass-strong: #242426;
         }
 
-        html[data-glass="on"] .glass-tabbar {
+        html[data-glass="on"] .tabbar .tab-bg {
             background: #242426 !important;
         }
     }

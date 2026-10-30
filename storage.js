@@ -196,8 +196,43 @@
         arr.forEach(item => set.add(JSON.stringify(item)));
     }
 
+    // معرّف السجل إن وُجد (المنتجات، الزبائن، الفواتير...)
+    function idOf(item) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const id = item.id;
+        return typeof id === 'string' || typeof id === 'number' ? String(id) : null;
+    }
+
+    // كل سجلات القائمة لها معرّف، ولا يتكرر معرّف
+    function uniqueIds(arr) {
+        const ids = new Set();
+        for (const item of arr) {
+            const id = idOf(item);
+            if (id === null || ids.has(id)) return false;
+            ids.add(id);
+        }
+        return true;
+    }
+
+    const isPlainObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
+
+    // دمج ثلاثي لسجل غيّره جهازان معًا: لكل خانة، ما غيّرته الصفحة يُؤخذ منها، وما لم تغيّره يُؤخذ من السحابة.
+    // مثال: جهاز غيّر السعر وجهاز غيّر الاسم ← السجل يحمل الاثنين، بدل نسختين من نفس المنتج
+    function mergeRecord(base, local, remote) {
+        const out = {};
+        const keys = new Set([...Object.keys(remote), ...Object.keys(local)]);
+        keys.forEach(k => {
+            const changedHere = JSON.stringify(local[k]) !== JSON.stringify(base[k]);
+            const v = changedHere ? local[k] : remote[k];
+            if (v !== undefined) out[k] = v;
+        });
+        return out;
+    }
+
     // دمج ثلاثي: نسخة السحابة − ما حذفته الصفحة + ما أضافته الصفحة
     function mergeArrays(remoteArr, localArr, knownSet) {
+        if (uniqueIds(localArr) && uniqueIds(remoteArr)) return mergeById(remoteArr, localArr, knownSet);
+
         const remoteStr = remoteArr.map(x => JSON.stringify(x));
         const localStr = localArr.map(x => JSON.stringify(x));
         const remoteSet = new Set(remoteStr);
@@ -226,6 +261,62 @@
             used.add(s);
         });
         return out;
+    }
+
+    /* نفس الدمج لكن حسب معرّف السجل، فتعديل السجل نفسه على جهازين لا يُنتج نسختين منه:
+     * - غيّرته الصفحة فقط ← نسخة الصفحة. غيّرته السحابة فقط ← نسخة السحابة.
+     * - غيّراه معًا ← دمج الخانات (mergeRecord) على آخر نسخة عرفتها الصفحة.
+     * - حذفته الصفحة (كانت تعرفه وليس عندها) ← يبقى محذوفًا. أضافه جهاز آخر ← يُضاف.
+     * - حذفه جهاز آخر وعدّلته الصفحة ← يبقى بتعديلها، حتى لا يضيع عمل */
+    function mergeById(remoteArr, localArr, knownSet) {
+        const seen = knownSet || new Set();
+        const baseOf = new Map(); // المعرّف -> آخر نسخة عرفتها الصفحة
+        seen.forEach(s => {
+            try {
+                const item = JSON.parse(s);
+                const id = idOf(item);
+                if (id !== null) baseOf.set(id, item);
+            } catch { }
+        });
+        const remoteById = new Map(remoteArr.map(item => [idOf(item), item]));
+        const localIds = new Set();
+
+        const out = [];
+        localArr.forEach(item => {
+            const id = idOf(item);
+            localIds.add(id);
+            const s = JSON.stringify(item);
+            const remote = remoteById.get(id);
+            const changedHere = !seen.has(s);
+            if (!changedHere) {
+                // لم تغيّره الصفحة: نسخة السحابة، أو يُحذف إن حذفه جهاز آخر
+                if (remote !== undefined) out.push(remote);
+                else if (!baseOf.has(id)) out.push(item);
+                return;
+            }
+            if (remote === undefined) return out.push(item);
+            const rs = JSON.stringify(remote);
+            if (rs === s || seen.has(rs)) return out.push(item);
+            const base = baseOf.get(id);
+            out.push(isPlainObject(base) && isPlainObject(remote) ? mergeRecord(base, item, remote) : item);
+        });
+        remoteArr.forEach(item => {
+            const id = idOf(item);
+            if (localIds.has(id) || baseOf.has(id)) return;
+            out.push(item);
+        });
+        return out;
+    }
+
+    // نفس الفكرة لمفتاح قيمته كائن (مثل إعدادات المتجر): base هي آخر نسخة سحابة عرفها الجهاز
+    function mergeObjectValue(baseRaw, localRaw, remoteRaw) {
+        try {
+            const base = JSON.parse(baseRaw), local = JSON.parse(localRaw), remote = JSON.parse(remoteRaw);
+            if (!isPlainObject(base) || !isPlainObject(local) || !isPlainObject(remote)) return localRaw;
+            return JSON.stringify(mergeRecord(base, local, remote));
+        } catch {
+            return localRaw;
+        }
     }
 
     // ===== الاتصال بالسحابة =====
@@ -382,6 +473,28 @@
         saveState('Pending', storeId, pend);
     }
 
+    // Base: لمفتاح قيمته كائن (الإعدادات)، نسخته قبل أول تغيير لم يُرفع. بها يُدمج تغييران من جهازين خانة بخانة
+    function markBase(storeId, key, previous) {
+        if (previous === null || previous === undefined) return;
+        try {
+            const v = JSON.parse(previous);
+            if (!v || typeof v !== 'object' || Array.isArray(v)) return;
+        } catch {
+            return;
+        }
+        const bases = loadState('Base', storeId);
+        if (key in bases) return;
+        bases[key] = previous;
+        saveState('Base', storeId, bases);
+    }
+
+    function clearBase(storeId, key) {
+        const bases = loadState('Base', storeId);
+        if (!(key in bases)) return;
+        delete bases[key];
+        saveState('Base', storeId, bases);
+    }
+
     function recoverPending(storeId) {
         const pend = loadState('Pending', storeId);
         const keys = Object.keys(pend);
@@ -421,6 +534,9 @@
      * وإن تغيّر الصف في السحابة منذها ترجع الكتابة بلا صفوف فنقرأ وندمج */
     async function pushKey(storeId, key, localValue, knownSet, synced) {
         const localArr = parseArray(localValue);
+        // كائن تغيّر قبل أن يُرفع (بدون إنترنت مثلًا): ندمج على نسخة السحابة التي عرفها الجهاز قبل أول تغيير
+        const bases = localArr ? null : loadState('Base', storeId);
+        if (bases && key in bases) synced = bases[key];
         const versions = loadState('Versions', storeId);
         const canSkipRead = key in versions && (localValue === DELETED || synced !== undefined) &&
             !(key in loadState('Dirty', storeId));
@@ -450,6 +566,9 @@
                     // إذا حُذف المفتاح في السحابة نعتبره قائمة فارغة: لا يبقى إلا ما أضافته الصفحة
                     const remoteArr = row.value === DELETED || row.value === null ? [] : parseArray(row.value);
                     if (remoteArr) value = JSON.stringify(mergeArrays(remoteArr, localArr, knownSet));
+                } else if (row && typeof synced === 'string' && localValue !== DELETED && typeof row.value === 'string' && row.value !== DELETED) {
+                    // كائن (إعدادات): نحفظ ما غيّرته الصفحة فوق ما غيّره جهاز آخر في نفس الوقت
+                    value = mergeObjectValue(synced, localValue, row.value);
                 }
             }
 
@@ -467,6 +586,11 @@
             versions[key] = res.updatedAt;
             saveState('Versions', storeId, versions);
             clearDirty(storeId, key);
+            if (bases && key in bases) {
+                // حفظ آخر ينتظر بعد هذا: أساس دمجه هو ما صار في السحابة الآن
+                if ((inFlight[key] || 0) > 1) { const now = loadState('Base', storeId); now[key] = value; saveState('Base', storeId, now); }
+                else clearBase(storeId, key);
+            }
 
             // الدمج أضاف ما غيّرته الأجهزة الأخرى: نحدّث الجهاز ونبلغ الصفحة لتعيد التحميل.
             // إذا حفظت الصفحة المفتاح نفسه مرة أخرى بعد هذا الرفع نتركه، فرفعها القادم يدمج من جديد
@@ -798,6 +922,7 @@
         const live = known[key];
         const knownCopy = new Set(live || []);
         markPending(sid, key, knownCopy);
+        if (raw !== DELETED) markBase(sid, key, previous);
         inFlight[key] = (inFlight[key] || 0) + 1;
         enqueue(async () => {
             let done = false;

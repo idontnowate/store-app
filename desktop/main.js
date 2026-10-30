@@ -17,6 +17,23 @@ const APP_URL = process.env.STORE_APP_URL || CONFIG.appUrl;
 const APP_ORIGIN = new URL(APP_URL).origin;
 const APP_BASE = APP_URL.replace(/[^/]*$/, '');
 
+// ===== مجلد بيانات التطبيق =====
+// باسم إنجليزي: مسار فيه أحرف عربية قد يمنع ويندوز من حفظ نسخة العمل بدون إنترنت.
+// الإصدارات السابقة كانت تحفظ في مجلد باسم البرنامج العربي، فننقل محتواه مرة واحدة
+const DATA_DIR = path.join(app.getPath('appData'), 'IPStore');
+const LEGACY_DIR = path.join(app.getPath('appData'), 'إدارة المتجر');
+try {
+    if (!fs.existsSync(DATA_DIR) && fs.existsSync(LEGACY_DIR)) {
+        fs.cpSync(LEGACY_DIR, DATA_DIR, {
+            recursive: true,
+            filter: src => !/(^|[\\/])(Singleton\w*|lockfile|LOCK)$/.test(src)
+        });
+    }
+} catch (e) {
+    console.error('تعذر نقل بيانات الإصدار السابق:', e);
+}
+app.setPath('userData', DATA_DIR);
+
 // ===== إعدادات هذا الجهاز =====
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
 const DEFAULTS = { silentPrint: true, printer: '', autoStart: false };
@@ -234,7 +251,7 @@ async function checkForUpdate(manual) {
     if (hasLink && response === 0) shell.openExternal(info.url);
 }
 
-// يمسح نسخة الصفحات المحفوظة على الجهاز ويحمّلها من جديد من الموقع.
+// يجلب آخر نسخة من البرنامج من الموقع ويعيد التحميل، دون حذف نسخة العمل بدون إنترنت.
 // بيانات المتجر (localStorage) وتسجيل الدخول لا تُمس
 async function hardRefresh() {
     if (!win) return;
@@ -242,13 +259,55 @@ async function hardRefresh() {
         dialog.showMessageBox(win, { type: 'warning', title: 'التحديث', message: 'لا يوجد اتصال بالإنترنت', detail: 'تحتاج إنترنت لتحميل آخر نسخة من البرنامج.' });
         return;
     }
-    const ses = win.webContents.session;
     try {
-        await ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
-        await ses.clearCache();
+        await win.webContents.session.clearCache();
+        if (isAppUrl(win.webContents.getURL())) {
+            await win.webContents.executeJavaScript(`(async () => {
+                const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+                if (!reg) return;
+                await reg.update();
+                const w = reg.installing || reg.waiting;
+                if (w) await new Promise(r => { w.addEventListener('statechange', () => { if (w.state === 'activated' || w.state === 'redundant') r(); }); setTimeout(r, 15000); });
+            })()`);
+        }
     } catch (e) { }
     const current = win.webContents.getURL();
-    win.loadURL(isAppUrl(current) ? current : APP_URL);
+    if (isAppUrl(current)) win.webContents.reloadIgnoringCache();
+    else win.loadURL(APP_URL);
+}
+
+// حالة العمل بدون إنترنت على هذا الجهاز، لمعرفة سبب أي مشكلة دون الوصول إليه
+async function offlineStatus() {
+    if (!win || !isAppUrl(win.webContents.getURL())) return { ready: false, note: 'صفحة البرنامج غير مفتوحة الآن' };
+    try {
+        return await win.webContents.executeJavaScript(`(async () => {
+            const sw = 'serviceWorker' in navigator;
+            const reg = sw ? await navigator.serviceWorker.getRegistration() : null;
+            let pages = 0, files = 0;
+            if (window.caches) for (const k of await caches.keys()) {
+                for (const r of await (await caches.open(k)).keys()) (/\.html$/.test(new URL(r.url).pathname) ? pages++ : files++);
+            }
+            return { sw, active: !!(reg && reg.active), controlled: !!navigator.serviceWorker?.controller, pages, files, build: window.StoreApp ? StoreApp.build : null };
+        })()`);
+    } catch (e) {
+        return { ready: false, note: String(e && e.message || e) };
+    }
+}
+
+async function showAbout() {
+    const st = await offlineStatus();
+    const ready = st.active && st.pages >= 3;
+    const lines = [
+        'الإصدار ' + app.getVersion() + (st.build ? ' — البرنامج ' + st.build : ''),
+        '',
+        'العمل بدون إنترنت: ' + (ready ? 'جاهز' : 'غير جاهز بعد'),
+        st.note ? st.note : `صفحات محفوظة: ${st.pages || 0} — ملفات: ${st.files || 0} — الحفظ ${st.active ? 'مفعّل' : 'غير مفعّل'}${st.controlled ? '' : ' (يكتمل عند إعادة فتح البرنامج)'}`,
+        ready ? '' : 'افتح البرنامج والإنترنت متصل واتركه دقيقة، ثم أعد فتحه.',
+        '',
+        'مجلد البيانات: ' + app.getPath('userData'),
+        'IP TECH WORLD'
+    ].filter((l, i, a) => l || a[i - 1]);
+    dialog.showMessageBox(win, { title: 'حول البرنامج', message: 'إدارة المتجر', detail: lines.join('\n') });
 }
 
 // ===== القائمة =====
@@ -296,7 +355,7 @@ function buildMenu() {
             label: 'مساعدة',
             submenu: [
                 { label: 'البحث عن تحديث', click: () => checkForUpdate(true) },
-                { label: 'حول البرنامج', click: () => dialog.showMessageBox(win, { title: 'حول البرنامج', message: 'إدارة المتجر', detail: 'الإصدار ' + app.getVersion() + '\nIP TECH WORLD' }) }
+                { label: 'حول البرنامج والعمل بدون إنترنت', click: showAbout }
             ]
         }
     ];

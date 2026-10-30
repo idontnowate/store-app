@@ -95,7 +95,7 @@
     // ===== وصول التحديثات =====
     // رقم نسخة هذه الملفات. يُرفع مع version.json في كل تحديث للبرنامج.
     // إذا وجد الجهاز على الموقع نسخة أحدث من التي فتحها (صفحة محفوظة قديمة) يعرض زر "تحديث الآن"
-    const BUILD = 202610350;
+    const BUILD = 202610360;
     let updateBar = null;
 
     async function checkVersion() {
@@ -119,7 +119,8 @@
         document.body.appendChild(updateBar);
     }
 
-    // نحذف النسخ المحفوظة على الجهاز ونعيد التحميل من الموقع. بيانات المتجر لا تُمس (localStorage)
+    // نطلب نسخة البرنامج الجديدة ثم نعيد التحميل. لا نحذف النسخ المحفوظة على الجهاز،
+    // فيبقى البرنامج يعمل بدون إنترنت حتى لو انقطع الاتصال أثناء التحديث. بيانات المتجر لا تُمس
     async function applyUpdate() {
         const btn = updateBar && updateBar.querySelector('button');
         if (btn) { btn.disabled = true; btn.textContent = 'جارِ التحديث…'; }
@@ -127,9 +128,18 @@
             if (window.StoreSync && StoreSync.flush) await StoreSync.flush(8000);
         } catch (e) { }
         try {
-            if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
             const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
-            if (reg) await reg.update();
+            if (reg) {
+                await reg.update();
+                // ننتظر تفعيل النسخة الجديدة (sw.js يفعّلها خلال ثوانٍ)، 15 ثانية على الأكثر
+                const waiting = reg.installing || reg.waiting;
+                if (waiting) await new Promise(resolve => {
+                    const done = () => waiting.state === 'activated' || waiting.state === 'redundant';
+                    if (done()) return resolve();
+                    waiting.addEventListener('statechange', () => { if (done()) resolve(); });
+                    setTimeout(resolve, 15000);
+                });
+            }
         } catch (e) { }
         location.reload();
     }

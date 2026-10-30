@@ -440,6 +440,8 @@ window.STORE_I18N_EN = {
         "رسالة القسط المتأخر": "Late installment message",
         "إرجاع النص الأصلي": "Restore original text",
         "ابدأ بمتجرك": "Get your store ready",
+        "تذكرني": "Remember me",
+        "يبقى الدخول بعد إغلاق البرنامج، ويُحفظ اسم المستخدم": "Stay signed in after closing the app, and keep the username",
         "زجاجي ملوّن (إضاءة فيروزية وبنفسجية)": "Aurora glass (cyan and violet glow)",
         "زجاجي ملوّن": "Aurora glass",
         "يتوفر تحديث جديد للبرنامج": "A new version of the app is available",

@@ -751,6 +751,25 @@
         return syncQueued;
     }
 
+    // ===== «تذكرني» غير مفعّل: ينتهي الدخول عند إغلاق البرنامج أو المتصفح =====
+    // index.html يكتب appSessionTemp عند الدخول، و appSessionAlive يبقى ما دامت النافذة مفتوحة
+    (function endTempSession() {
+        try {
+            if (getLocal('appSessionTemp') !== '1' || sessionStorage.getItem('appSessionAlive') === '1') return;
+            const m = readJSON(MEMBERSHIP_KEY);
+            const sid = m && m.store_id;
+            // تغييرات لم تُرفع بعد: نُبقي الدخول حتى لا تضيع
+            if (sid && (Object.keys(loadState('Dirty', sid)).length || Object.keys(loadState('Pending', sid)).length)) {
+                sessionStorage.setItem('appSessionAlive', '1');
+                return;
+            }
+            removeLocal(SESSION_TOKEN_KEY);
+            removeLocal(MEMBERSHIP_KEY);
+            removeLocal('appSessionTemp');
+            wipeLocal();
+        } catch (e) { }
+    })();
+
     const storeId = currentStoreId();
     if (storeId) {
         startupOwned = isolate(storeId);

@@ -28,6 +28,24 @@
     // المتجر التجريبي (demo.js): بيانات وهمية على الجهاز، بلا حساب ولا سحابة
     const DEMO_KEY = 'appDemo';
     const DEMO = (() => { try { return localStorage.getItem(DEMO_KEY) === '1'; } catch { return false; } })();
+
+    // «تذكرني» غير مفعّل والنافذة أُغلقت منذ الدخول: ينتهي الدخول (storage.js يفعل نفس الشيء في صفحات المتجر
+    // ويمسح بياناته؛ هنا لصفحة الدخول التي لا تحمّله). تغييرات لم تُرفع تُبقي الدخول حتى لا تضيع
+    (function endTempSession() {
+        try {
+            if (localStorage.getItem('appSessionTemp') !== '1' || sessionStorage.getItem('appSessionAlive') === '1') return;
+            const m = JSON.parse(localStorage.getItem(MEMBERSHIP_KEY) || 'null');
+            const sid = m && m.store_id;
+            const waiting = k => Object.keys(JSON.parse(localStorage.getItem(k) || '{}') || {}).length;
+            if (sid && (waiting('appSyncDirty_' + sid) || waiting('appSyncPending_' + sid))) {
+                sessionStorage.setItem('appSessionAlive', '1');
+                return;
+            }
+            localStorage.removeItem(SESSION_TOKEN_KEY);
+            localStorage.removeItem(MEMBERSHIP_KEY);
+            localStorage.removeItem('appSessionTemp');
+        } catch (e) { }
+    })();
     // يحفظ معرف المتجر الذي اكتملت مزامنته محليًا (يكتبه storage.js)
     const SYNCED_STORE_KEY = 'appSyncedStore';
     // علامة مؤقتة: تسجيل دخول جديد ينتظر كتابته في السجل بعد اكتمال المزامنة
@@ -225,6 +243,7 @@
             ]);
         } catch (e) { }
         localStorage.removeItem(SESSION_TOKEN_KEY);
+        localStorage.removeItem('appSessionTemp');
         membership = null;
         localStorage.removeItem(MEMBERSHIP_KEY);
         // حتى لا يرى المستخدم التالي على هذا الجهاز بيانات متجر آخر

@@ -20,12 +20,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>تسجيل الدخول</title>
-    <script src="i18n-en.js?v=202610330"></script>
+    <script src="i18n-en.js?v=202610370"></script>
     <script src="theme.js?v=202610330"></script>
-    <script src="pwa.js?v=202610360"></script>
+    <script src="pwa.js?v=202610370"></script>
     <script src="log.js?v=202610231"></script>
     <script src="print.js?v=202610252"></script>
-    <script src="auth.js?v=202610350"></script>
+    <script src="auth.js?v=202610370"></script>
     <script src="demo.js?v=202610271"></script>
     <style>
         * {
@@ -107,6 +107,34 @@
         .field input {
             width: 100%;
             height: 46px;
+        }
+
+        .remember {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: center;
+            column-gap: 10px;
+            row-gap: 2px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            user-select: none;
+        }
+
+        .remember input {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .remember small {
+            grid-column: 2;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--muted);
         }
 
         .error {
@@ -228,6 +256,11 @@
                 <span>كلمة المرور</span>
                 <input name="password" type="password" autocomplete="current-password" required>
             </label>
+            <label class="remember">
+                <input type="checkbox" name="remember" checked>
+                <span>تذكرني</span>
+                <small>يبقى الدخول بعد إغلاق البرنامج، ويُحفظ اسم المستخدم</small>
+            </label>
 
             <div class="error" id="error" role="alert"></div>
 
@@ -262,6 +295,35 @@
         const forcedOut = window.StoreAuth && StoreAuth.takeForcedOutMessage ? StoreAuth.takeForcedOutMessage() : '';
         if (forcedOut) errorEl.textContent = forcedOut;
 
+        // «تذكرني»: الاختيار واسم المستخدم يُحفظان لهذا الجهاز
+        const REMEMBER_KEY = 'appRemember';
+        const REMEMBER_USER_KEY = 'appRememberUser';
+        try {
+            const remember = localStorage.getItem(REMEMBER_KEY) !== '0';
+            form.elements.remember.checked = remember;
+            const saved = remember ? localStorage.getItem(REMEMBER_USER_KEY) : '';
+            if (saved) {
+                form.elements.username.value = saved;
+                form.elements.password.focus();
+            }
+        } catch (e) { }
+
+        function rememberChoice(username) {
+            try {
+                if (form.elements.remember.checked) {
+                    localStorage.setItem(REMEMBER_KEY, '1');
+                    localStorage.setItem(REMEMBER_USER_KEY, username.trim());
+                    localStorage.removeItem('appSessionTemp');
+                } else {
+                    // ينتهي الدخول عند إغلاق البرنامج أو المتصفح (storage.js و auth.js)
+                    localStorage.setItem(REMEMBER_KEY, '0');
+                    localStorage.removeItem(REMEMBER_USER_KEY);
+                    localStorage.setItem('appSessionTemp', '1');
+                    sessionStorage.setItem('appSessionAlive', '1');
+                }
+            } catch (e) { }
+        }
+
         form.addEventListener('submit', async event => {
             event.preventDefault();
             errorEl.textContent = '';
@@ -272,6 +334,7 @@
             try {
                 await StoreAuth.ready;
                 await StoreAuth.login(form.elements.username.value, form.elements.password.value);
+                rememberChoice(form.elements.username.value);
                 location.replace('home.html');
             } catch (err) {
                 errorEl.textContent = err.message || 'تعذر تسجيل الدخول';

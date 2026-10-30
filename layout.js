@@ -86,31 +86,45 @@
         localStorage.setItem(UI_KEY, collapsed ? 'collapsed' : 'open');
     }
 
-    // ===== شريط التبويب للهاتف: فقاعة ملوّنة ترتفع فوق التبويب الحالي، والشريط ينحني تحتها =====
+    // ===== شريط التبويب للهاتف: فقاعة ملوّنة فوق التبويب الحالي، والشريط ينحني حولها =====
+    // لكل تبويب لون؛ الصفحات غير الموجودة في الشريط تضع الفقاعة على «المزيد»
     const TABS = [
-        ['home.html', 'الرئيسية', '#a3e635'],
-        ['cashier.html', 'الكاشير', '#facc15'],
-        ['sales-new_1.html', 'المبيعات', '#fb923c'],
-        ['inventory.html', 'المخزن', '#f472b6']
+        ['home.html', 'الرئيسية', '#c6f432'],
+        ['cashier.html', 'الكاشير', '#ffd23f'],
+        ['sales-new_1.html', 'المبيعات', '#ff9f2e'],
+        ['inventory.html', 'المخزن', '#ff5d3b'],
+        [null, 'المزيد', '#f43f72']
     ];
+    const MORE_ICON = '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>';
     const TAB_KEY = 'uiTabFrom'; // التبويب السابق، لتنتقل الفقاعة منه عند فتح الصفحة الجديدة
+    const BUBBLE_R = 24; // نصف قطر الفقاعة (design.css: .tab-bubble)
 
-    // شكل الشريط: مستطيل بزوايا دائرية وتجويف ناعم حول الفقاعة عند x (0 = بلا تجويف)
-    function tabbarPath(w, h, x, depth) {
-        const r = Math.min(18, h / 2);
+    // شكل الشريط: مستطيل بزوايا دائرية، وتجويف يلتف حول الفقاعة عند x (null = بلا تجويف)
+    function tabbarPath(w, h, x) {
+        const r = 20;
         let top = `M${r},0`;
-        if (depth > 0) {
-            const half = 32, d = depth;
-            // التجويف لا يتجاوز الزوايا الدائرية للتبويب الأول والأخير (الفرق بضع بكسلات لا تُرى)
-            x = Math.min(Math.max(x, r + half + 8), w - r - half - 8);
-            top += ` L${x - half - 8},0 C${x - half + 4},0 ${x - half + 4},${d} ${x},${d} C${x + half - 4},${d} ${x + half - 4},0 ${x + half + 8},0`;
+        if (x !== null) {
+            const R = BUBBLE_R + 3; // فراغ صغير بين الفقاعة والحافة
+            const cy = 1;           // مركز الفقاعة على خط الحافة تقريبًا
+            const sy = 8;           // حيث يبدأ القوس بعد الكتف
+            const sx = Math.sqrt(R * R - (sy - cy) * (sy - cy));
+            const open = sx + 11;   // عرض الكتف
+            x = Math.min(Math.max(x, r + open), w - r - open);
+            top += ` L${x - open},0 Q${x - sx - 2},0 ${x - sx},${sy} A${R},${R} 0 0 0 ${x + sx},${sy} Q${x + sx + 2},0 ${x + open},0`;
         }
         return top + ` L${w - r},0 A${r},${r} 0 0 1 ${w},${r} L${w},${h - r} A${r},${r} 0 0 1 ${w - r},${h} L${r},${h} A${r},${r} 0 0 1 0,${h - r} L0,${r} A${r},${r} 0 0 1 ${r},0 Z`;
     }
 
+    const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    function mixColor(a, b, t) {
+        const A = hexRgb(a), B = hexRgb(b);
+        return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`;
+    }
+
     function buildTabbar() {
         const page = (location.pathname.split('/').pop() || 'home.html').toLowerCase();
-        const current = TABS.findIndex(t => t[0] === page);
+        let current = TABS.findIndex(t => t[0] === page);
+        if (current < 0) current = TABS.length - 1;
         const bar = document.createElement('nav');
         bar.className = 'tabbar';
         bar.setAttribute('aria-label', 'التبويبات');
@@ -118,14 +132,16 @@
             '<div class="tab-bg" aria-hidden="true"></div>' +
             '<svg class="tab-edge" aria-hidden="true"><path/></svg>' +
             '<span class="tab-bubble" aria-hidden="true"></span>' +
-            TABS.map(([href, label, color], i) =>
-                `<a href="${href}" style="--tab:${color}"${i === current ? ' aria-current="page"' : ''}>${svg(ICONS[href])}<span>${label}</span></a>`
-            ).join('') +
-            `<button type="button" data-more>${svg('<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>')}<span>المزيد</span></button>`;
+            TABS.map(([href, label, color], i) => {
+                const icon = svg(href ? ICONS[href] : MORE_ICON);
+                const cur = i === current ? ' aria-current="page"' : '';
+                return href
+                    ? `<a href="${href}" style="--tab:${color}"${cur}>${icon}<span>${label}</span></a>`
+                    : `<button type="button" data-more style="--tab:${color}"${cur}>${icon}<span>${label}</span></button>`;
+            }).join('');
         bar.querySelector('[data-more]').addEventListener('click', () => document.body.classList.add('nav-open'));
         bar.addEventListener('click', e => {
-            const a = e.target.closest('a');
-            if (a && current >= 0) try { sessionStorage.setItem(TAB_KEY, String(current)); } catch (err) { }
+            if (e.target.closest('a')) try { sessionStorage.setItem(TAB_KEY, String(current)); } catch (err) { }
         }, true);
         document.body.appendChild(bar);
         document.body.classList.add('has-tabbar');
@@ -133,44 +149,43 @@
         const bg = bar.querySelector('.tab-bg');
         const edge = bar.querySelector('.tab-edge');
         const bubble = bar.querySelector('.tab-bubble');
+        const glow = bar.querySelector('.tab-glow');
         const items = [...bar.querySelectorAll('a, button')];
-        let pos = null; // مركز الفقاعة الحالي
 
         function centerOf(i) {
             const b = bar.getBoundingClientRect(), r = items[i].getBoundingClientRect();
             return r.left - b.left + r.width / 2;
         }
 
-        function draw(x) {
+        function draw(x, color) {
             const w = bar.clientWidth, h = bar.clientHeight;
             if (!w) return;
-            const d = tabbarPath(w, h, x, x === null ? 0 : 20);
+            const d = tabbarPath(w, h, x);
             bg.style.clipPath = `path('${d}')`;
             edge.setAttribute('viewBox', `0 0 ${w} ${h}`);
             edge.firstChild.setAttribute('d', d);
-            if (x !== null) bubble.style.transform = `translateX(${x}px)`;
+            bubble.style.transform = `translateX(${x}px)`;
+            glow.style.transform = `translateX(${x}px)`;
+            bar.style.setProperty('--active', color);
         }
 
-        // at: موضع الفقاعة إن لم تكن فوق التبويب (بداية الانتقال)
-        function show(i, at) {
-            if (i < 0) return draw(null);
-            const tab = items[i];
-            bar.style.setProperty('--active', TABS[i][2]);
-            bubble.innerHTML = tab.querySelector('svg').outerHTML;
-            pos = at === undefined ? centerOf(i) : at;
-            draw(pos);
+        function icon(i) {
+            bubble.innerHTML = items[i].querySelector('svg').outerHTML;
         }
 
-        // من التبويب السابق إلى الحالي بحركة ناعمة
+        // من التبويب السابق إلى الحالي: الفقاعة تنزلق، ولونها يتدرج، وأيقونتها تتبدل في منتصف الطريق
         function slide(from, to) {
             const a = centerOf(from), b = centerOf(to);
-            const start = performance.now(), dur = 420;
+            const ca = TABS[from][2], cb = TABS[to][2];
+            const start = performance.now(), dur = 520;
+            let swapped = false;
+            icon(from);
             bar.classList.add('moving');
             const step = now => {
                 const t = Math.min(1, (now - start) / dur);
-                const e = 1 - Math.pow(1 - t, 3);
-                pos = a + (b - a) * e;
-                draw(pos);
+                const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                draw(a + (b - a) * e, mixColor(ca, cb, e));
+                if (!swapped && e >= .5) { swapped = true; icon(to); }
                 if (t < 1) requestAnimationFrame(step);
                 else bar.classList.remove('moving');
             };
@@ -182,26 +197,26 @@
             let from = -1;
             try { from = Number(sessionStorage.getItem(TAB_KEY) ?? -1); sessionStorage.removeItem(TAB_KEY); } catch (err) { }
             const still = window.StoreTheme && StoreTheme.motionOff();
-            if (current >= 0 && from >= 0 && from < items.length && from !== current && !still) {
-                show(current, centerOf(from));
+            if (from >= 0 && from < items.length && from !== current && !still) {
+                draw(centerOf(from), TABS[from][2]);
                 slide(from, current);
             } else {
-                show(current);
+                icon(current);
+                draw(centerOf(current), TABS[current][2]);
             }
         }
 
         requestAnimationFrame(start);
-        window.addEventListener('resize', () => { if (MOBILE.matches) show(current); });
+        window.addEventListener('resize', () => { if (MOBILE.matches && !bar.classList.contains('moving')) draw(centerOf(current), TABS[current][2]); });
         MOBILE.addEventListener('change', start);
     }
 
-    // ===== زر الفاتح/الداكن بجانب زر الخروج: المظهر الجديد ينتشر بدائرة من الزر =====
+    // ===== زر الفاتح/الداكن أعلى الصفحة بجانب زر القائمة: المظهر الجديد ينتشر بدائرة من الزر =====
     const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>';
     const MOON = '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>';
 
     function addThemeButton() {
-        const box = document.getElementById('userBox');
-        if (!box || !window.StoreTheme || document.getElementById('themeBtn')) return;
+        if (!window.StoreTheme || document.getElementById('themeBtn')) return;
         const b = document.createElement('button');
         b.type = 'button';
         b.id = 'themeBtn';
@@ -217,8 +232,7 @@
             StoreTheme.toggle({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
             paint();
         });
-        const logout = document.getElementById('logoutBtn');
-        box.insertBefore(b, logout || null);
+        document.body.appendChild(b);
     }
 
     // ===== إضاءة تتبع المؤشر فوق البطاقات (الكمبيوتر فقط) =====

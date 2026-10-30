@@ -5,8 +5,10 @@
  * - المكتبات والخطوط من الإنترنت تُحفظ عند أول تحميل.
  * - طلبات Supabase (البيانات وتسجيل الدخول) لا تمر من هنا؛ المزامنة تتكفل بها.
  * - version.json لا يُحفظ: به يعرف البرنامج أن على الموقع نسخة أحدث (pwa.js).
+ * - التحديث يتفعّل بسرعة: يُحفظ أولًا الدخول والرئيسية والكاشير فقط، وباقي الصفحات في الخلفية.
+ *   (حفظ كل شيء قبل التفعيل كان يأخذ دقائق مع إنترنت ضعيف، فإن أُغلق البرنامج قبلها لا يصل التحديث)
  */
-const CACHE = 'store-app-v4';
+const CACHE = 'store-app-v5';
 const PAGES = [
     'index.html', 'home.html', 'cashier.html', 'sales-new_1.html', 'add-invoice.html',
     'inventory.html', 'purchases.html', 'debts.html', 'customers.html', 'orders.html', 'shop.html', 'cashbox.html', 'reports.html',
@@ -24,12 +26,14 @@ let lastPrecache = 0;
 
 const NO_CACHE_HOSTS = /\.supabase\.co$/;
 
+const CRITICAL = ['index.html', 'home.html', 'cashier.html'];
+
 // يحفظ الصفحات مع ملفات js و css التي تطلبها كل صفحة (بنفس رقم النسخة)
-async function precache() {
+async function precache(pages = PAGES, extra = EXTRA) {
     lastPrecache = Date.now();
     const cache = await caches.open(CACHE);
-    const assets = new Set(EXTRA);
-    await Promise.all(PAGES.map(async page => {
+    const assets = new Set(extra);
+    await Promise.all(pages.map(async page => {
         try {
             const res = await fetch(page, { cache: 'no-cache' });
             if (!res.ok) return;
@@ -47,15 +51,26 @@ async function precache() {
     }));
 }
 
+const within = (promise, ms) => Promise.race([promise, new Promise(r => setTimeout(r, ms))]);
+
 self.addEventListener('install', e => {
-    e.waitUntil(precache().then(() => self.skipWaiting()));
+    // الصفحات الأساسية فقط، وبحد أقصى 15 ثانية، ثم التفعيل مباشرة
+    e.waitUntil(within(precache(CRITICAL, ['vendor/supabase-js-2.45.4.js']), 15000).then(() => self.skipWaiting()));
 });
 
+// النسخ المحفوظة القديمة تبقى احتياطًا للعمل بدون إنترنت حتى يكتمل حفظ الجديدة
+async function dropOldCaches() {
+    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+}
+
 self.addEventListener('activate', e => {
-    e.waitUntil((async () => {
-        for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
-        await self.clients.claim();
-    })());
+    e.waitUntil(self.clients.claim());
+    // باقي الصفحات في الخلفية: ما يُحفظ منها يبقى حتى لو أُغلق البرنامج قبل اكتماله
+    precache().then(async () => {
+        const cache = await caches.open(CACHE);
+        const saved = await Promise.all(PAGES.map(p => cache.match(p)));
+        if (saved.every(Boolean)) await dropOldCaches();
+    }).catch(() => { });
 });
 
 // الصفحة: من الشبكة، وإن تأخرت أكثر من 4 ثوانٍ أو انقطعت نعرض المحفوظة
@@ -71,8 +86,8 @@ async function page(req) {
         }
         return res;
     });
-    const saved = await cache.match(name);
-    if (!saved) return network.catch(() => cache.match('index.html'));
+    const saved = (await cache.match(name)) || (await caches.match(name));
+    if (!saved) return network.catch(async () => (await caches.match('index.html')) || Response.error());
     const timeout = new Promise(resolve => setTimeout(() => resolve(saved), 4000));
     return Promise.race([network.catch(() => saved), timeout]);
 }
@@ -80,14 +95,14 @@ async function page(req) {
 // الملفات: المحفوظة أولًا بنفس رقم النسخة، ثم الشبكة، ثم أي نسخة محفوظة من نفس الملف
 async function asset(req) {
     const cache = await caches.open(CACHE);
-    const exact = await cache.match(req);
+    const exact = (await cache.match(req)) || (await caches.match(req));
     if (exact) return exact;
     try {
         const res = await fetch(req);
         if (res.ok || res.type === 'opaque') cache.put(req, res.clone());
         return res;
     } catch (err) {
-        const any = await cache.match(req, { ignoreSearch: true });
+        const any = (await caches.match(req)) || (await caches.match(req, { ignoreSearch: true }));
         if (any) return any;
         throw err;
     }

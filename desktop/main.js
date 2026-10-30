@@ -234,6 +234,23 @@ async function checkForUpdate(manual) {
     if (hasLink && response === 0) shell.openExternal(info.url);
 }
 
+// يمسح نسخة الصفحات المحفوظة على الجهاز ويحمّلها من جديد من الموقع.
+// بيانات المتجر (localStorage) وتسجيل الدخول لا تُمس
+async function hardRefresh() {
+    if (!win) return;
+    if (!net.isOnline()) {
+        dialog.showMessageBox(win, { type: 'warning', title: 'التحديث', message: 'لا يوجد اتصال بالإنترنت', detail: 'تحتاج إنترنت لتحميل آخر نسخة من البرنامج.' });
+        return;
+    }
+    const ses = win.webContents.session;
+    try {
+        await ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+        await ses.clearCache();
+    } catch (e) { }
+    const current = win.webContents.getURL();
+    win.loadURL(isAppUrl(current) ? current : APP_URL);
+}
+
 // ===== القائمة =====
 function buildMenu() {
     const printerItems = [
@@ -250,6 +267,7 @@ function buildMenu() {
                 { label: 'الكاشير', accelerator: 'F3', click: () => win && win.loadURL(APP_BASE + 'cashier.html') },
                 { type: 'separator' },
                 { label: 'إعادة تحميل', accelerator: 'F5', click: () => win && win.webContents.reload() },
+                { label: 'تحديث البرنامج من الإنترنت', accelerator: 'Ctrl+F5', click: hardRefresh },
                 { label: 'ملء الشاشة', accelerator: 'F11', click: () => win && win.setFullScreen(!win.isFullScreen()) },
                 { type: 'separator' },
                 { label: 'تشغيل البرنامج مع ويندوز', type: 'checkbox', checked: settings.autoStart, click: item => { saveSettings({ autoStart: item.checked }); applyAutoStart(); } },

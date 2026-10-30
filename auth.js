@@ -216,8 +216,15 @@
         writeLog('logout', 'تسجيل خروج', 'خرج المستخدم ' + displayName(membership));
         try { sessionStorage.removeItem(PENDING_LOGIN_KEY); } catch (e) {}
 
-        await ensureClient();
-        await sb.auth.signOut();
+        // بدون إنترنت لا يرد الخادم، ومكتبة الدخول عندها تُبقي الجلسة؛ فننتظر 5 ثوانٍ على الأكثر
+        // ثم نحذف الجلسة من الجهاز بأنفسنا، حتى يتم الخروج في كل الأحوال
+        try {
+            await Promise.race([
+                ensureClient().then(() => sb.auth.signOut(navigator.onLine === false ? { scope: 'local' } : undefined)),
+                new Promise(resolve => setTimeout(resolve, 5000))
+            ]);
+        } catch (e) { }
+        localStorage.removeItem(SESSION_TOKEN_KEY);
         membership = null;
         localStorage.removeItem(MEMBERSHIP_KEY);
         // حتى لا يرى المستخدم التالي على هذا الجهاز بيانات متجر آخر
@@ -446,7 +453,8 @@
         let pending = 0;
         try { if (window.StoreSync) pending = await StoreSync.flush(10000); } catch (e) { }
         try { sessionStorage.setItem(FORCED_OUT_KEY, deviceBlockedMessage(dev)); } catch (e) { }
-        try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { }
+        try { await Promise.race([sb.auth.signOut({ scope: 'local' }), new Promise(r => setTimeout(r, 5000))]); } catch (e) { }
+        localStorage.removeItem(SESSION_TOKEN_KEY);
         membership = null;
         localStorage.removeItem(MEMBERSHIP_KEY);
         // تغييرات لم تُرفع تبقى على الجهاز حتى لا تضيع مبيعات مسجلة

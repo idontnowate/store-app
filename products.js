@@ -39,14 +39,43 @@
         return products.find(p => productName(p) === name) || null;
     }
 
+    // الكميات المباعة لكل المنتجات بمرور واحد على الفواتير، محفوظة لكل قائمة فواتير.
+    // (كان كل منتج يمر على كل الفواتير: 400 منتج × 4000 فاتورة تبطئ الهاتف ثواني)
+    // السطر برقم منتج يُحسب لرقمه فقط، والسطر القديم بلا رقم يُحسب لاسمه، تمامًا مثل matches()
+    // الحساب صالح خلال عملية الرسم الحالية فقط (يُمسح بعدها)، ويُعاد إن تغيّر عدد الفواتير
+    // أو آخر فاتورة فيها (الكاشير يضيف البيعة للقائمة نفسها ثم يعيد الحساب فورًا)
+    let soldIndex = new WeakMap();
+    let clearQueued = false;
+
+    function indexOf(invoices) {
+        let idx = soldIndex.get(invoices);
+        if (idx && idx.len === invoices.length && idx.last === invoices[invoices.length - 1]) return idx;
+        if (!clearQueued) {
+            clearQueued = true;
+            setTimeout(() => { soldIndex = new WeakMap(); clearQueued = false; }, 0);
+        }
+        idx = { byId: new Map(), byName: new Map(), len: invoices.length, last: invoices[invoices.length - 1] };
+        invoices.forEach(inv => {
+            if (!inv || !Array.isArray(inv.items)) return;
+            inv.items.forEach(it => {
+                if (!it) return;
+                const q = Number(it.qty || 0);
+                if (it.productId) idx.byId.set(it.productId, (idx.byId.get(it.productId) || 0) + q);
+                else {
+                    const n = itemName(it);
+                    idx.byName.set(n, (idx.byName.get(n) || 0) + q);
+                }
+            });
+        });
+        soldIndex.set(invoices, idx);
+        return idx;
+    }
+
     // الكمية المباعة من المنتج في قائمة فواتير
     function soldQty(product, invoices) {
-        return (invoices || []).reduce((s, inv) => {
-            if (!Array.isArray(inv.items)) return s;
-            return s + inv.items
-                .filter(it => matches(it, product))
-                .reduce((x, it) => x + Number(it.qty || 0), 0);
-        }, 0);
+        if (!product || !Array.isArray(invoices) || !invoices.length) return 0;
+        const idx = indexOf(invoices);
+        return (idx.byId.get(product.id) || 0) + (idx.byName.get(productName(product)) || 0);
     }
 
     // ترحيل لمرة واحدة: إضافة productId للأصناف القديمة حسب الاسم

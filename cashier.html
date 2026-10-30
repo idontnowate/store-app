@@ -20,16 +20,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الكاشير</title>
-    <script src="storage.js?v=202610390"></script>
+    <script src="storage.js?v=202610400"></script>
     <script src="rates.js?v=202610310"></script>
-    <script src="products.js?v=202610243"></script>
+    <script src="products.js?v=202610400"></script>
     <script src="log.js?v=202610231"></script>
     <script src="i18n-en.js?v=202610370"></script>
-    <script src="theme.js?v=202610390"></script>
-    <script src="pwa.js?v=202610390"></script>
+    <script src="theme.js?v=202610400"></script>
+    <script src="pwa.js?v=202610400"></script>
     <script src="print.js?v=202610252"></script>
     <script src="auth.js?v=202610370"></script>
-    <script src="layout.js?v=202610390"></script>
+    <script src="layout.js?v=202610400"></script>
     <script src="storefront.js?v=202610310"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="barcode-engine.js?v=202610242"></script>
@@ -701,9 +701,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610390">
-    <link rel="stylesheet" href="glass.css?v=202610390">
-    <link rel="stylesheet" href="aurora.css?v=202610390">
+    <link rel="stylesheet" href="design.css?v=202610400">
+    <link rel="stylesheet" href="glass.css?v=202610400">
+    <link rel="stylesheet" href="aurora.css?v=202610400">
 </head>
 
 <body>
@@ -899,10 +899,19 @@
         }
 
         // المتوفر = الافتتاحي + تعديلات المخزن والمشتريات − المباع في كل الفواتير
+        // تعديلات المخزون لكل منتج: تُقرأ مرة واحدة لكل رسم بدل مرة لكل منتج
+        let adjCache = null;
+        function adjustedOf(id) {
+            if (!adjCache) {
+                adjCache = new Map();
+                read('adjustments').forEach(a => adjCache.set(a.productId, (adjCache.get(a.productId) || 0) + Number(a.change || 0)));
+                setTimeout(() => { adjCache = null; }, 0);
+            }
+            return adjCache.get(id) || 0;
+        }
+
         function stockOf(p, list) {
-            const adjusted = read('adjustments')
-                .filter(a => a.productId === p.id)
-                .reduce((s, a) => s + Number(a.change || 0), 0);
+            const adjusted = adjustedOf(p.id);
             const sold = StoreProducts.soldQty(p, list);
             return Number(p.openingQty || 0) + adjusted - sold;
         }
@@ -1083,8 +1092,16 @@
         }
 
         // السلع تُعرض داخل خانات كل فئة
+        // أول 120 سلعة، والباقي بزر «عرض المزيد»: مئات البطاقات دفعة واحدة تبطئ الهاتف.
+        // البحث بالاسم أو الباركود يبحث في كل السلع كالعادة
+        const PROD_PAGE = 120;
+        let prodLimit = PROD_PAGE, prodKey = null, moreProdBtn = null;
+
         function renderProducts() {
             const q = el.search.value.trim().toLowerCase();
+            const key = activeCat + '|' + q;
+            if (key !== prodKey) { prodKey = key; prodLimit = PROD_PAGE; }
+            let budget = prodLimit;
 
             const list = products
                 .filter(p => activeCat === 'الكل' || catLabel(p) === activeCat)
@@ -1100,15 +1117,29 @@
             const labels = [...groups.keys()].sort((a, b) => a.localeCompare(b, 'ar'));
 
             el.area.innerHTML = labels.map(label => {
+                if (budget <= 0) return '';
                 const items = groups.get(label).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+                const shown = items.slice(0, budget);
+                budget -= shown.length;
                 return `
                 <section class="cat-section">
                     <h3 class="cat-title">${esc(label)} <span>(${num(items.length)} سلعة)</span></h3>
-                    <div class="grid">${items.map(prodHtml).join('')}</div>
+                    <div class="grid">${shown.map(prodHtml).join('')}</div>
                 </section>`;
             }).join('');
 
             el.empty.hidden = labels.length > 0;
+
+            const rest = list.length - prodLimit;
+            if (!moreProdBtn) {
+                moreProdBtn = document.createElement('button');
+                moreProdBtn.type = 'button';
+                moreProdBtn.className = 'show-more';
+                moreProdBtn.addEventListener('click', () => { prodLimit += PROD_PAGE; renderProducts(); });
+                el.area.insertAdjacentElement('afterend', moreProdBtn);
+            }
+            moreProdBtn.hidden = rest <= 0;
+            if (rest > 0) moreProdBtn.textContent = `عرض المزيد (باقي ${num(rest)} سلعة)`;
         }
 
         let usdNow = null;

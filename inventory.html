@@ -20,18 +20,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>المخزن</title>
-    <script src="storage.js?v=202610390"></script>
+    <script src="storage.js?v=202610400"></script>
     <script src="rates.js?v=202610310"></script>
-    <script src="products.js?v=202610243"></script>
+    <script src="products.js?v=202610400"></script>
     <script src="log.js?v=202610231"></script>
     <script src="barcode-engine.js?v=202610242"></script>
     <script src="barcode-camera.js?v=202610242"></script>
     <script src="scanbridge.js?v=202610310"></script>
     <script src="i18n-en.js?v=202610370"></script>
-    <script src="theme.js?v=202610390"></script>
-    <script src="pwa.js?v=202610390"></script>
+    <script src="theme.js?v=202610400"></script>
+    <script src="pwa.js?v=202610400"></script>
     <script src="auth.js?v=202610370"></script>
-    <script src="layout.js?v=202610390"></script>
+    <script src="layout.js?v=202610400"></script>
     <script src="storefront.js?v=202610310"></script>
     <script src="ai.js?v=202610270"></script>
     <style>
@@ -648,9 +648,9 @@
             font-weight: 500;
         }
     </style>
-    <link rel="stylesheet" href="design.css?v=202610390">
-    <link rel="stylesheet" href="glass.css?v=202610390">
-    <link rel="stylesheet" href="aurora.css?v=202610390">
+    <link rel="stylesheet" href="design.css?v=202610400">
+    <link rel="stylesheet" href="glass.css?v=202610400">
+    <link rel="stylesheet" href="aurora.css?v=202610400">
 </head>
 
 <body>
@@ -1065,6 +1065,8 @@
             return `<span dir="ltr">${usd}</span>${iqd !== null ? `<small class="usd-eq">≈ ${money(iqd)}</small>` : ''}`;
         }
 
+        let pager = null; // أول 100 سطر، والباقي بزر «عرض المزيد» (layout.js)
+
         function render() {
             const rate = StoreProducts.usdRate();
             const all = products.map(p => {
@@ -1080,7 +1082,7 @@
                 .filter(r => !q || `${r.p.name} ${r.p.category || ''} ${r.p.barcode || ''}`.toLowerCase().includes(q))
                 .sort((a, b) => a.p.name.localeCompare(b.p.name, 'ar'));
 
-            body.innerHTML = rows.map(({ p, qty, status, value }) => `
+            body.innerHTML = (pager || (pager = StorePager(body, render))).slice(rows, statusFilter + '|' + q + '|' + (onlyIds ? onlyIds.size : '')).map(({ p, qty, status, value }) => `
                 <tr>
                     <td>
                         <div class="name-cell">

@@ -393,6 +393,20 @@
         }
     }
 
+    /* ===== الهاتف والأجهزة الضعيفة: الضبابية الحية على عشرات البطاقات (منتجات الكاشير، الأسطر) تثقل التمرير.
+     * الخلفية تحتها تدرّج ناعم، فبدون الضبابية يبقى الشكل نفسه تقريبًا. تبقى الضبابية على الأشرطة والنوافذ ===== */
+    @media (max-width: 650px) {
+        html[data-glass="on"] :is(.card, .table-card, .form-card, .report, .logo-box, .summary-card, .stat, .prod, .ba-box, .set-nav) {
+            -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+        }
+    }
+
+    html[data-glass="on"][data-weak="on"] :is(.sidebar, .card, .table-card, .form-card, .report, .logo-box, .summary-card, .stat, .prod, .ba-box, .set-nav, .tab-bg, .nav-toggle, #themeBtn, #userBox) {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+
     /* ===== أجهزة لا تدعم الضبابية، أو طلب صاحبها تقليل الشفافية: نفس الشكل بطبقات معتمة ===== */
     @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
         html[data-glass="on"] {

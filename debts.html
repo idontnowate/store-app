@@ -20,14 +20,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الديون</title>
-    <script src="storage.js?v=202610390"></script>
+    <script src="storage.js?v=202610400"></script>
     <script src="rates.js?v=202610310"></script>
     <script src="log.js?v=202610231"></script>
     <script src="i18n-en.js?v=202610370"></script>
-    <script src="theme.js?v=202610390"></script>
-    <script src="pwa.js?v=202610390"></script>
+    <script src="theme.js?v=202610400"></script>
+    <script src="pwa.js?v=202610400"></script>
     <script src="auth.js?v=202610370"></script>
-    <script src="layout.js?v=202610390"></script>
+    <script src="layout.js?v=202610400"></script>
     <script src="storefront.js?v=202610310"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610251"></script>
@@ -689,9 +689,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="design.css?v=202610390">
-    <link rel="stylesheet" href="glass.css?v=202610390">
-    <link rel="stylesheet" href="aurora.css?v=202610390">
+    <link rel="stylesheet" href="design.css?v=202610400">
+    <link rel="stylesheet" href="glass.css?v=202610400">
+    <link rel="stylesheet" href="aurora.css?v=202610400">
 </head>
 
 <body>
@@ -996,6 +996,8 @@
                 .join(' ').toLowerCase().includes(q);
         }
 
+        let pager = null; // أول 100 سطر، والباقي بزر «عرض المزيد» (layout.js)
+
         function render() {
             const all = buildDebts();
             const q = searchInput.value.trim().toLowerCase();
@@ -1004,7 +1006,7 @@
                 .filter(d => matchesFilter(d) && matchesSearch(d, q))
                 .sort((a, b) => (a.inv.date || '').localeCompare(b.inv.date || '') || a.index - b.index);
 
-            body.innerHTML = rows.map(d => {
+            body.innerHTML = (pager || (pager = StorePager(body, render))).slice(rows, statusFilter + '|' + q).map(d => {
                 const closed = d.remaining <= 0;
                 return `<tr>
                     <td>${escapeHtml(d.inv.date)}</td>

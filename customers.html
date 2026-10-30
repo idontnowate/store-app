@@ -20,15 +20,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>الزبائن</title>
-    <script src="storage.js?v=202610390"></script>
+    <script src="storage.js?v=202610400"></script>
     <script src="rates.js?v=202610310"></script>
     <script src="log.js?v=202610231"></script>
     <script src="i18n-en.js?v=202610370"></script>
-    <script src="theme.js?v=202610390"></script>
-    <script src="pwa.js?v=202610390"></script>
+    <script src="theme.js?v=202610400"></script>
+    <script src="pwa.js?v=202610400"></script>
     <script src="print.js?v=202610252"></script>
     <script src="auth.js?v=202610370"></script>
-    <script src="layout.js?v=202610390"></script>
+    <script src="layout.js?v=202610400"></script>
     <script src="storefront.js?v=202610310"></script>
     <script src="whatsapp.js?v=202610243"></script>
     <script src="credit.js?v=202610251"></script>
@@ -669,9 +669,9 @@
             display: none;
         }
     </style>
-    <link rel="stylesheet" href="design.css?v=202610390">
-    <link rel="stylesheet" href="glass.css?v=202610390">
-    <link rel="stylesheet" href="aurora.css?v=202610390">
+    <link rel="stylesheet" href="design.css?v=202610400">
+    <link rel="stylesheet" href="glass.css?v=202610400">
+    <link rel="stylesheet" href="aurora.css?v=202610400">
 </head>
 
 <body>
@@ -824,6 +824,8 @@
         }
 
         // ===== القائمة =====
+        let pager = null; // أول 100 سطر، والباقي بزر «عرض المزيد» (layout.js)
+
         function render() {
             const all = StoreCredit.customers();
             const q = $('searchInput').value.trim().toLowerCase();
@@ -834,7 +836,7 @@
                 .filter(c => !q || c.name.toLowerCase().includes(q) || (digits.length >= 3 && String(c.phone || '').includes(digits.replace(/^0/, ''))))
                 .sort((a, b) => b.remaining - a.remaining || b.purchases - a.purchases);
 
-            $('rows').innerHTML = rows.map(c => `
+            $('rows').innerHTML = (pager || (pager = StorePager($('rows'), render))).slice(rows, filter + '|' + q).map(c => `
                 <tr>
                     <td><strong>${esc(c.name)}</strong>${c.overdue > 0 ? '<span class="late-badge">قسط متأخر</span>' : ''}</td>
                     <td class="phone-cell">${c.phone ? esc(StoreWA.displayPhone(c.phone)) : '—'}</td>

@@ -34,6 +34,8 @@
         const meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.content = aurora ? '#070912' : glass ? '#161618' : '#0b0c0e';
         root.dataset.motion = p.motion === 'off' ? 'off' : 'on';
+        // جهاز ضعيف (ذاكرة أو معالج قليل): glass.css يلغي الضبابية الحية
+        if (glass) root.dataset.weak = glassSupport().weak ? 'on' : 'off';
         root.lang = p.lang;
         root.dir = p.lang === 'en' ? 'ltr' : 'rtl';
     }

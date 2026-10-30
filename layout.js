@@ -25,7 +25,8 @@
     function playEntrance() {
         if (window.StoreTheme && StoreTheme.motionOff()) return;
         const root = document.documentElement;
-        const els = [...document.querySelectorAll(ENTER_SELECTOR)].filter(el => el.getClientRects().length);
+        // بدون فحص ظهور كل عنصر: الفحص يجبر المتصفح على ترتيب الصفحة كلها قبل أول رسم
+        const els = [...document.querySelectorAll(ENTER_SELECTOR)].filter(el => !el.hidden).slice(0, 12);
         els.forEach((el, i) => {
             el.classList.add('enter');
             el.style.setProperty('--enter-delay', Math.min(i, 8) * 45 + 'ms');
@@ -370,6 +371,38 @@
         if (document.documentElement.style.visibility !== 'hidden') playEntrance();
         else if (window.StoreAuth) StoreAuth.ready.then(ok => { if (ok) playEntrance(); });
     }
+
+    // ===== القوائم الطويلة: تُرسم أول 100 سطر، و«عرض المزيد» يضيف 100 =====
+    // آلاف الأسطر دفعة واحدة تجعل الصفحة تتأخر ثواني (خاصة على الهاتف حيث كل سطر بطاقة).
+    // الاستخدام: const pager = StorePager(tbody, render); ثم body.innerHTML = pager.slice(rows, مفتاح التصفية).map(...)
+    // المجاميع تُحسب من كل الأسطر كما هي؛ التصفية الجديدة (مفتاح مختلف) تبدأ من أول 100
+    const PAGE_SIZE = 100;
+    window.StorePager = function (tbody, rerender) {
+        let limit = PAGE_SIZE;
+        let lastKey = null;
+        const table = tbody.closest('table') || tbody;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'show-more';
+        btn.hidden = true;
+        btn.addEventListener('click', () => {
+            limit += PAGE_SIZE;
+            rerender();
+        });
+        (table.closest('.table-wrap') || table).insertAdjacentElement('afterend', btn);
+        return {
+            slice(rows, key) {
+                if (key !== undefined && key !== lastKey) {
+                    lastKey = key;
+                    limit = PAGE_SIZE;
+                }
+                const rest = rows.length - limit;
+                btn.hidden = rest <= 0;
+                if (rest > 0) btn.textContent = `عرض المزيد (باقي ${rest.toLocaleString('en-US')})`;
+                return rest > 0 ? rows.slice(0, limit) : rows;
+            }
+        };
+    };
 
     // ===== الجداول على الهاتف: كل سطر بطاقة، وكل خانة بعنوان عمودها (التنسيق في design.css) =====
     const SKIP_TABLE = '#printSheet, #receipt, #printArea, .no-stack, .ps-table';

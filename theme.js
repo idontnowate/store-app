@@ -23,14 +23,16 @@
         return (p || getPrefs()).motion === 'off' || REDUCED.matches;
     }
 
-    // «زجاج» (glass.css) مبني على ألوان الوضع الداكن
+    // «زجاج» (glass.css) مبني على ألوان الوضع الداكن، و«زجاجي ملوّن» (aurora.css) مبني على الزجاج
     function applyRoot(p) {
         const root = document.documentElement;
-        const glass = p.theme === 'glass';
+        const aurora = p.theme === 'aurora';
+        const glass = p.theme === 'glass' || aurora;
         root.dataset.theme = glass ? 'dark' : p.theme;
         root.dataset.glass = glass ? 'on' : 'off';
+        root.dataset.aurora = aurora ? 'on' : 'off';
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.content = glass ? '#161618' : '#0b0c0e';
+        if (meta) meta.content = aurora ? '#070912' : glass ? '#161618' : '#0b0c0e';
         root.dataset.motion = p.motion === 'off' ? 'off' : 'on';
         root.lang = p.lang;
         root.dir = p.lang === 'en' ? 'ltr' : 'rtl';

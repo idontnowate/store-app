@@ -1,0 +1,195 @@
+/* aurora.css — مظهر «زجاجي ملوّن»: زجاج داكن فوق إضاءة فيروزية وبنفسجية، وأرقام متوهجة
+ *
+ * مبني على glass.css: theme.js يضع data-glass="on" و data-aurora="on" معًا، فيأخذ كل تنسيق الزجاج
+ * (الأسطح، النوافذ، شريط التبويب للهاتف، البدائل المعتمة للأجهزة الضعيفة) ويغيّر هنا الألوان والإضاءة فقط.
+ * يُحمَّل بعد glass.css.
+ */
+@media screen {
+    /* ===== الألوان ===== */
+    html[data-aurora="on"] {
+        --bg: #070912;
+        --surface: rgba(255, 255, 255, .08);
+        --surface-2: rgba(255, 255, 255, .05);
+        --surface-3: rgba(255, 255, 255, .11);
+        --border: rgba(255, 255, 255, .13);
+        --border-strong: rgba(255, 255, 255, .22);
+        --text: #eef2ff;
+        --text-2: #dbe3f5;
+        --muted: #a3b0c7;
+        --faint: #7d8aa3;
+
+        --primary: #0891b2;
+        --primary-hover: #06b6d4;
+        --primary-text: #ffffff;
+
+        --accent: #22d3ee;
+        --accent-soft: rgba(34, 211, 238, .15);
+        --accent-text: #67e8f9;
+        --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, .14);
+        --danger-text: #fca5a5;
+        --warn: #fbbf24;
+        --warn-soft: rgba(251, 191, 36, .13);
+        --warn-text: #fcd34d;
+        --info: #818cf8;
+        --info-soft: rgba(129, 140, 248, .15);
+        --info-text: #a5b4fc;
+
+        --hero-bg: radial-gradient(90% 90% at 100% 0%, rgba(34, 211, 238, .30), transparent 65%), radial-gradient(80% 80% at 0% 100%, rgba(139, 92, 246, .30), transparent 65%), rgba(255, 255, 255, .07);
+        --hero-text: #ffffff;
+        --hero-muted: rgba(226, 232, 255, .75);
+
+        --ring: rgba(34, 211, 238, .4);
+        --shadow-md: 0 14px 36px rgba(0, 0, 0, .45);
+        --shadow-lg: 0 26px 64px -12px rgba(0, 0, 0, .7);
+
+        --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .11) 0%, rgba(255, 255, 255, .03) 100%), rgba(120, 140, 255, .04);
+        --glass-strong: linear-gradient(180deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, 0) 60%), rgba(14, 18, 36, .78);
+        --glass-blur: blur(22px) saturate(160%);
+        --glass-edge: rgba(255, 255, 255, .14);
+        --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .2);
+        --glass-shadow: 0 16px 40px rgba(0, 0, 0, .45);
+        --glass-wallpaper:
+            radial-gradient(40% 50% at 88% 6%, rgba(14, 165, 233, .38) 0%, transparent 70%),
+            radial-gradient(45% 55% at 8% 92%, rgba(168, 85, 247, .38) 0%, transparent 70%),
+            radial-gradient(35% 45% at 55% 55%, rgba(20, 184, 166, .2) 0%, transparent 70%),
+            #070912;
+    }
+
+    html[data-aurora="on"] {
+        background: #070912 !important;
+    }
+
+    /* ===== بطاقات الأرقام: لكل بطاقة لون إضاءة، والرقم يتوهج بلونها ===== */
+    html[data-aurora="on"] .stat,
+    html[data-aurora="on"] .summary-card {
+        --glow: 34, 211, 238;
+        position: relative;
+        background: radial-gradient(90% 80% at 100% 0%, rgba(var(--glow), .2), transparent 65%), var(--glass-bg) !important;
+    }
+
+    html[data-aurora="on"] .stat:nth-child(5n+2),
+    html[data-aurora="on"] .summary-card:nth-child(5n+2) { --glow: 52, 211, 153; }
+    html[data-aurora="on"] .stat:nth-child(5n+3),
+    html[data-aurora="on"] .summary-card:nth-child(5n+3) { --glow: 167, 139, 250; }
+    html[data-aurora="on"] .stat:nth-child(5n+4),
+    html[data-aurora="on"] .summary-card:nth-child(5n+4) { --glow: 96, 165, 250; }
+    html[data-aurora="on"] .stat:nth-child(5n+5),
+    html[data-aurora="on"] .summary-card:nth-child(5n+5) { --glow: 244, 114, 182; }
+    /* بطاقات التحذير (ديون، نفاد) تبقى بلون التحذير */
+    html[data-aurora="on"] .summary-card.warn { --glow: 251, 191, 36; }
+
+    /* نقطة مضيئة في زاوية البطاقة */
+    html[data-aurora="on"] .stat::after,
+    html[data-aurora="on"] .summary-card:not(.warn)::after {
+        content: "";
+        position: absolute;
+        top: 16px;
+        inset-inline-end: 16px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgb(var(--glow));
+        box-shadow: 0 0 12px rgb(var(--glow));
+        pointer-events: none;
+    }
+
+    html[data-aurora="on"] .stat .value,
+    html[data-aurora="on"] .summary-card .value {
+        color: #fff !important;
+        text-shadow: 0 0 22px rgba(var(--glow), .55);
+    }
+
+    /* البطاقة الأهم (الربح، الإجمالي): إضاءتان فيروزية وبنفسجية */
+    html[data-aurora="on"] .summary-card.main,
+    html[data-aurora="on"] .stat.hero {
+        background: var(--hero-bg) !important;
+        border-color: rgba(255, 255, 255, .2) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 18px 44px rgba(0, 0, 0, .5), 0 0 40px rgba(34, 211, 238, .12) !important;
+    }
+
+    /* ===== القائمة الجانبية ===== */
+    html[data-aurora="on"] .sidebar nav a.active,
+    html[data-aurora="on"] .sidebar nav a[aria-current="page"],
+    html[data-aurora="on"] .set-nav a.current {
+        background: linear-gradient(90deg, rgba(34, 211, 238, .2), rgba(139, 92, 246, .2)) !important;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), 0 0 24px rgba(34, 211, 238, .14) !important;
+        color: #fff !important;
+    }
+
+    /* ===== الأزرار ===== */
+    html[data-aurora="on"] .btn:not(.secondary):not(.view):not(.ok):not(.more):not(.small):not(.remove):not(.danger):not(.cancel),
+    html[data-aurora="on"] .add-button,
+    html[data-aurora="on"] .submit,
+    html[data-aurora="on"] button.primary {
+        background: linear-gradient(180deg, rgba(255, 255, 255, .18) 0%, rgba(255, 255, 255, 0) 55%), linear-gradient(135deg, #06b6d4, #8b5cf6) !important;
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, .22) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 10px 26px rgba(139, 92, 246, .35) !important;
+    }
+
+    html[data-aurora="on"] .chip.active {
+        background: linear-gradient(135deg, rgba(34, 211, 238, .3), rgba(139, 92, 246, .3)) !important;
+        border-color: rgba(255, 255, 255, .25) !important;
+        color: #fff !important;
+    }
+
+    /* ===== الحقول والجداول ===== */
+    html[data-aurora="on"] input:focus,
+    html[data-aurora="on"] select:focus,
+    html[data-aurora="on"] textarea:focus {
+        border-color: rgba(34, 211, 238, .7) !important;
+        box-shadow: 0 0 0 3px rgba(34, 211, 238, .18) !important;
+    }
+
+    html[data-aurora="on"] table th {
+        color: var(--muted) !important;
+    }
+
+    html[data-aurora="on"] tbody tr:hover td {
+        background: rgba(34, 211, 238, .06) !important;
+    }
+
+    /* ===== شريط التبويب للهاتف ===== */
+    @media (max-width: 650px) {
+        html[data-aurora="on"] .glass-tabbar {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .12) 0%, rgba(255, 255, 255, 0) 60%), rgba(14, 18, 36, .7) !important;
+        }
+
+        html[data-aurora="on"] .glass-tabbar [aria-current="page"] {
+            color: #67e8f9;
+            background: linear-gradient(135deg, rgba(34, 211, 238, .22), rgba(139, 92, 246, .22));
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 18px rgba(34, 211, 238, .2);
+        }
+    }
+
+    /* ===== صفحة الدخول ===== */
+    html[data-aurora="on"] .login-card {
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 30px 80px rgba(0, 0, 0, .6), 0 0 60px rgba(139, 92, 246, .15) !important;
+    }
+}
+
+/* أجهزة لا تدعم الضبابية، ومن طلب تقليل الشفافية من إعدادات جهازه: نفس الألوان بطبقات معتمة */
+@media screen {
+    @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+        html[data-aurora="on"] {
+            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .07) 0%, rgba(255, 255, 255, 0) 60%), #121628;
+            --glass-strong: #141a30;
+        }
+
+        html[data-aurora="on"] .glass-tabbar {
+            background: #141a30 !important;
+        }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+        html[data-aurora="on"] {
+            --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .07) 0%, rgba(255, 255, 255, 0) 60%), #121628;
+            --glass-strong: #141a30;
+        }
+
+        html[data-aurora="on"] .glass-tabbar {
+            background: #141a30 !important;
+        }
+    }
+}

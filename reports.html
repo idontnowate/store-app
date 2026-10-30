@@ -6,8 +6,8 @@
     (function () {
         try {
             var p = JSON.parse(localStorage.getItem('storePrefs') || '{}');
-            var glass = p.theme === 'glass'; var dark = glass || p.theme === 'dark' || (!p.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-            document.documentElement.style.background = glass ? '#161618' : dark ? '#0b0c0e' : '#f6f6f7';
+            var glass = p.theme === 'glass' || p.theme === 'aurora'; var dark = glass || p.theme === 'dark' || (!p.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.style.background = p.theme === 'aurora' ? '#070912' : glass ? '#161618' : dark ? '#0b0c0e' : '#f6f6f7';
             document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
         } catch (e) {}
     })();
@@ -24,9 +24,9 @@
 <script src="rates.js?v=202610310"></script>
     <script src="products.js?v=202610243"></script>
 <script src="log.js?v=202610231"></script>
-<script src="i18n-en.js?v=202610320"></script>
-    <script src="theme.js?v=202610310"></script>
-    <script src="pwa.js?v=202610320"></script>
+<script src="i18n-en.js?v=202610330"></script>
+    <script src="theme.js?v=202610330"></script>
+    <script src="pwa.js?v=202610330"></script>
 <script src="auth.js?v=202610310"></script>
 <script src="layout.js?v=202610260"></script>
 <script src="storefront.js?v=202610310"></script>
@@ -439,6 +439,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="design.css?v=202610320">
     <link rel="stylesheet" href="glass.css?v=202610290">
+    <link rel="stylesheet" href="aurora.css?v=202610330">
 </head>
 
 <body>

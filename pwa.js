@@ -66,8 +66,8 @@
             start_url: abs('home.html'),
             scope: base,
             display: 'standalone',
-            background_color: '#0b0c0e',
-            theme_color: '#0b0c0e',
+            background_color: '#070912',
+            theme_color: '#070912',
             icons: [
                 { src: abs('icons/icon-192.png'), sizes: '192x192', type: 'image/png' },
                 { src: abs('icons/icon-512.png'), sizes: '512x512', type: 'image/png' },
@@ -95,7 +95,7 @@
     // ===== وصول التحديثات =====
     // رقم نسخة هذه الملفات. يُرفع مع version.json في كل تحديث للبرنامج.
     // إذا وجد الجهاز على الموقع نسخة أحدث من التي فتحها (صفحة محفوظة قديمة) يعرض زر "تحديث الآن"
-    const BUILD = 202610400;
+    const BUILD = 202610410;
     let updateBar = null;
 
     async function checkVersion() {

@@ -3,7 +3,10 @@
     // لوحة المزود لها مظهرها الخاص، منفصل عن مظهر المتجر على نفس الجهاز
     const PREFS_KEY = /(^|\/)provider\.html$/i.test(location.pathname) ? 'providerPrefs' : 'storePrefs';
     // إعدادات خاصة بهذا الجهاز (لا تُزامن): المظهر، اللغة، الحركة، الطباعة
-    const DEFAULTS = { theme: 'dark', lang: 'ar', motion: 'on', autoPrint: true, receiptWidth: '80' };
+    // المظهر الافتراضي للمتجر «زجاجي ملوّن»؛ لوحة المزود تبقى على الداكن.
+    // من اختار مظهرًا من قبل يبقى على اختياره
+    const DEFAULT_THEME = PREFS_KEY === 'providerPrefs' ? 'dark' : 'aurora';
+    const DEFAULTS = { theme: DEFAULT_THEME, lang: 'ar', motion: 'on', autoPrint: true, receiptWidth: '80' };
     const REDUCED = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
     // القاموس في i18n-en.js
@@ -248,7 +251,7 @@
     function toggleTheme(origin) {
         const p = getPrefs();
         const dark = p.theme !== 'light';
-        setPrefs(dark ? { theme: 'light', darkTheme: p.theme } : { theme: p.darkTheme || 'dark' }, origin);
+        setPrefs(dark ? { theme: 'light', darkTheme: p.theme } : { theme: p.darkTheme || (DEFAULT_THEME === 'light' ? 'dark' : DEFAULT_THEME) }, origin);
     }
 
     // هل يدعم المتصفح الضبابية؟ (بدونها يظهر الزجاج بطبقات معتمة)، وتقدير قوة الجهاز
